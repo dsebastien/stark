@@ -1,11 +1,10 @@
 {
-  "name": "angular-starter",
-  "version": "7.0.0",
-  "description":
-    "An Angular Webpack Starter kit featuring Angular (Router, Http, Forms, Services, Tests, E2E, Coverage), Karma, Protractor, Jasmine, Istanbul, TypeScript, and Webpack by AngularClass",
-  "keywords": ["angular", "angular2", "angular4", "angular5", "webpack", "typescript", "tipe", "tipe.io"],
-  "author": "Patrick Stapleton <patrick@tipe.io>",
-  "homepage": "https://github.com/gdi2290/angular-starter",
+  "name": "stark-starter",
+  "version": "0.0.1",
+  "description": "Stark - Starter",
+  "keywords": ["angular", "angular5", "webpack", "typescript"],
+  "author": "Stark Team <sebastien.dubois@nbb.be>",
+  "homepage": "https://github.com/nationalbankbelgium/stark",
   "license": "MIT",
   "scripts": {
     "build:aot:prod":
@@ -64,6 +63,7 @@
     "start": "npm run server:dev",
     "start:aot": "npm run server:aot:dev",
     "test": "npm run lint && karma start",
+    "tsc": "tsc",
     "tslint": "tslint",
     "typedoc": "typedoc",
     "version": "npm run build",
@@ -91,7 +91,8 @@
     "@angular/platform-server": "5.2.6",
     "@angular/router": "5.2.6",
     "@nationalbankbelgium/angular-mdi-svg": "1.6.0",
-    "@nationalbankbelgium/stark-build": "file:../dist/packages/stark-build/nationalbankbelgium-stark-build-0.0.0-PLACEHOLDER.tgz",
+    "@nationalbankbelgium/stark-build": "10.0.0-alpha.1",
+    "@nationalbankbelgium/stark-core": "10.0.0-alpha.1",
     "@uirouter/angular": "1.0.1",
     "@uirouter/visualizer": "6.0.0",
     "core-js": "2.5.3",
