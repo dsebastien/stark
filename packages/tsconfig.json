@@ -12,7 +12,5 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true
   },
-  "exclude": [
-    "stark-build/config-stark"
-  ]
+  "exclude": ["stark-build/config-stark"]
 }

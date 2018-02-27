@@ -37,3 +37,6 @@ Icon?
 pids
 *.pid
 *.seed
+
+# Patch files
+*.patch

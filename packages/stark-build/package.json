@@ -3,9 +3,7 @@
   "version": "0.0.0-PLACEHOLDER-VERSION",
   "description": "Stark - Build",
   "author": "Stark Team",
-  "contributors": [
-    "PLACEHOLDER-CONTRIBUTORS"
-  ],
+  "contributors": ["PLACEHOLDER-CONTRIBUTORS"],
   "license": "MIT",
   "bugs": "https://github.com/nationalbankbelgium/stark/issues",
   "homepage": "https://github.com/nationalbankbelgium/stark",
@@ -75,8 +73,6 @@
     "webpack-sha-hash": "2.0.0",
     "write-file-webpack-plugin": "4.2.0"
   },
-  "devDependencies": {
-  },
-  "scripts": {
-  }
+  "devDependencies": {},
+  "scripts": {}
 }

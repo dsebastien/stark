@@ -3,4 +3,4 @@
 // replaces this file with production index.ts when it rewrites private symbol
 // names.
 
-export * from './public_api';
+export * from "./public_api";
