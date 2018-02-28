@@ -155,7 +155,8 @@ do
           rm -rf ${NPM_DIR} && mkdir -p ${NPM_DIR}
 
           logInfo "Copy $PACKAGE typings from $OUT_DIR to $NPM_DIR"
-          syncFiles $OUT_DIR $NPM_DIR "-a" "--exclude='*.js'" "--exclude='*.js.map'"
+          syncOptions=(-a --exclude="*.js" --exclude="*.js.map")   
+          syncFiles $OUT_DIR $NPM_DIR "${syncOptions[@]}"
        
           #cd $SRC_DIR > /dev/null
           logDebug "Rollup $PACKAGE" 1
@@ -174,7 +175,8 @@ do
         logInfo "Copy $PACKAGE package.json to $NPM_DIR"
         # FIXME exclude node modules!
         travisFoldStart "copy package.json for: ${PACKAGE}" "no-xtrace"
-        syncFiles $SRC_DIR $NPM_DIR "-am" "--include='package.json'" "--exclude='node_modules/*'" "--exclude='rollup.config.js'" "--exclude='*.ts'" "--exclude='*/*.ts'" "--include='*'" "--exclude='*'"
+        syncOptions=(-am --include="package.json" --exclude="node_modules/" --exclude="rollup.config.js" --exclude="*.ts" --exclude="*/*.ts" --include="*" --exclude="*")
+        syncFiles $SRC_DIR $NPM_DIR "${syncOptions[@]}"
         #cp $SRC_DIR/package.json $NPM_DIR/
         travisFoldEnd "copy package.json for: ${PACKAGE}"
       travisFoldEnd "build package: ${PACKAGE}"
@@ -185,7 +187,8 @@ do
       
       # contents only need to be copied to the destination folder
       logInfo "Copy ${PACKAGE} to ${OUT_DIR}"
-      syncFiles $SRC_DIR $OUT_DIR "-a" "--exclude='package-lock.json'" "--exclude='node_modules/'" "--exclude='config-stark/'"
+      syncOptions=(-a --include="package-lock.json" --exclude="node_modules/" --exclude="config-stark/")
+      syncFiles $SRC_DIR $OUT_DIR "${syncOptions[@]}"
   
       logInfo "Copy $PACKAGE contents"
       syncFiles $OUT_DIR $NPM_DIR "-a"

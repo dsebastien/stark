@@ -47,7 +47,7 @@ logInfo() {
 # Arguments:
 #   param1 - Source folder
 #   param2 - Destination folder
-#   param3 - Options
+#   param3 - Options {Array}
 #######################################
 syncFiles() {
   logTrace "${FUNCNAME[0]}" 1
@@ -58,9 +58,9 @@ syncFiles() {
 	
   logTrace "Syncing files using: rsync" 2
   if [[ ${TRACE} == true ]]; then
-    rsync $@ ./ $REL_PATH_TO_DESTINATION/ -v
+    rsync "${@}" ./ $REL_PATH_TO_DESTINATION/ -v
   else
-    rsync $@ ./ $REL_PATH_TO_DESTINATION/
+    rsync "${@}" ./ $REL_PATH_TO_DESTINATION/
   fi
   cd - > /dev/null; # go back to the previous folder without any output
 }
