@@ -3,7 +3,9 @@
   "version": "0.0.0-PLACEHOLDER-VERSION",
   "description": "Stark - Build",
   "author": "Stark Team",
-  "contributors": ["PLACEHOLDER-CONTRIBUTORS"],
+  "contributors": [
+    "PLACEHOLDER-CONTRIBUTORS"
+  ],
   "license": "MIT",
   "bugs": "https://github.com/nationalbankbelgium/stark/issues",
   "homepage": "https://github.com/nationalbankbelgium/stark",
