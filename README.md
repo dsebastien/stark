@@ -4,7 +4,7 @@
 	</a>
 </p>
 
-> An Angular 6+ based front-end framework built on top of [Angular](https://angular.io)...
+> An Angular 22-based front-end framework built on top of [Angular](https://angular.dev/)...
 > Stark features a reusable build aligned with Angular's native build tooling and built-in support for state of the art front-end tech
 
 [![NPM version](https://img.shields.io/npm/v/@nationalbankbelgium/stark-core.svg?logo=npm&logoColor=fff&label=npm+package&color=limegreen)](https://www.npmjs.com/package/@nationalbankbelgium/stark-core)
@@ -36,8 +36,8 @@ Stark modules are like LEGO blocks: add what you need, no less, no more. If you 
 
 Stark's reusable build integrates support for:
 
-- Angular optimizations: [AOT](https://angular.io/docs/ts/latest/cookbook/aot-compiler.html), lazy loading with [UI-Router](https://github.com/angular-ui/ui-router)
-- [TypeScript](https://www.typescriptlang.org/), [@types](https://www.npmjs.com/~types), [TSLint](http://palantir.github.io/tslint/), [Codelyzer](https://github.com/mgechev/codelyzer)
+- Angular optimizations: AOT compilation and lazy loading with [UI-Router](https://github.com/angular-ui/ui-router)
+- [TypeScript](https://www.typescriptlang.org/), [ESLint](https://eslint.org/), and [Angular ESLint](https://angular-eslint.io/)
 - Code formatting with [Prettier](https://prettier.io/)
 - HTML templating and generated head metadata for Stark applications
 - [PostCSS](http://postcss.org/) with CSSNext, nesting, prefixing, ...
@@ -52,19 +52,10 @@ Stark's reusable build integrates support for:
 - Assets copying
 - Security with a DEV mode [Content Security Policy (CSP)](https://content-security-policy.com/) enabled
 - Local testing with fake back-ends using [json-server](https://github.com/typicode/json-server)
-- Router visualization with [UI-Router Visualizer](https://github.com/ui-router/visualizer)
 
 ## Stark packaging
 
-All the Stark packages are built following the [Angular Package Format](https://docs.google.com/document/d/1CZC2rcpxffTDfRDs6p1cfbmKNLA6x5O-NtkJglDaBVs/preview) so the following bundles are provided:
-
-- FESM2015
-- FESM5
-- ESM2015
-- ESM5
-- UMD
-
-So they can be consumed by [Angular CLI](https://github.com/angular/angular-cli), [SystemJS](https://github.com/systemjs/systemjs), or other compatible bundlers.
+All Stark libraries follow the current [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). Published packages provide ESM2022/FESM2022 code, typings, explicit package exports, and Sass entry points where applicable. They are intended for Angular CLI and other modern ESM-aware build tools.
 
 ## Developer guide
 
@@ -147,9 +138,3 @@ We're supported by [Jetbrains](https://www.jetbrains.com) and their awesome [sup
 We're supported by [GitHub Actions](https://github.com/features/actions)
 
 <a href="https://github.com/features/actions"><img src="https://github.githubassets.com/images/modules/site/features/actions-icon-actions.svg" width="144px"></a>
-
-### BrowserStack
-
-We're supported by [BrowserStack](https://www.browserstack.com)
-
-<a href="https://www.browserstack.com"><img src="http://www.browserstack.com/images/layout/browserstack-logo-600x315.png" width="144px"></a>

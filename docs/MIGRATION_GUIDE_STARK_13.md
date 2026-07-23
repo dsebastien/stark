@@ -370,18 +370,19 @@ Use a browser query supported by Angular 22. The starter currently uses:
 
 ```text
 [production]
-baseline widely available on 2025-10-20
+baseline widely available on 2026-05-07
 
 [modern]
-baseline widely available on 2025-10-20
+baseline widely available on 2026-05-07
 
 [ssr]
 node 22
 
-baseline widely available on 2025-10-20
+baseline widely available on 2026-05-07
 ```
 
 Avoid broad queries such as `last 8 versions`, which can select browser releases outside Angular 22's supported range and produce CLI warnings.
+The date above matches the Baseline date embedded in the repository's `@angular/build` 22.0.8 release; recheck it when intentionally upgrading the Angular build line.
 
 ## Step 3: Migrate unit tests to Vitest
 
@@ -550,6 +551,8 @@ Prefer:
 
 Do not expose Material implementation classes as a new downstream contract. Stark keeps stable hooks such as `stark-dropdown-mat-form-field` for that reason.
 
+The repository's reviewed selector inventory and rationale for each remaining compatibility bridge are recorded in [Material 22 compatibility](./stark-ui/MATERIAL_22_COMPATIBILITY.md).
+
 Common host classes now include `.mat-mdc-form-field`, `.mat-mdc-button`, `.mat-mdc-icon-button`, `.mat-mdc-card`, `.mat-mdc-dialog-container`, `.mat-mdc-snack-bar-container`, `.mat-mdc-table`, and `.mat-mdc-list-item`.
 
 For dialog tests, the element remains `mat-dialog-container`; the MDC host selector is:
@@ -574,6 +577,10 @@ export type StarkFormButtonClick = VoidFunction;
 ```
 
 Update callbacks that relied on incompatible parameters or return types. Calls that already matched the documented behavior require no runtime change.
+
+Translation contracts are also more precise. `StarkLocale.translations` now uses ngx-translate's `TranslationObject`, and `commonCoreTranslations` is a language-code keyed record rather than an array-shaped object. Valid nested translation objects remain source-compatible; replace casts or array operations that depended on the former broad declarations.
+
+The Stark-owned mask implementation exports its consumer configuration types directly from `@nationalbankbelgium/stark-ui/src/modules/input-mask-directives`, including `StarkTextMaskConfig`, `StarkNumberMaskConfig`, `StarkTimestampMaskConfig`, `StarkMask`, and the pipe/result types. Existing directive inputs and formatted values are preserved; consumers must no longer import types from the abandoned `angular2-text-mask` or `text-mask-*` packages.
 
 `stringMap` now has an explicit serializer-factory signature and accepts an optional target type. Existing valid calls remain supported.
 
@@ -604,7 +611,7 @@ Do not copy showcase pixel overrides into an application unless that application
 
 ### Application bootstrap and routes
 
-Keep the existing Stark bootstrap flow, but remove application code that manually integrates Webpack HMR. Angular's dev server now owns HMR lifecycle management.
+Keep the existing Stark bootstrap flow, but remove application code that manually integrates Webpack HMR. Angular's dev server now owns HMR lifecycle management. `AbstractStarkMain.bootstrapHmr` was a protected Webpack-specific extension point and has been removed; subclasses must delete overrides or calls to it.
 
 Review route names and redirects while upgrading UI-Router. Invalid state names that were previously tolerated can now surface as transition rejections. Route hooks must return valid deregistration callbacks.
 

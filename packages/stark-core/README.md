@@ -11,6 +11,8 @@ Stark's Core package (aka stark-core) provides the foundations of the Stark fram
 
 **[Getting Started](https://stark.nbb.be/api-docs/stark-core/latest/additional-documentation/getting-started.html)**
 
+Upgrading from Stark 12? Follow the consolidated [Stark 13 migration guide](../../docs/MIGRATION_GUIDE_STARK_13.md).
+
 ## Testing subpackage
 
 Stark Core comes also with the subpackage `@nationalbankbelgium/stark-core/testing` which contains the mock classes that come in hand

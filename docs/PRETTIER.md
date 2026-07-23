@@ -1,50 +1,15 @@
 # Prettier
 
-> Specification for the package [Prettier](https://github.com/prettier/prettier) used in Stark
+Stark uses [Prettier](https://prettier.io/) for source and documentation formatting.
 
-## Basic features
+Run the repository formatter from the root:
 
-Stark allows you to prettify your code with `Prettier`.
-You can do it whenever you want with the script `prettier-check`
-
-```
-$ npm run prettier-check
+```shell
+npm run prettier-check
 ```
 
-## Prettier configuration
+The root, starter, and showcase configurations extend the shared configuration published by `@nationalbankbelgium/stark-build`. `.prettierignore` lists generated and third-party files that must not be formatted.
 
-The main Prettier configuration file is located in `stark-build`.
-The ones located in `starter`, `showcase` and the other one located in the root just reference the `stark-build` configuration file
+ESLint owns TypeScript and Angular correctness rules; Stylelint owns stylesheet correctness rules. Their configurations avoid formatting rules that conflict with Prettier. `npm run lint` runs the maintained lint gates, while `npm run stylelint-check` checks the Stylelint/Prettier configuration boundary.
 
-## Conflicts with TSLint and Stylelint
-
-The configurations of `TSLint` and `Stylelint` can conflict with `Prettier`.
-It's why we use [tslint-config-prettier](https://github.com/alexjoverm/tslint-config-prettier) and
-[stylelint-config-prettier](https://github.com/shannonmoeller/stylelint-config-prettier)
-
-To check if your configuration of `TSLint` conflicts with `Prettier`, you can run the script `tslint-check` :
-
-```
-$ npm run tslint-check
-```
-
-To check if your configuration of `Stylelint` conflicts with `Prettier`, you can run the script `stylelint-check` :
-
-```
-$ npm run stylelint-check
-```
-
-By default, Stark tslint configuration extends tslint-config-prettier to avoid conflicts and
-stylelint configuration extends stylelint-config-prettier for the same reason
-
-## Ignored files
-
-`.prettierignore` file contains all the files which won't be prettified by `Prettier`
-
-## Git hook
-
-Before every commit, `Prettier` will prettify all the modified code.
-This is done by using [Husky](https://github.com/typicode/husky)
-and [Lint-staged](https://github.com/okonet/lint-staged) to execute `Prettier`
-for every changed files before every commit so you won't need to execute it manually
-before you commit your code
+Husky and lint-staged format supported changed files before a commit. Run the root formatter explicitly when changing shared configuration or when validating the complete tree.

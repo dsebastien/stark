@@ -7,6 +7,8 @@
 
 # Stark Testing
 
+Upgrading from Stark 12? Follow the testing steps in the consolidated [Stark 13 migration guide](../../docs/MIGRATION_GUIDE_STARK_13.md#step-3-migrate-unit-tests-to-vitest).
+
 Stark's testing module (aka stark-testing) now provides the shared Vitest reporting helper used by the Angular 22 test path in this repository.
 The older shared Karma/Jasmine launcher configuration has been retired from the maintained baseline.
 
