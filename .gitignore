@@ -74,9 +74,6 @@ bash.exe.stackdump
 *.shim.ngstyle.ts
 **/.angular/
 
-# Starter exception
-starter/package-lock.json
-
 # Stark-build exception
 packages/stark-build/package-lock.json
 

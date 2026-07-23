@@ -14,32 +14,21 @@
     "url": "https://github.com/NationalBankBelgium/stark.git"
   },
   "engines": {
-    "node": ">=18.17.1",
-    "npm": ">=10.1.0"
+    "node": ">=22.22.3",
+    "npm": ">=10.9.4"
   },
   "types": "typings/index.d.ts",
-  "dependencies": {
-    "@angular-builders/custom-webpack": "^16.0.1",
-    "@angular-devkit/build-angular": "^16.2.16",
-    "@types/webpack": "^5.28.0",
-    "eslint-webpack-plugin": "^4.0.1",
-    "moment-locales-webpack-plugin": "^1.2.0",
-    "prettier": "~3.3.3",
-    "stylelint": "^13.11.0",
-    "stylelint-config-prettier": "^8.0.2",
-    "stylelint-webpack-plugin": "~2.1.0",
-    "webpack-bundle-analyzer": "^4.10.1"
-  },
   "peerDependencies": {
-    "@angular/cli": "^16.2.14",
-    "@angular/compiler": "^16.2.12",
-    "@angular/compiler-cli": "^16.2.12",
-    "@angular/platform-browser": "^16.2.12",
-    "@angular/platform-browser-dynamic": "^16.2.12"
+    "@angular/cli": "^22.0.1",
+    "@angular/compiler": "^22.0.1",
+    "@angular/compiler-cli": "^22.0.1",
+    "@angular/platform-browser": "^22.0.1",
+    "@angular/platform-browser-dynamic": "^22.0.1"
   },
   "scripts": {
     "clean": "npx rimraf dist",
     "clean:modules": "npx rimraf ./node_modules package-lock.json",
-    "clean:all": "npm run clean && npm run clean:modules"
+    "clean:all": "npm run clean && npm run clean:modules",
+    "test": "node --test \"tests/**/*.test.js\""
   }
 }

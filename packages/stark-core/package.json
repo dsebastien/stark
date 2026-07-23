@@ -14,21 +14,17 @@
     "url": "https://github.com/NationalBankBelgium/stark.git"
   },
   "engines": {
-    "node": ">=18.17.1",
-    "npm": ">=10.1.0"
+    "node": ">=22.22.3",
+    "npm": ">=10.9.4"
   },
   "dependencies": {
-    "@angularclass/hmr": "^3.0.0",
-    "@ng-idle/core": "^14.0.0",
-    "@ng-idle/keepalive": "^14.0.0",
-    "@ngrx/effects": "^16.3.0",
-    "@ngrx/store": "^16.3.0",
-    "@ngrx/store-devtools": "^16.3.0",
-    "@ngx-translate/core": "^15.0.0",
-    "@types/lodash-es": "^4.17.4",
-    "@types/uuid": "^10.0.0",
-    "@uirouter/angular": "^12.0.0",
-    "@uirouter/core": "^6.1.1",
+    "@ng-idle/core": "^16.0.0",
+    "@ng-idle/keepalive": "^16.0.0",
+    "@ngrx/effects": "22.0.0-beta.0",
+    "@ngrx/store": "22.0.0-beta.0",
+    "@ngrx/store-devtools": "22.0.0-beta.0",
+    "@ngx-translate/core": "^17.0.0",
+    "@uirouter/core": "^6.1.2",
     "@uirouter/rx": "~1.0.0",
     "cerialize": "^0.1.18",
     "class-validator": "0.14.1",
@@ -37,32 +33,32 @@
     "lodash-es": "^4.17.21",
     "moment": "^2.22.2",
     "tslib": "^2.7.0",
-    "uuid": "^10.0.0"
+    "uuid": "^11.1.1"
+  },
+  "devDependencies": {
+    "@types/lodash-es": "^4.17.4"
   },
   "peerDependencies": {
-    "@angular/common": "^16.2.12",
-    "@angular/compiler": "^16.2.12",
-    "@angular/core": "^16.2.12",
-    "@angular/router": "^16.2.12"
+    "@angular/common": "^22.0.1",
+    "@angular/compiler": "^22.0.1",
+    "@angular/core": "^22.0.1",
+    "@angular/router": "^22.0.1",
+    "@uirouter/angular": "^21.0.0 || ^22.0.0"
   },
   "scripts": {
     "clean": "npx rimraf dist",
     "clean:modules": "npx rimraf ./node_modules package-lock.json",
     "clean:all": "npm run clean && npm run clean:modules",
-    "docs": "compodoc",
-    "docs:coverage": "npm run docs -- --coverageTest 85 --coverageTestThresholdFail true",
-    "docs:serve": "npm run docs -- --watch --serve --port 4321",
     "ng": "ng",
     "ngc": "node ../../node_modules/@angular/compiler-cli/src/main.js -p ./tsconfig.json",
-    "ngcc": "ngcc",
     "lint": "npm run lint-es && npm run lint-css",
     "lint-es": "ng lint",
     "lint-es:fix": "ng lint --fix",
     "lint-css": "node ../../node_modules/stylelint/bin/stylelint \"./(src|assets)/**/*.?(pc|sc|c|sa)ss\" --formatter \"string\" --allow-empty-input",
     "test": "npm run lint && npm run test-fast",
     "test:ci": "npm run lint && npm run test-fast:ci",
-    "test-fast": "npm run ng test",
-    "test-fast:ci": "ng test --watch=false --code-coverage",
+    "test-fast": "node ../../node_modules/@angular/cli/bin/ng.js test",
+    "test-fast:ci": "node ../../node_modules/@angular/cli/bin/ng.js test --watch=false --coverage",
     "tsc": "node ../../node_modules/typescript/bin/tsc -p ./tsconfig.json"
   }
 }
