@@ -1,14 +1,16 @@
+@use "@angular/material" as mat;
+
 .layout-demo {
   > * {
     text-align: center;
     padding: 10px;
 
-    background-color: mat-color($primary-palette, 500);
-    color: mat-contrast($primary-palette, 500);
+    background-color: mat.m2-get-color-from-palette($primary-palette, 500);
+    color: mat.m2-get-contrast-color-from-palette($primary-palette, 500);
 
     &.accent {
-      background-color: mat-color($accent-palette, 500);
-      color: mat-contrast($accent-palette, 500);
+      background-color: mat.m2-get-color-from-palette($accent-palette, 500);
+      color: mat.m2-get-contrast-color-from-palette($accent-palette, 500);
     }
   }
 }

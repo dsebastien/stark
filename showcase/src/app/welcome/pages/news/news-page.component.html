@@ -1,6 +1,28 @@
-<div class="mat-display-3">What's new in Stark?</div>
+<div class="mat-headline-2">What's new in Stark?</div>
 
 <div class="top-news">
+	<news-item [release]="'12.0.4-angular-22'" [newsDate]="'20/07/2026'">
+		<div class="news-image fourth-news-image"></div>
+		<h2 class="news-item-title">Angular 22 migration in progress</h2>
+
+		<div class="news-item-content">
+			<p>
+				The Stark workspace has been migrated to Angular 22, the native Angular build pipeline, and Vitest-based unit testing. The
+				showcase has also been refreshed to document the current runtime requirements and browser support baseline.
+			</p>
+			<a
+				class="button custom-news-page-button"
+				href="https://github.com/NationalBankBelgium/stark/blob/master/CHANGELOG.md"
+				target="_blank"
+				rel="noopener noreferrer"
+			>
+				Changelog
+			</a>
+		</div>
+	</news-item>
+</div>
+
+<div class="news-container">
 	<news-item [release]="'10.0.0-beta.3'" [newsDate]="'06/02/2019'">
 		<div class="news-image fourth-news-image"></div>
 		<h2 class="news-item-title">10.0.0-beta.3 Released!</h2>
@@ -20,9 +42,7 @@
 			</a>
 		</div>
 	</news-item>
-</div>
 
-<div class="news-container">
 	<news-item [release]="'10.0.0-beta.2'" [newsDate]="'14/01/2019'">
 		<div class="news-image third-news-image"></div>
 		<h2 class="news-item-title">10.0.0-beta.2 Released!</h2>

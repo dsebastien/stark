@@ -8,6 +8,7 @@ import {
 } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-toast",
 	styleUrls: ["./demo-toast.component.scss"],
 	templateUrl: "./demo-toast.component.html"

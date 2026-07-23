@@ -8,8 +8,12 @@ import { starkProgressIndicatorReducers } from "./reducers";
 import { StarkProgressIndicatorComponent } from "./components";
 
 @NgModule({
-	declarations: [StarkProgressIndicatorDirective, StarkProgressIndicatorComponent],
-	imports: [CommonModule, StoreModule.forFeature(starkProgressIndicatorStoreKey, starkProgressIndicatorReducers)],
+	declarations: [StarkProgressIndicatorDirective],
+	imports: [
+		CommonModule,
+		StarkProgressIndicatorComponent,
+		StoreModule.forFeature(starkProgressIndicatorStoreKey, starkProgressIndicatorReducers)
+	],
 	exports: [StarkProgressIndicatorDirective]
 })
 export class StarkProgressIndicatorModule {

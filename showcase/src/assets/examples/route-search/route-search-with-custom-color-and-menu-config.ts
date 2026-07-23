@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { StarkMenuConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-route-search",
 	templateUrl: "./demo-route-search.component.html",
 	styleUrls: ["./demo-route-search-page.component.scss"]

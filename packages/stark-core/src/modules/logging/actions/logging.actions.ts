@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 import { StarkLogMessage } from "../entities";
 import { starkLoggingStoreKey } from "../constants";
 
@@ -29,8 +29,4 @@ export const logMessage = createAction(`[${starkLoggingStoreKey}] Log Message`, 
  */
 export const flushLogMessages = createAction(`[${starkLoggingStoreKey}] Flush Log`, props<{ numberOfMessagesToFlush: number }>());
 
-/**
- * @ignore
- */
-const all = union({ setLoggingApplicationId, logMessage, flushLogMessages });
-export type Types = typeof all;
+export type Types = ReturnType<typeof setLoggingApplicationId> | ReturnType<typeof logMessage> | ReturnType<typeof flushLogMessages>;

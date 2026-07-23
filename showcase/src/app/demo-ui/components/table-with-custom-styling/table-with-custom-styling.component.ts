@@ -17,10 +17,10 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-custom-styling",
 	templateUrl: "./table-with-custom-styling.component.html",
 	styleUrls: ["./table-with-custom-styling.component.scss"],
-	/* eslint-disable-next-line @angular-eslint/use-component-view-encapsulation */
 	encapsulation: ViewEncapsulation.None // Important
 })
 export class TableWithCustomStylingComponent {

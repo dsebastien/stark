@@ -17,6 +17,7 @@ export interface ExampleFile {
 }
 
 @Component({
+	standalone: false,
 	// eslint-disable-next-line @angular-eslint/component-selector
 	selector: "example-viewer",
 	templateUrl: "./example-viewer.component.html",

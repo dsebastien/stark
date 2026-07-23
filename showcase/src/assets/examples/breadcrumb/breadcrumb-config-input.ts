@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { StarkBreadcrumbConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-breadcrumb",
 	templateUrl: "./demo-breadcrumb.component.html"
 })

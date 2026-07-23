@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import isEqual from "lodash-es/isEqual";
 import {
 	AfterViewInit,
@@ -28,10 +29,12 @@ const componentName = "stark-slider";
  * Component to display a slider with one or more handles
  */
 @Component({
+	standalone: true,
 	selector: "stark-slider",
 	templateUrl: "./slider.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName

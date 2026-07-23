@@ -21,6 +21,7 @@ const directiveName = "[starkHideOnPermission]";
  * </div>
  */
 @Directive({
+	standalone: false,
 	selector: directiveName
 })
 export class StarkHideOnPermissionDirective implements OnInit, OnDestroy {

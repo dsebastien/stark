@@ -11,9 +11,9 @@ groupings trying to match Angular concepts:
 
 ```txt
 |
+|       angular.json                                   # Angular build/serve configuration (define, dev-server headers, generated index input)
 +---config
-|       index-head-config.js                         # defines all the Head tags to be added by Webpack to the app index.html
-|       webpack-custom-config.dev.json               # webpack configuration for the development environment
+|       index-head-config.js                         # defines additional <head> tags injected into the generated index.html
 |
 +---src
 |   |
@@ -22,7 +22,6 @@ groupings trying to match Angular concepts:
 |   |   |   app.component.html                       # application template
 |   |   |   app.component.spec.ts                    # unit tests for the app component
 |   |   |   app.component.ts                         # app root component and controller
-|   |   |   app.e2e.ts                               # end-to-end tests for the app class
 |   |   |   app.module.ts                            # main application module (configures Angular module, ...)
 |   |   |   app.routes.ts                            # root routing configuration
 |   |   |   app.services.ts                          # exports the application state
@@ -56,7 +55,6 @@ groupings trying to match Angular concepts:
 |   |   |   |   |       baz.component.html           # template for this dumb component
 |   |   |   |   |       baz.component.spec.ts        # unit tests for this dumb component
 |   |   |   |   |       baz.component.ts             # component class for this dumb component
-|   |   |   |   |       baz.e2e.ts                   # end-to-end tests for this dumb component
 |   |   |   |   |
 |   |   |   |   \---...
 |   |   |   |
@@ -131,8 +129,7 @@ groupings trying to match Angular concepts:
 |   |       service-worker.js           # support for building Progressive Web Applications (PWA) with Service Workers
 |   |
 |   +---environments                    # configuration variables for each environment
-|   |       environment.e2e.prod.ts     # production environment configuration for e2e tests
-|   |       environment.hmr.ts          # development with HMR (Hot Module Replacement) environment configuration
+|   |       environment.hmr.ts          # development with Angular dev-server HMR configuration
 |   |       environment.prod.ts         # production environment configuration
 |   |       environment.ts              # development environment configuration
 |   |
@@ -154,16 +151,13 @@ groupings trying to match Angular concepts:
 |   .stylelintrc                        # stylelint configuration file
 |   .travis.yml                         # YAML file to customize the Travis build (https://travis-ci.com/)
 |   angular.json                        # Angular configuration file
-|   base.spec.ts                        # initializes the test environment
+|   base.vitest.spec.ts                 # initializes the Vitest test environment
 |   Dockerfile                          # the commands that will be executed by the Docker Build command
-|   karma.conf.js                       # Karma configuration file
 |   package.json                        #
-|   protractor.conf.js                  # protractor configuration file
 |   README.md                           # this document
 |   tsconfig.app.json                   # typescript configuration for the application, extends tsconfig.json
-|   tsconfig.e2e.json                   # typescript configuration for the e2e tests, extends tsconfig.json
 |   tsconfig.json                       # TypeScript configuration, extends the Angular 22 preset from code-style
-|   tsconfig.spec.json                  # typescript configuration for the Karma tests, extends tsconfig.json
+|   tsconfig.spec.json                  # typescript configuration for the Vitest unit tests, extends tsconfig.json
 \   tslint.json                         # tslint configuration file
 ```
 
@@ -218,10 +212,10 @@ TODO review/complete; see #34
 ### Running the app
 
 After you have installed all dependencies you can now run the app.
-Run `npm run server` to start a local (development) server using `webpack-dev-server` which will watch, build (in-memory), and reload for you.
-The port will be displayed to you as `http://0.0.0.0:3000` (or if you prefer IPv6, if you're using `express` server, then it's `http://[::1]:3000/`).
+Run `npm run server` to start the local Angular dev server, which watches the app, rebuilds it in memory, and reloads the browser for you.
+By default it opens on `http://localhost:3000/`.
 
-You may enable Hot Module Replacement (HMR) using:
+You may enable Angular dev-server Hot Module Replacement (HMR) using:
 
 ```bash
 npm run server:dev:hmr
@@ -253,6 +247,8 @@ npm run build:aot
 
 ### Hot Module Replacement (HMR) mode
 
+Angular's dev server handles the HMR runtime; no extra Webpack bootstrap is required.
+
 ```bash
 npm run server:dev:hmr
 ```
@@ -275,26 +271,11 @@ npm run test
 npm run watch:test
 ```
 
-### Run end-to-end tests
+### Continuous Integration (CI): run unit tests and production build
 
 ```bash
-# update Webdriver (optional, done automatically by postinstall script)
-npm run webdriver:update # cfr #35
-# this will start a test server and launch Protractor
-npm run e2e
-```
-
-### Continuous Integration (CI): run unit tests and e2e tests together
-
-```bash
-# this will test both your JIT and AoT builds
+# this runs lint, unit tests, and the production build
 npm run ci
-```
-
-### Run Protractor's elementExplorer (for end-to-end)
-
-```bash
-npm run e2e:live
 ```
 
 ### Build Docker
@@ -372,7 +353,7 @@ We have good experience using these editors:
 
 > Install [Debugger for Chrome](https://marketplace.visualstudio.com/items?itemName=msjsdiag.debugger-for-chrome) and see docs for instructions to launch Chrome
 
-The included `.vscode` automatically connects to the webpack development server on port `3000`.
+The included `.vscode` automatically connects to the Angular dev server on port `3000`.
 
 ## Deployment
 
@@ -478,7 +459,7 @@ docker run -e VIRTUAL_HOST=stark-starter.your-domain.com --name stark-starter st
 ## Frequently asked questions
 
 - How do I start the app when I get `EACCES` and `EADDRINUSE` errors?
-  - The `EADDRINUSE` error means the port `3000` is currently being used and `EACCES` is lack of permission for webpack to build files to `./dist/`
+  - The `EADDRINUSE` error means the port `3000` is currently being used and `EACCES` is lack of permission for the Angular toolchain to write generated files under `./dist/`
 - Error: Cannot find module 'tapable'
   - Remove `node_modules/` and run `npm cache clean` then `npm install`
 - How do I turn on Hot Module Replacement

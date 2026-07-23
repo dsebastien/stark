@@ -6,17 +6,26 @@ import { Inject, Injectable } from "@angular/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { StarkProgressIndicatorService, starkProgressIndicatorServiceName } from "./progress-indicator.service.intf";
 import { StarkProgressIndicatorActions } from "../actions";
-import { StarkProgressIndicatorFullConfig, StarkProgressIndicatorFullConfigImpl, StarkProgressIndicatorType } from "../entities";
+import { StarkProgressIndicatorConfig } from "../entities/progress-indicator-config.entity.intf";
+import { StarkProgressIndicatorFullConfigImpl } from "../entities/progress-indicator-full-config.entity";
+import { StarkProgressIndicatorType } from "../entities/progress-indicator-type.entity";
 import { selectStarkProgressIndicator } from "../reducers";
 import { StarkUIApplicationState } from "@nationalbankbelgium/stark-ui/src/common";
+
+type ProgressIndicatorStateConfig = StarkProgressIndicatorConfig & {
+	visible?: boolean;
+	listenersCount?: number;
+	pendingListenersCount?: number;
+	type: StarkProgressIndicatorType;
+};
 
 /**
  * @ignore
  */
 @Injectable()
 export class StarkProgressIndicatorServiceImpl implements StarkProgressIndicatorService {
-	protected progressIndicatorMap$: Observable<Map<string, StarkProgressIndicatorFullConfig>>;
-	protected progressIndicatorMap: Map<string, StarkProgressIndicatorFullConfig> = new Map();
+	protected progressIndicatorMap$: Observable<Map<string, ProgressIndicatorStateConfig>>;
+	protected progressIndicatorMap: Map<string, ProgressIndicatorStateConfig> = new Map();
 
 	/**
 	 * Map containing a subject per topic
@@ -37,7 +46,7 @@ export class StarkProgressIndicatorServiceImpl implements StarkProgressIndicator
 
 		this.progressIndicatorMap$ = this.store.pipe(select(selectStarkProgressIndicator));
 
-		this.progressIndicatorMap$.subscribe((progressIndicatorMap: Map<string, StarkProgressIndicatorFullConfig>) => {
+		this.progressIndicatorMap$.subscribe((progressIndicatorMap: Map<string, ProgressIndicatorStateConfig>) => {
 			this.progressIndicatorMap = progressIndicatorMap;
 		});
 
@@ -49,7 +58,7 @@ export class StarkProgressIndicatorServiceImpl implements StarkProgressIndicator
 	 * a REFRESH_CONFIG action is dispatched to increase the listenersCount by 1
 	 */
 	public register(topic: string, type: StarkProgressIndicatorType): void {
-		const progressIndicatorConfig: StarkProgressIndicatorFullConfig = new StarkProgressIndicatorFullConfigImpl(topic, type, false);
+		const progressIndicatorConfig: ProgressIndicatorStateConfig = new StarkProgressIndicatorFullConfigImpl(topic, type, false);
 		this.store.dispatch(StarkProgressIndicatorActions.register({ progressIndicatorConfig: progressIndicatorConfig }));
 	}
 
@@ -152,7 +161,7 @@ export class StarkProgressIndicatorServiceImpl implements StarkProgressIndicator
 
 	public isVisible(topic: string): Observable<boolean | undefined> {
 		return this.progressIndicatorMap$.pipe(
-			map((progressIndicatorMap: Map<string, StarkProgressIndicatorFullConfig> | undefined) => {
+			map((progressIndicatorMap: Map<string, ProgressIndicatorStateConfig> | undefined) => {
 				const progressIndicator = progressIndicatorMap ? progressIndicatorMap.get(topic) : undefined;
 				if (!progressIndicator) {
 					return undefined;

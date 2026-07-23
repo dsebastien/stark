@@ -26,7 +26,7 @@
     }
 
     .pagination-items-per-page {
-      width: 50px;
+      width: 82px;
     }
 
     .page-numbers {
@@ -36,9 +36,9 @@
 
   @media #{$tablet-query} {
     .stark-pagination > div {
-      font-size: mat.font-size(stark-typography.$typography-config, caption);
-      font-weight: mat.font-weight(stark-typography.$typography-config, caption);
-      line-height: mat.line-height(stark-typography.$typography-config, caption);
+      font-size: mat.m2-font-size(stark-typography.$typography-config, caption);
+      font-weight: mat.m2-font-weight(stark-typography.$typography-config, caption);
+      line-height: mat.m2-line-height(stark-typography.$typography-config, caption);
 
       .pagination-enter-page {
         align-items: center;

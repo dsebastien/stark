@@ -5,7 +5,7 @@ import moment from "moment";
 import { from, Observable, of } from "rxjs";
 import { take } from "rxjs/operators";
 import { StarkXSRFService, starkXSRFServiceName } from "./xsrf.service.intf";
-import { STARK_XSRF_CONFIG, StarkXSRFConfig } from "./xsrf-config.intf";
+import { STARK_XSRF_CONFIG, StarkXSRFConfig, StarkXSRFWaitBeforePingingLiteral } from "./xsrf-config.intf";
 import { StarkHttpHeaders } from "../../http/constants";
 import { StarkHttpStatusCodes } from "../../http/enumerators";
 import { STARK_APP_CONFIG, StarkApplicationConfig } from "../../../configuration/entities";
@@ -179,7 +179,7 @@ export class StarkXSRFServiceImpl implements StarkXSRFService {
 	 */
 	protected getWaitBeforePingingObs(): Observable<any> {
 		if (this.configOptions && this.configOptions.waitBeforePinging) {
-			let waitBeforePingingFn: Function;
+			let waitBeforePingingFn: StarkXSRFWaitBeforePingingLiteral["waitBeforePingingFn"];
 			let waitBeforePingingDeps: any[] = [];
 
 			if (typeof this.configOptions.waitBeforePinging === "object") {

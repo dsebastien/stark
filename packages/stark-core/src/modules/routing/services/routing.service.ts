@@ -43,6 +43,26 @@ interface StarkState {
 	params?: RawParams;
 }
 
+type StarkTransitionHookDeregister = VoidFunction;
+
+/**
+ * Returns the internal UI-Router state object when the state is already registered.
+ *
+ * @param state - The state declaration to inspect.
+ */
+function getRegisteredStateObject(state: StateDeclaration): StateObject | undefined {
+	return state.$$state?.();
+}
+
+/**
+ * Checks whether the provided value is a transition-hook deregistration callback.
+ *
+ * @param value - The candidate deregistration callback.
+ */
+function isTransitionHookDeregister(value: unknown): value is StarkTransitionHookDeregister {
+	return typeof value === "function";
+}
+
 /**
  * @ignore
  */
@@ -166,15 +186,16 @@ export class StarkRoutingServiceImpl implements StarkRoutingService {
 			paramValues[key] = value;
 		}
 
-		const matchedState: StateDeclaration[] = this.getStatesConfig().filter(
-			(state: StateDeclaration) => (<Function>state.$$state)().url && (<Function>state.$$state)().url.exec(path, undefined, hash)
+		const matchedState: StateDeclaration | undefined = this.getStatesConfig().find(
+			(state: StateDeclaration) => !!getRegisteredStateObject(state)?.url?.exec(path, undefined, hash)
 		);
+		const matchedParamValues = matchedState ? getRegisteredStateObject(matchedState)?.url?.exec(path, undefined, hash) : undefined;
 
-		if (matchedState.length) {
+		if (matchedState && matchedParamValues) {
 			targetRoute = {
-				state: matchedState[0],
+				state: matchedState,
 				paramValues: {
-					...(<Function>matchedState[0].$$state)().url.exec(path, undefined, hash),
+					...matchedParamValues,
 					...paramValues
 				}
 			};
@@ -263,31 +284,41 @@ export class StarkRoutingServiceImpl implements StarkRoutingService {
 		switch (lifecycleHook) {
 			case StarkRoutingTransitionHook.ON_BEFORE:
 				// see: https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onbefore
-				return <() => void>this.$transitions.onBefore(matchCriteria, <TransitionHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onBefore(matchCriteria, <TransitionHookFn>callback, options));
 			case StarkRoutingTransitionHook.ON_START:
 				// see https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onstart
-				return <() => void>this.$transitions.onStart(matchCriteria, <TransitionHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onStart(matchCriteria, <TransitionHookFn>callback, options));
 			case StarkRoutingTransitionHook.ON_EXIT:
 				// see: https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onexit
-				return <() => void>this.$transitions.onExit(matchCriteria, <TransitionStateHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onExit(matchCriteria, callback, options));
 			case StarkRoutingTransitionHook.ON_RETAIN:
 				// see: https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onretain
-				return <() => void>this.$transitions.onRetain(matchCriteria, <TransitionStateHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onRetain(matchCriteria, callback, options));
 			case StarkRoutingTransitionHook.ON_ENTER:
 				// see: https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onenter
-				return <() => void>this.$transitions.onEnter(matchCriteria, <TransitionStateHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onEnter(matchCriteria, callback, options));
 			case StarkRoutingTransitionHook.ON_FINISH:
 				// see: https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onfinish
-				return <() => void>this.$transitions.onFinish(matchCriteria, <TransitionHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onFinish(matchCriteria, <TransitionHookFn>callback, options));
 			case StarkRoutingTransitionHook.ON_SUCCESS:
 				// see: https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onsuccess
-				return <() => void>this.$transitions.onSuccess(matchCriteria, <TransitionHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onSuccess(matchCriteria, <TransitionHookFn>callback, options));
 			case StarkRoutingTransitionHook.ON_ERROR:
 				// see: https://ui-router.github.io/ng2/docs/latest/classes/transition.transitionservice.html#onerror
-				return <() => void>this.$transitions.onError(matchCriteria, <TransitionHookFn>callback, options);
+				return this.wrapTransitionHookDeregister(this.$transitions.onError(matchCriteria, <TransitionHookFn>callback, options));
 			default:
 				throw new Error(starkRoutingServiceName + ": lifecycle hook unknown => " + lifecycleHook);
 		}
+	}
+
+	private wrapTransitionHookDeregister(deregisterHook: unknown): () => void {
+		if (!isTransitionHookDeregister(deregisterHook)) {
+			throw new Error(starkRoutingServiceName + ": invalid transition hook deregistration callback");
+		}
+
+		return (): void => {
+			deregisterHook();
+		};
 	}
 
 	/**
@@ -598,7 +629,7 @@ export class StarkRoutingServiceImpl implements StarkRoutingService {
 	// TODO How to fetch translationKey from the State resolves without navigating to that state?
 	public getTranslationKeyFromState(stateName: string): string {
 		const stateTreeResolves: Map<string, any> = this.getStateTreeResolves();
-		const stateData: object = this.$state.get(stateName).data;
+		const stateData: Record<string, unknown> | undefined = this.$state.get(stateName).data;
 
 		let stateTranslationKey: string | undefined;
 		// get the translationKey in case it is defined as a resolve in the state definition
@@ -608,7 +639,8 @@ export class StarkRoutingServiceImpl implements StarkRoutingService {
 		// if not found in the resolves then check the state's data object
 		// eslint-disable-next-line no-prototype-builtins
 		if (stateData && !stateTranslationKey && stateData.hasOwnProperty("translationKey")) {
-			stateTranslationKey = stateData["translationKey"];
+			const translationKey = stateData["translationKey"];
+			stateTranslationKey = typeof translationKey === "string" ? translationKey : undefined;
 		}
 		// if no translationKey so far, then the state name is used
 		if (!stateTranslationKey) {

@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import {
 	AfterViewInit,
 	ChangeDetectionStrategy,
@@ -5,6 +6,7 @@ import {
 	Component,
 	ElementRef,
 	EventEmitter,
+	forwardRef,
 	Inject,
 	Input,
 	OnDestroy,
@@ -14,6 +16,10 @@ import {
 	ViewChild,
 	ViewEncapsulation
 } from "@angular/core";
+import { MatExpansionModule } from "@angular/material/expansion";
+import { MatIconModule } from "@angular/material/icon";
+import { MatListModule } from "@angular/material/list";
+import { TranslateModule } from "@ngx-translate/core";
 import { MatExpansionPanel } from "@angular/material/expansion";
 import {
 	STARK_LOGGING_SERVICE,
@@ -45,10 +51,12 @@ const DEFAULT_MENU_GROUP: StarkMenuGroup = {
  * Component to display app-menu-item based on the options passed as parameters.
  */
 @Component({
+	standalone: true,
 	selector: "stark-app-menu-item",
 	templateUrl: "./app-menu-item.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatExpansionModule, MatIconModule, MatListModule, TranslateModule, forwardRef(() => StarkAppMenuItemComponent)],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName
@@ -112,12 +120,12 @@ export class StarkAppMenuItemComponent extends AbstractStarkUiComponent implemen
 	/**
 	 * Routing transition finish callback
 	 */
-	private routingTransitionFinishCallback?: Function;
+	private routingTransitionFinishCallback?: VoidFunction;
 
 	/**
 	 * Routing transition success callback
 	 */
-	private routingTransitionSuccessCallback?: Function;
+	private routingTransitionSuccessCallback?: VoidFunction;
 
 	/**
 	 * Class constructor

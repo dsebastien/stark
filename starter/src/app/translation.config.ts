@@ -5,13 +5,13 @@ import "moment/locale/nl-be";
 /* eslint-enable import/no-unassigned-import */
 // no need to load the English locale since we use US English and Moment default language is just that one (see https://momentjs.com/docs/#/i18n/changing-locale/)
 
-import { TranslateService } from "@ngx-translate/core";
+import { TranslateService, type TranslationObject } from "@ngx-translate/core";
 import { DateAdapter } from "@angular/material/core";
 import { mergeTranslations, StarkLocale } from "@nationalbankbelgium/stark-core";
 
-const translationsEn: object = require("../assets/translations/en.json");
-const translationsFr: object = require("../assets/translations/fr.json");
-const translationsNl: object = require("../assets/translations/nl.json");
+const translationsEn = <TranslationObject>require("../assets/translations/en.json");
+const translationsFr = <TranslationObject>require("../assets/translations/fr.json");
+const translationsNl = <TranslationObject>require("../assets/translations/nl.json");
 
 /* eslint-disable-next-line jsdoc/require-jsdoc */
 export function initializeTranslation(translateService: TranslateService, dateAdapter: DateAdapter<any>): void {

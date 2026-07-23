@@ -22,6 +22,7 @@ export const STARK_DEFAULT_VIEW_BOX_SIZE = 24;
  *  - {@link https://github.com/angular/material2/issues/5488|Angular Material issue #5488}
  */
 @Directive({
+	standalone: false,
 	selector: directiveName
 })
 export class StarkSvgViewBoxDirective implements AfterViewChecked, OnInit {

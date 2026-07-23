@@ -44,13 +44,13 @@ export const DEMO_STATES: (Ng2StateDeclaration | StarkRBACStateDeclaration)[] = 
 	},
 	{
 		name: "demo-rbac.protected-page-super-admin",
-		url: "/protected-page-manager",
+		url: "/protected-page-super-admin",
 		data: {
 			translationKey: "SHOULD NEVER BE SHOWN",
 			permissions: {
 				only: ["super-admin"],
 				redirectTo: {
-					stateName: "news"
+					stateName: "welcome.news"
 				}
 			}
 		},

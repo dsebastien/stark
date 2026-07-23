@@ -1,4 +1,5 @@
 @use "@angular/material" as mat;
+@use "@angular/material/core/m2" as mat-m2;
 @use "@nationalbankbelgium/stark-ui" as stark-ui;
 @use "@nationalbankbelgium/stark-ui/styles/media-queries" as *;
 
@@ -44,7 +45,7 @@
 
     &.active {
       color: #fff;
-      background-color: mat.get-color-from-palette(stark-ui.$primary-palette, 500);
+      background-color: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 500);
     }
   }
 }
@@ -52,22 +53,22 @@
 /* creating a new dark theme color */
 .stark-message-pane {
   &.dark {
-    @include stark-ui.stark-message-pane-color(mat.get-color-from-palette(stark-ui.$grey-palette, A100));
+    @include stark-ui.stark-message-pane-color(mat.m2-get-color-from-palette(stark-ui.$grey-palette, A100));
 
     .inner {
-      background-color: mat.get-color-from-palette(mat.$dark-theme-background-palette, background);
+      background-color: mat.m2-get-color-from-palette(mat-m2.$dark-theme-background-palette, background);
     }
 
     .errors > mat-icon {
-      fill: mat.get-color-from-palette(stark-ui.$alert-palette, 500);
+      fill: mat.m2-get-color-from-palette(stark-ui.$alert-palette, 500);
     }
 
     .warnings > mat-icon {
-      fill: mat.get-color-from-palette(stark-ui.$warning-palette, 500);
+      fill: mat.m2-get-color-from-palette(stark-ui.$warning-palette, 500);
     }
 
     .infos > mat-icon {
-      fill: mat.get-color-from-palette(stark-ui.$primary-palette, 500);
+      fill: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 500);
     }
   }
 }

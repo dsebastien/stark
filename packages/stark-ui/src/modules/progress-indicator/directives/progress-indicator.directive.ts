@@ -1,5 +1,5 @@
 import {
-	ComponentFactoryResolver,
+	ComponentRef,
 	Directive,
 	ElementRef,
 	Inject,
@@ -8,11 +8,11 @@ import {
 	OnDestroy,
 	OnInit,
 	Renderer2,
-	ViewContainerRef,
-	ViewRef
+	ViewContainerRef
 } from "@angular/core";
 import { STARK_PROGRESS_INDICATOR_SERVICE, StarkProgressIndicatorService } from "../services";
-import { StarkProgressIndicatorConfig, StarkProgressIndicatorType } from "../entities";
+import { StarkProgressIndicatorConfig } from "../entities/progress-indicator-config.entity.intf";
+import { StarkProgressIndicatorType } from "../entities/progress-indicator-type.entity";
 import { Subscription } from "rxjs";
 import { StarkProgressIndicatorComponent } from "../components";
 
@@ -21,7 +21,7 @@ import { StarkProgressIndicatorComponent } from "../components";
  */
 const directiveName = "[starkProgressIndicator]";
 
-/* eslint-disable jsdoc/check-alignment,jsdoc/check-indentation */
+/* eslint-disable jsdoc/check-alignment */
 /**
  * This directive must be used as attribute on a DOM element and the config provided should be a {@link StarkProgressIndicatorConfig} object:
  *
@@ -45,8 +45,9 @@ this.progressService.show(this.progressIndicatorConfig.topic);
 this.progressService.hide(this.progressIndicatorConfig.topic);
 ```
  */
-/* eslint-enable jsdoc/check-alignment,jsdoc/check-indentation */
+/* eslint-enable jsdoc/check-alignment */
 @Directive({
+	standalone: false,
 	selector: directiveName
 })
 export class StarkProgressIndicatorDirective implements OnInit, OnDestroy {
@@ -74,12 +75,11 @@ export class StarkProgressIndicatorDirective implements OnInit, OnDestroy {
 	/**
 	 * @ignore
 	 */
-	private readonly componentViewRef!: ViewRef;
+	private readonly componentRef: ComponentRef<StarkProgressIndicatorComponent>;
 
 	/**
 	 * Class constructor
 	 * @param _progressService - The ProgressIndicator service of the application
-	 * @param componentFactoryResolver - Resolver that returns Angular component factories
 	 * @param injector - The application Injector
 	 * @param _viewContainer - The container where one or more views can be attached to the host element of this directive.
 	 * @param renderer - Angular `Renderer2` wrapper for DOM manipulations.
@@ -87,15 +87,13 @@ export class StarkProgressIndicatorDirective implements OnInit, OnDestroy {
 	 */
 	public constructor(
 		@Inject(STARK_PROGRESS_INDICATOR_SERVICE) public _progressService: StarkProgressIndicatorService,
-		componentFactoryResolver: ComponentFactoryResolver,
 		injector: Injector,
 		private _viewContainer: ViewContainerRef,
 		protected renderer: Renderer2,
 		protected elementRef: ElementRef
 	) {
-		const componentFactory = componentFactoryResolver.resolveComponentFactory(StarkProgressIndicatorComponent);
-		const componentRef = componentFactory.create(injector);
-		this.componentViewRef = componentRef.hostView;
+		this.componentRef = this._viewContainer.createComponent(StarkProgressIndicatorComponent, { injector });
+		this._viewContainer.detach(this._viewContainer.indexOf(this.componentRef.hostView));
 	}
 
 	/**
@@ -130,10 +128,10 @@ export class StarkProgressIndicatorDirective implements OnInit, OnDestroy {
 				// TODO The element is here added as a child, not as a sibling
 				// this.renderer.appendChild(this.elementRef.nativeElement, componentRef.location.nativeElement);
 
-				this._viewContainer.insert(this.componentViewRef); // insert the view in the last position
+				this._viewContainer.insert(this.componentRef.hostView); // insert the view in the last position
 				this.renderer.addClass(this.elementRef.nativeElement, "stark-hide");
 			} else {
-				const componentViewRefIndex = this._viewContainer.indexOf(this.componentViewRef);
+				const componentViewRefIndex = this._viewContainer.indexOf(this.componentRef.hostView);
 				if (componentViewRefIndex > -1) {
 					this._viewContainer.detach(componentViewRefIndex);
 					this.renderer.removeClass(this.elementRef.nativeElement, "stark-hide");
@@ -146,7 +144,7 @@ export class StarkProgressIndicatorDirective implements OnInit, OnDestroy {
 	 * The directive de-registers itself from the {@link StarkProgressIndicatorService} when it is destroyed.
 	 */
 	public ngOnDestroy(): void {
-		this.componentViewRef.destroy(); // destroy the progress indicator
+		this.componentRef.destroy(); // destroy the progress indicator
 		if (this.progressSubscription) {
 			this.progressSubscription.unsubscribe();
 		}

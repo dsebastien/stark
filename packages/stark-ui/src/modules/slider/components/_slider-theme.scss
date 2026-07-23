@@ -5,7 +5,7 @@
 @use "sass:map";
 @use "@angular/material" as mat;
 @use "../../../../styles/old-variables" as old-vars;
-@import "~nouislider/dist/nouislider.css";
+@import "nouislider/dist/nouislider.css";
 
 @mixin stark-slider-theme($material-theme-config, $stark-theme-config) {
   .stark-slider {
@@ -42,7 +42,7 @@
     }
 
     .noUi-connect {
-      background-color: mat.get-color-from-palette(map.get($material-theme-config, primary));
+      background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, primary));
     }
 
     .noUi-handle {
@@ -50,14 +50,14 @@
       border: 0;
       width: 36px;
       height: 36px;
-      background-color: mat.get-color-from-palette(map.get($material-theme-config, primary));
+      background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, primary));
       border-radius: 50%;
       box-shadow: old-vars.$elevation-2;
 
       &:active,
       &:focus,
       &:hover {
-        background-color: mat.get-color-from-palette(map.get($material-theme-config, primary), 700);
+        background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, primary), 700);
         outline: none;
       }
 

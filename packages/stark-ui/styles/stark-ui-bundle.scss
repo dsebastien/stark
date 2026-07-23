@@ -28,11 +28,13 @@
 @use "../src/modules/collapsible/components/collapsible-theme" as stark-collapsible-theme;
 @forward "../src/modules/collapsible/components/collapsible-theme" show stark-collapsible-color;
 @use "../src/modules/collapsible/components/collapsible.component" as stark-collapsible;
+@use "../src/modules/date-picker/components/date-picker.component" as stark-date-picker;
 @use "../src/modules/date-range-picker/components/date-range-picker.component" as stark-date-range-picker;
 @use "../src/modules/date-time-picker/components/date-time-picker.component" as stark-date-time-picker;
 @use "../src/modules/dialogs/components/alert-dialog-theme" as stark-alert-dialog-theme;
 @use "../src/modules/dialogs/components/alert-dialog.component" as stark-alert-dialog;
 @use "../src/modules/dialogs/components/confirm-dialog-theme" as stark-confirm-dialog-theme;
+@use "../src/modules/dialogs/components/dialogs.component" as stark-dialogs;
 @use "../src/modules/dialogs/components/prompt-dialog-theme" as stark-prompt-dialog-theme;
 @use "../src/modules/dialogs/components/prompt-dialog.component" as stark-prompt-dialog;
 @use "../src/modules/dropdown/components/dropdown-theme" as stark-dropdown-theme;
@@ -73,19 +75,19 @@
 
 @mixin set-stark-ui-styles($material-theme-config: null, $stark-theme-config: null) {
   @if $material-theme-config == null {
-    $material-theme-config: mat.define-light-theme(
+    $material-theme-config: mat.m2-define-light-theme(
       (
         color: (
-          primary: mat.define-palette(stark-mat-palette.$primary-palette),
-          accent: mat.define-palette(stark-mat-palette.$accent-palette),
-          warn: mat.define-palette(stark-mat-palette.$warning-palette)
-        ),
+            primary: mat.m2-define-palette(stark-mat-palette.$primary-palette),
+            accent: mat.m2-define-palette(stark-mat-palette.$accent-palette),
+            warn: mat.m2-define-palette(stark-mat-palette.$warning-palette)
+          ),
         typography: stark-typography.$typography-config
       )
     );
   }
 
-  @include mat.all-legacy-component-themes($material-theme-config);
+  @include mat.all-component-themes($material-theme-config);
 
   @if $stark-theme-config == null {
     $stark-theme-config: stark-palette.$stark-base-theme;
@@ -121,11 +123,13 @@
   @include stark-breadcrumb.stark-breadcrumb();
   @include stark-collapsible-theme.stark-collapsible-theme($material-theme-config, $stark-theme-config);
   @include stark-collapsible.stark-collapsible($material-theme-config, $stark-theme-config);
+  @include stark-date-picker.stark-date-picker();
   @include stark-date-range-picker.stark-date-range-picker();
   @include stark-date-time-picker.stark-date-time-picker();
   @include stark-alert-dialog-theme.stark-alert-dialog-theme($material-theme-config, $stark-theme-config);
   @include stark-alert-dialog.stark-alert-dialog();
   @include stark-confirm-dialog-theme.stark-confirm-dialog-theme($material-theme-config, $stark-theme-config);
+  @include stark-dialogs.stark-dialogs();
   @include stark-prompt-dialog-theme.stark-prompt-dialog-theme($material-theme-config, $stark-theme-config);
   @include stark-prompt-dialog.stark-prompt-dialog();
   @include stark-dropdown-theme.stark-dropdown-theme($material-theme-config, $stark-theme-config);

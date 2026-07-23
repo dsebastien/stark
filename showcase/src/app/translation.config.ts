@@ -9,9 +9,11 @@ import { TranslateService } from "@ngx-translate/core";
 import { DateAdapter } from "@angular/material/core";
 import { mergeTranslations, StarkLocale } from "@nationalbankbelgium/stark-core";
 
-const translationsEn: object = require("../assets/translations/en.json");
-const translationsFr: object = require("../assets/translations/fr.json");
-const translationsNl: object = require("../assets/translations/nl.json");
+type TranslationMap = StarkLocale["translations"];
+
+const translationsEn = <TranslationMap>require("../assets/translations/en.json");
+const translationsFr = <TranslationMap>require("../assets/translations/fr.json");
+const translationsNl = <TranslationMap>require("../assets/translations/nl.json");
 
 /* eslint-disable-next-line jsdoc/require-jsdoc */
 export function initializeTranslation(translateService: TranslateService, dateAdapter: DateAdapter<any>): void {

@@ -4,17 +4,17 @@
 .styleguide-layout-page {
   .warning {
     .mat-icon {
-      color: mat.get-color-from-palette(stark-ui.$warning-palette, 500);
+      color: mat.m2-get-color-from-palette(stark-ui.$warning-palette, 500);
     }
   }
 
   .layout-demo > * {
-    background-color: mat.get-color-from-palette(stark-ui.$primary-palette, 500);
-    color: mat.get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
+    background-color: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 500);
+    color: mat.m2-get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
 
     &.accent {
-      background-color: mat.get-color-from-palette(stark-ui.$accent-palette, 500);
-      color: mat.get-contrast-color-from-palette(stark-ui.$accent-palette, 500);
+      background-color: mat.m2-get-color-from-palette(stark-ui.$accent-palette, 500);
+      color: mat.m2-get-contrast-color-from-palette(stark-ui.$accent-palette, 500);
     }
   }
 }

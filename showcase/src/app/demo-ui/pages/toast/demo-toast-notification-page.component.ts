@@ -10,6 +10,7 @@ import {
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-toast-notification",
 	styleUrls: ["./demo-toast-notification-page.component.scss"],
 	templateUrl: "./demo-toast-notification-page.component.html"

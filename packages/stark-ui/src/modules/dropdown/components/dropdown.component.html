@@ -1,4 +1,4 @@
-<!-- Support for changing multiSelect after init. https://material.angular.io/components/select/overview#error-cannot-change-code-multiple-code-mode-of-select-after-initialization -->
+<!-- Support for changing multiSelect after init. https://material.angular.dev/components/select/overview#error-cannot-change-code-multiple-code-mode-of-select-after-initialization -->
 <!-- single-selection view -->
 <mat-select
 	#singleSelectEl
@@ -9,6 +9,7 @@
 	[attr.aria-label]="dropdownName | translate"
 	[required]="required"
 	[disabled]="disabled"
+	[panelWidth]="panelWidth"
 	(selectionChange)="onSelectionChange($event)"
 	(openedChange)="onOpenedChange()"
 >
@@ -37,6 +38,7 @@
 	[attr.aria-label]="dropdownName | translate"
 	[required]="required"
 	[disabled]="disabled"
+	[panelWidth]="panelWidth"
 	(selectionChange)="onSelectionChange($event)"
 	(openedChange)="onOpenedChange()"
 	multiple

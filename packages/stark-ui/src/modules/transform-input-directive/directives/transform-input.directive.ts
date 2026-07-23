@@ -21,7 +21,7 @@ export type StarkInputTransformationType = typeof UPPERCASE | typeof LOWERCASE |
  */
 export const STARK_TRANSFORM_INPUT_PROVIDER: Provider = {
 	provide: NG_VALUE_ACCESSOR,
-	// eslint-disable-next-line @angular-eslint/no-forward-ref
+
 	useExisting: forwardRef(() => StarkTransformInputDirective),
 	multi: true
 };
@@ -38,7 +38,8 @@ export const STARK_TRANSFORM_INPUT_PROVIDER: Provider = {
  * <input StarkTransformInputDirective="someFunction" />
  */
 @Directive({
-	// eslint-disable-next-line @angular-eslint/directive-selector
+	standalone: false,
+
 	selector: "[starkTransformInput]",
 	providers: [STARK_TRANSFORM_INPUT_PROVIDER],
 	host: {
@@ -54,23 +55,11 @@ export class StarkTransformInputDirective implements ControlValueAccessor, OnCha
 	public _transformation: (value: any) => any = (value: any): any => value;
 
 	/**
-	 * Transformation to be done on the input value
+	 * Transformation to be done on the input value.
+	 * @param value - The raw input value before the directive applies the transformation.
 	 */
-	// eslint-disable-next-line @angular-eslint/no-input-rename
 	@Input("starkTransformInput")
-	public set transformation(transformation: StarkInputTransformationType) {
-		switch (transformation) {
-			case UPPERCASE:
-				this._transformation = (v: string): string => v.toUpperCase();
-				break;
-			case LOWERCASE:
-				this._transformation = (v: string): string => v.toLocaleLowerCase();
-				break;
-			default:
-				this._transformation = transformation;
-				break;
-		}
-	}
+	public transformation: StarkInputTransformationType = (value: any): any => value;
 
 	/**
 	 * @ignore
@@ -102,10 +91,7 @@ export class StarkTransformInputDirective implements ControlValueAccessor, OnCha
 	 * Angular life cycle hook
 	 */
 	public ngOnChanges(): void {
-		// Type guard
-		if (typeof this._transformation !== "function" && ![UPPERCASE, LOWERCASE].includes(this._transformation)) {
-			throw Error("[starkTransformInput]: the transformation input is not valid. It should be of type StarkInputTransformationType");
-		}
+		this._transformation = this.getTransformationFn(this.transformation);
 	}
 
 	/**
@@ -158,6 +144,23 @@ export class StarkTransformInputDirective implements ControlValueAccessor, OnCha
 			this._onChange(transformed);
 		} else {
 			this._onChange(value);
+		}
+	}
+
+	private getTransformationFn(transformation: StarkInputTransformationType): (value: any) => any {
+		switch (transformation) {
+			case UPPERCASE:
+				return (value: string): string => value.toUpperCase();
+			case LOWERCASE:
+				return (value: string): string => value.toLocaleLowerCase();
+			default:
+				if (typeof transformation !== "function") {
+					throw Error(
+						"[starkTransformInput]: the transformation input is not valid. It should be of type StarkInputTransformationType"
+					);
+				}
+
+				return transformation;
 		}
 	}
 }

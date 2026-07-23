@@ -21,7 +21,7 @@ export class InMemoryDataService implements InMemoryDbService {
 	 * @returns The "database" object or an Observable of Promise that will return such object asynchronously
 	 * @see https://github.com/angular/in-memory-web-api#basic-setup
 	 */
-	public createDb(_reqInfo?: RequestInfo): {} | Observable<{}> | Promise<{}> {
+	public createDb(_reqInfo?: RequestInfo): object {
 		// replace the "uuid" field defined in the mock data by the "id" field expected by the in-memory-db
 		const normalizedMockData: object = cloneDeep(mockData); // avoid modifying the original mock data
 		this.deepReplaceProperty(normalizedMockData, "uuid", "id");

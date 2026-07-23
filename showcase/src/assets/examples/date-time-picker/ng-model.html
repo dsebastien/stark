@@ -1,4 +1,5 @@
 <mat-form-field [ngClass]="{ expanded: !!(timePickerNgModel.control.errors && (timePickerNgModel.control.errors | keyvalue).length > 1) }">
+	<mat-label>Date and Time</mat-label>
 	<stark-date-time-picker
 		pickerId="date-time-picker-ng-model"
 		[(ngModel)]="dateTimeModel"

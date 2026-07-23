@@ -1,15 +1,31 @@
 @mixin stark-toast-notification() {
-  .mat-snack-bar-container {
+  .stark-toast-notification-panel.mat-mdc-snack-bar-container {
     margin: 8px !important;
     padding: 0 !important;
+
+    .mdc-snackbar__surface {
+      min-width: 344px;
+      max-width: 422.4px;
+      padding: 0;
+    }
+
+    .mat-mdc-snack-bar-label {
+      padding: 0;
+    }
   }
 
   .stark-toast {
+    box-sizing: content-box;
+    width: auto;
+    min-width: 0;
     min-height: 0;
     display: flex;
     white-space: normal;
     align-items: center;
     padding: 6px 16px 6px 16px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 16px;
+    line-height: 26px;
 
     span {
       line-height: 24px;

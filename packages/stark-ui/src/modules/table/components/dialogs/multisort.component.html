@@ -1,6 +1,6 @@
 <div class="header">
 	<h1 mat-dialog-title translate>STARK.MULTI_COLUMN_SORTING.TITLE</h1>
-	<button mat-mini-fab mat-icon-button color="primary" (click)="onAdd()" [disabled]="isAddDisabled">
+	<button mat-mini-fab color="primary" (click)="onAdd()" [disabled]="isAddDisabled">
 		<mat-icon svgIcon="playlist-plus" [matTooltip]="'STARK.MULTI_COLUMN_SORTING.ADD_SORTING_LEVEL' | translate"></mat-icon>
 	</button>
 </div>
@@ -10,7 +10,7 @@
 			<div class="rule" *ngIf="rule.sortDirection">
 				<span *ngIf="isFirst" translate>STARK.MULTI_COLUMN_SORTING.SORT_BY</span>
 				<span *ngIf="!isFirst" translate>STARK.MULTI_COLUMN_SORTING.THEN_BY</span>
-				<mat-form-field class="form-field-name">
+				<mat-form-field class="form-field-name" subscriptSizing="fixed">
 					<mat-select [value]="rule" (selectionChange)="onColumnChange(rule, $event.value)">
 						<ng-container *ngFor="let ruleOption of rules; trackBy: trackRuleFn">
 							<mat-option *ngIf="ruleOption === rule || !ruleOption.sortDirection" [value]="ruleOption">
@@ -19,7 +19,7 @@
 						</ng-container>
 					</mat-select>
 				</mat-form-field>
-				<mat-form-field class="form-field-order">
+				<mat-form-field class="form-field-order" subscriptSizing="fixed">
 					<mat-select [(ngModel)]="rule.sortDirection">
 						<mat-option value="asc">{{ "STARK.SORTING.ASC" | translate }}</mat-option>
 						<mat-option value="desc">{{ "STARK.SORTING.DESC" | translate }}</mat-option>

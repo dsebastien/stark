@@ -58,6 +58,9 @@ declare module 'modern-lru' {
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 declare let System: SystemJS;
+declare const ENV: string;
+declare const HMR: boolean;
+declare const require: NodeRequireFunction;
 
 interface SystemJS {
 	import: (path?: string) => Promise<any>;
@@ -74,12 +77,13 @@ type Es6PromiseLoader = (id: string) => (exportName?: string) => Promise<any>;
 
 type FactoryEs6PromiseLoader = () => Es6PromiseLoader;
 type FactoryPromise = () => Promise<any>;
+type AsyncRouteFactory = (...args: unknown[]) => unknown;
 
 interface AsyncRoutes {
-	[component: string]: Es6PromiseLoader | Function | FactoryEs6PromiseLoader | FactoryPromise;
+	[component: string]: Es6PromiseLoader | AsyncRouteFactory | FactoryEs6PromiseLoader | FactoryPromise;
 }
 
-type IdleCallbacks = Es6PromiseLoader | Function | FactoryEs6PromiseLoader | FactoryPromise;
+type IdleCallbacks = Es6PromiseLoader | AsyncRouteFactory | FactoryEs6PromiseLoader | FactoryPromise;
 
 interface ErrorStackTraceLimit {
 	stackTraceLimit: number;
@@ -88,6 +92,6 @@ interface ErrorStackTraceLimit {
 // Extend typings
 interface ErrorConstructor extends ErrorStackTraceLimit {}
 
-interface NodeRequireFunction extends Es6PromiseLoader {}
+type NodeRequireFunction = (id: string) => any;
 
 interface Global extends GlobalEnvironment {}

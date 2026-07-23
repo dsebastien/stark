@@ -1,4 +1,11 @@
-import { Mask, PipeFunction } from "text-mask-core";
+type StarkMaskArray = Array<string | RegExp>;
+type StarkMaskFunction = (raw: string) => StarkMaskArray;
+interface StarkPipeResultObject {
+	value: string;
+	indexesOfPipedChars?: number[];
+}
+type StarkPipeFunction = (conformedValue: string, config: StarkTextMaskConfig) => false | string | StarkPipeResultObject;
+type StarkMask = StarkMaskArray | StarkMaskFunction;
 
 /**
  * Defines the base configuration for the mask directives provided by Stark-UI.
@@ -41,12 +48,12 @@ export interface StarkTextMaskConfig extends StarkTextMaskBaseConfig {
 	 *
 	 * See {@link https://github.com/text-mask/text-mask/blob/master/componentDocumentation.md#mask}
 	 */
-	mask: Mask | false;
+	mask: StarkMask | false;
 
 	/**
 	 * Function that can modify the conformed value before it is displayed on the screen.
 	 *
 	 * See {@link https://github.com/text-mask/text-mask/blob/master/componentDocumentation.md#pipe}
 	 */
-	pipe?: PipeFunction;
+	pipe?: StarkPipeFunction;
 }

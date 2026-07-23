@@ -1,8 +1,7 @@
 import { StarkMessage, StarkMessageType, StarkMessageCollection } from "@nationalbankbelgium/stark-ui/src/common";
 import { StarkMessagePaneActions } from "../actions";
 import findIndex from "lodash-es/findIndex";
-import { createReducer, on } from "@ngrx/store";
-import { TypedAction } from "@ngrx/store/src/models";
+import { Action, createReducer, on } from "@ngrx/store";
 
 /**
  * Initial state of the store
@@ -41,7 +40,7 @@ export function messagesReducer(
  */
 function addMessage(
 	state: Readonly<StarkMessageCollection>,
-	action: Readonly<{ messages: StarkMessage[] } & TypedAction<string>>
+	action: Readonly<{ messages: StarkMessage[] } & Action>
 ): Readonly<StarkMessageCollection> {
 	// by default the current message arrays remain unchanged
 	const newStateAfterAddition: StarkMessageCollection = {
@@ -89,7 +88,7 @@ function clearMessages(state: Readonly<StarkMessageCollection>): Readonly<StarkM
  */
 function removeMessages(
 	state: Readonly<StarkMessageCollection>,
-	action: Readonly<{ messages: StarkMessage[] } & TypedAction<string>>
+	action: Readonly<{ messages: StarkMessage[] } & Action>
 ): Readonly<StarkMessageCollection> {
 	// getting a deeply mutable copy
 	const mutableState: StarkMessageCollection = {

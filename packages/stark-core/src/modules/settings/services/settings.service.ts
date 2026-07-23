@@ -46,7 +46,8 @@ export class StarkSettingsServiceImpl implements StarkSettingsService {
 			.pipe(filter<StarkUser | undefined, StarkUser>((user?: StarkUser): user is StarkUser => typeof user !== "undefined"))
 			.subscribe((user: StarkUser) => {
 				let supportedLanguageIndex = -1;
-				const browserLanguage: string = navigator.language || navigator["userLanguage"] || "";
+				const legacyNavigator = <Navigator & { userLanguage?: string }>navigator;
+				const browserLanguage: string = navigator.language || legacyNavigator.userLanguage || "";
 
 				if (user.language) {
 					supportedLanguageIndex = this.findMatchingSupportedLanguage(user.language);

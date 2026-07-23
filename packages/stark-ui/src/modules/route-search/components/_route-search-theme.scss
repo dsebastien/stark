@@ -9,17 +9,17 @@
   $grey-palette: map.get($stark-theme-config, grey-palette);
 
   .search-field {
-    .mat-form-field-wrapper {
-      border: 1px solid mat.get-color-from-palette($grey-palette, 400);
+    .mat-mdc-text-field-wrapper {
+      border: 1px solid mat.m2-get-color-from-palette($grey-palette, 400);
       background-color: #fff;
-      color: mat.get-color-from-palette($grey-palette, 900);
+      color: mat.m2-get-color-from-palette($grey-palette, 900);
     }
   }
 
   button.search-button {
-    background-color: mat.get-color-from-palette(map.get($material-theme-config, accent), 500);
+    background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, accent), 500);
     /* stylelint-disable-next-line value-keyword-case */
-    color: mat.get-color-from-palette($grey-palette, A100);
+    color: mat.m2-get-color-from-palette($grey-palette, A100);
   }
 }
 

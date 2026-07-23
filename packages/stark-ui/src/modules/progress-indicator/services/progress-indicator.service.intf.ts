@@ -1,5 +1,5 @@
 import { Observable } from "rxjs";
-import { StarkProgressIndicatorType } from "../entities";
+import { StarkProgressIndicatorType } from "../entities/progress-indicator-type.entity";
 import { InjectionToken } from "@angular/core";
 
 /**

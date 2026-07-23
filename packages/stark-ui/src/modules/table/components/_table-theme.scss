@@ -13,12 +13,12 @@
   .stark-table {
     tr {
       &:hover td {
-        background-color: mat.get-color-from-palette($grey-palette, 100);
+        background-color: mat.m2-get-color-from-palette($grey-palette, 100);
       }
 
       &.selected td {
-        background-color: mat.get-color-from-palette($accent-palette, 100);
-        color: mat.get-contrast-color-from-palette($accent-palette, 100);
+        background-color: mat.m2-get-color-from-palette($accent-palette, 100);
+        color: mat.m2-get-contrast-color-from-palette($accent-palette, 100);
       }
     }
   }

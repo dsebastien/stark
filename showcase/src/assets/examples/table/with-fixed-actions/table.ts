@@ -23,6 +23,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-fixed-actions",
 	templateUrl: "./table-with-fixed-actions.component.html",
 	styleUrls: ["./table-with-fixed-actions.component.scss"]

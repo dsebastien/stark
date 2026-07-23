@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { StarkPaginateEvent, StarkPaginationConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-pagination",
 	templateUrl: "./demo-pagination.component.html"
 })

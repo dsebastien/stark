@@ -6,6 +6,7 @@ import { ActionReducer, ActionReducerMap, MetaReducer, StoreModule } from "@ngrx
 import { StoreDevtoolsModule } from "@ngrx/store-devtools";
 import { EffectsModule } from "@ngrx/effects";
 import { storeLogger } from "ngrx-store-logger";
+import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from "@angular/material/form-field";
 import { MatIconRegistry } from "@angular/material/icon";
 import { DateAdapter } from "@angular/material/core";
 import { Observable, of } from "rxjs";
@@ -233,6 +234,7 @@ export const metaReducers: MetaReducer<State>[] = ENV === "development" ? [logge
 	 */
 	providers: [
 		environment.ENV_PROVIDERS,
+		{ provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { subscriptSizing: "dynamic" } },
 		{ provide: STARK_APP_CONFIG, useFactory: starkAppConfigFactory },
 		{ provide: STARK_APP_METADATA, useFactory: starkAppMetadataFactory },
 		{ provide: STARK_MOCK_DATA, useFactory: starkMockDataFactory },

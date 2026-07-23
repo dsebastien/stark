@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 import { StarkMessage } from "@nationalbankbelgium/stark-ui/src/common";
 
 /**
@@ -32,8 +32,8 @@ export const clearMessages = createAction(`[${actionKey}] Clear Messages`);
  */
 export const getAllMessages = createAction(`[${actionKey}] Get All Messages`);
 
-/**
- * @ignore
- */
-const all = union({ addMessages, removeMessages, clearMessages, getAllMessages });
-export type Types = typeof all;
+export type Types =
+	| ReturnType<typeof addMessages>
+	| ReturnType<typeof removeMessages>
+	| ReturnType<typeof clearMessages>
+	| ReturnType<typeof getAllMessages>;

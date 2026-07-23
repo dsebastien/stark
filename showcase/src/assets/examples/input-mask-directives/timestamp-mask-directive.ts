@@ -5,6 +5,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { StarkTimestampMaskConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-timestamp-mask",
 	styleUrls: ["./demo-timestamp-mask.component.scss"],
 	templateUrl: "./demo-timestamp-mask.component.html"

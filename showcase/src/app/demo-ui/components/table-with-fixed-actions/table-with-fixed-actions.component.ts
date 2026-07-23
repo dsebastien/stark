@@ -1,8 +1,7 @@
-import { Component, Inject } from "@angular/core";
+import { Component, Inject, ViewEncapsulation } from "@angular/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { StarkTableColumnProperties, StarkTableFilter, StarkTableRowActions } from "@nationalbankbelgium/stark-ui";
 
-/* eslint-disable sonarjs/no-duplicate-string */
 const DUMMY_DATA: object[] = [
 	{
 		id: 1,
@@ -101,12 +100,13 @@ const DUMMY_DATA: object[] = [
 		even_more_info: "This is a ludicrous amount of info."
 	}
 ];
-/* eslint-enable sonarjs/no-duplicate-string */
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-fixed-actions",
 	templateUrl: "./table-with-fixed-actions.component.html",
-	styleUrls: ["./table-with-fixed-actions.component.scss"]
+	styleUrls: ["./table-with-fixed-actions.component.scss"],
+	encapsulation: ViewEncapsulation.None // used here to scope showcase-only table styling without ::ng-deep
 })
 export class TableWithFixedActionsComponent {
 	public data: object[] = DUMMY_DATA;
@@ -119,11 +119,9 @@ export class TableWithFixedActionsComponent {
 			cellFormatter: (value: { label: string }): string => "~" + value.label
 		},
 		{ name: "description", label: "SHOWCASE.DEMO.TABLE.LABELS.DESCRIPTION" },
-		/* eslint-disable sonarjs/no-duplicate-string */
 		{ name: "info", label: "SHOWCASE.DEMO.TABLE.LABELS.EXTRA_INFO" },
 		{ name: "more_info", label: "SHOWCASE.DEMO.TABLE.LABELS.EXTRA_INFO" },
 		{ name: "even_more_info", label: "SHOWCASE.DEMO.TABLE.LABELS.EXTRA_INFO" }
-		/* eslint-enable sonarjs/no-duplicate-string */
 	];
 
 	public filter: StarkTableFilter = { globalFilterPresent: false, columns: [] };

@@ -15,6 +15,7 @@ const componentName = "stark-action-bar";
  * Component to display the application's action bars
  */
 @Component({
+	standalone: false,
 	selector: "stark-action-bar",
 	templateUrl: "./action-bar.component.html",
 	encapsulation: ViewEncapsulation.None,

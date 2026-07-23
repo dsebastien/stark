@@ -1,0 +1,44 @@
+/* ============================================================================== */
+/*  S t a r k   D i a l o g s                                                     */
+/* ============================================================================== */
+/* stark-ui: src/modules/dialogs/components/_dialogs.component.scss */
+
+@mixin stark-dialogs() {
+  .stark-alert-dialog,
+  .stark-confirm-dialog,
+  .stark-prompt-dialog {
+    --mat-dialog-actions-padding: 8px 0;
+    --mat-dialog-content-padding: 0 24px;
+    --mat-dialog-headline-padding: 0;
+    --mat-dialog-supporting-text-color: rgba(0, 0, 0, 0.87);
+    --mat-dialog-supporting-text-line-height: 26px;
+    --mat-dialog-supporting-text-size: 16px;
+    --mat-dialog-with-actions-content-padding: 0 24px;
+
+    &.mat-mdc-dialog-component-host {
+      box-sizing: content-box;
+      display: block;
+      padding: 24px;
+    }
+
+    .mat-mdc-dialog-title {
+      margin: 0 0 20px;
+
+      &::before {
+        display: none;
+      }
+    }
+
+    .mat-mdc-dialog-content {
+      font-size: 16px;
+      line-height: 26px;
+      margin: 0 -24px;
+    }
+
+    .mat-mdc-dialog-actions {
+      margin: 0 -16px -24px 0;
+    }
+  }
+}
+
+/* END stark-ui: src/modules/dialogs/components/_dialogs.component.scss */

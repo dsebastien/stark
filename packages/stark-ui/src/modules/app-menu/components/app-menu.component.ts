@@ -1,9 +1,13 @@
+import { CommonModule } from "@angular/common";
 import { ChangeDetectionStrategy, Component, ElementRef, Inject, Input, OnInit, Renderer2, ViewEncapsulation } from "@angular/core";
+import { MatListModule } from "@angular/material/list";
+import { TranslateModule } from "@ngx-translate/core";
 import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE, StarkLoggingService, StarkRoutingService } from "@nationalbankbelgium/stark-core";
 import { AbstractStarkUiComponent } from "@nationalbankbelgium/stark-ui/src/internal-common";
 import { StarkMenuSection } from "./app-menu-section.intf";
 import { StarkMenuConfig } from "./app-menu-config.intf";
 import { StarkMenuGroup } from "./app-menu-group.intf";
+import { StarkAppMenuItemComponent } from "./app-menu-item.component";
 
 /**
  * @ignore
@@ -14,10 +18,12 @@ const componentName = "stark-app-menu";
  * Component to display app-menu based on the options passed as parameters.
  */
 @Component({
+	standalone: true,
 	selector: "stark-app-menu",
 	templateUrl: "./app-menu.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatListModule, TranslateModule, StarkAppMenuItemComponent],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName

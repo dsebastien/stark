@@ -9,6 +9,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-items-per-page-selector",
 	templateUrl: "./table-with-items-per-page-selector.component.html"
 })

@@ -1,6 +1,6 @@
 @use "./material-fixes";
 @use "./old-variables" as old-vars;
-@import "~normalize.css/normalize.css";
+@import "normalize.css/normalize.css";
 
 @mixin stark-base() {
   html,

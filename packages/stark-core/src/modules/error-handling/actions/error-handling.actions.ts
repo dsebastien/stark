@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 
 /**
  * Action that requires to display an error message as a toast notification
@@ -8,8 +8,4 @@ import { createAction, props, union } from "@ngrx/store";
  */
 export const unhandledError = createAction("[StarkErrorHandling] Unhandled Error", props<{ error: any }>());
 
-/**
- * @ignore
- */
-const all = union({ unhandledError });
-export type Types = typeof all;
+export type Types = ReturnType<typeof unhandledError>;

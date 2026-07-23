@@ -9,7 +9,6 @@ import {
 	OnChanges,
 	OnDestroy,
 	OnInit,
-	Optional,
 	Output,
 	Renderer2,
 	SimpleChanges,
@@ -20,9 +19,9 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { AbstractStarkUiComponent } from "@nationalbankbelgium/stark-ui/src/internal-common";
 import { AbstractControl, ControlValueAccessor, NG_VALIDATORS, NgControl, ValidationErrors, Validator, Validators } from "@angular/forms";
 import { Subject, Subscription } from "rxjs";
-import { MatLegacyFormField as MatFormField, MatLegacyFormFieldControl as MatFormFieldControl } from "@angular/material/legacy-form-field";
+import { MatFormFieldControl } from "@angular/material/form-field";
 import { FocusMonitor, FocusOrigin } from "@angular/cdk/a11y";
-import { MatLegacySelect as MatSelect, MatLegacySelectChange as MatSelectChange } from "@angular/material/legacy-select";
+import { MatSelect, MatSelectChange } from "@angular/material/select";
 import { BooleanInput, coerceBooleanProperty } from "@angular/cdk/coercion";
 import { TranslateService } from "@ngx-translate/core";
 import isEqual from "lodash-es/isEqual";
@@ -37,6 +36,7 @@ const componentName = "stark-dropdown";
  * on the Angular Material MatSelect.
  */
 @Component({
+	standalone: false,
 	selector: "stark-dropdown",
 	templateUrl: "./dropdown.component.html",
 	encapsulation: ViewEncapsulation.None,
@@ -52,7 +52,7 @@ const componentName = "stark-dropdown";
 		},
 		{
 			// This implementation has been made thanks to the official documentation.
-			// See: https://v7.material.angular.io/guide/creating-a-custom-form-field-control
+			// See: https://material.angular.dev/guide/creating-a-custom-form-field-control
 			provide: MatFormFieldControl,
 			useExisting: StarkDropdownComponent
 		}
@@ -171,6 +171,14 @@ export class StarkDropdownComponent
 	public placeholder = "";
 
 	/**
+	 * Width of the underlying Material select panel.
+	 * Use "auto" to match the trigger width, or null to let the panel grow to the longest option text.
+	 */
+	@Input()
+	// eslint-disable-next-line no-null/no-null
+	public panelWidth: string | number | null = null;
+
+	/**
 	 * If the dropdown is required or not. by default, the dropdown is not required
 	 */
 	@Input()
@@ -254,6 +262,12 @@ export class StarkDropdownComponent
 	public stateChanges: Subject<void> = new Subject<void>();
 
 	/**
+	 * Leverages Angular Material's public control-type hook so the surrounding
+	 * `mat-form-field` applies the same select-specific treatment as `MatSelect`.
+	 */
+	public readonly controlType = "mat-select";
+
+	/**
 	 * @ignore
 	 * @internal
 	 */
@@ -299,6 +313,16 @@ export class StarkDropdownComponent
 	private translateOnLangChangeSubscription?: Subscription;
 
 	/**
+	 * Parent `mat-form-field` host element that receives Stark-specific helper classes.
+	 */
+	private formFieldHostElement?: HTMLElement;
+
+	/**
+	 * Last Stark color class applied to the parent `mat-form-field`.
+	 */
+	private appliedFormFieldColorClass?: string;
+
+	/**
 	 * Class constructor
 	 * @param logger - The `StarkLoggingService` instance of the application.
 	 * @param renderer - Angular `Renderer2` wrapper for DOM manipulations.
@@ -306,16 +330,14 @@ export class StarkDropdownComponent
 	 * @param fm - The Focus Monitor Service.
 	 * @param injector - The Injector of the application.
 	 * @param translateService - The `TranslateService` instance of the application.
-	 * @param formField - The MatFormField of this component (in case the component is used inside a `mat-form-field`).
 	 */
 	public constructor(
 		@Inject(STARK_LOGGING_SERVICE) public logger: StarkLoggingService,
 		renderer: Renderer2,
-		elementRef: ElementRef,
+		elementRef: ElementRef<HTMLElement>,
 		private fm: FocusMonitor,
 		private injector: Injector,
-		private translateService: TranslateService,
-		@Optional() private formField?: MatFormField
+		private translateService: TranslateService
 	) {
 		super(renderer, elementRef);
 
@@ -341,19 +363,7 @@ export class StarkDropdownComponent
 			this.ngControl.valueAccessor = this;
 		}
 
-		if (this.formField) {
-			/**
-			 * Add class on the parent mat-form-field tag
-			 * `mat-form-field-type-mat-select` - class to apply the elliptic effect and other styles for mat-select from mat-form-field
-			 * `stark-dropdown-mat-form-field` - class to control the parent mat-form-field
-			 * `stark-color` - class to set a the input color
-			 */
-			this.formField._elementRef.nativeElement.classList.add("mat-form-field-type-mat-select", "stark-dropdown-mat-form-field");
-
-			if (this.color) {
-				this.formField._elementRef.nativeElement.classList.add(`stark-${this.color}`);
-			}
-		}
+		this.syncFormFieldHostClasses();
 
 		this.translateOnLangChangeSubscription = this.translateService.onLangChange.subscribe(() => {
 			// Handle translation internally because mat-form-field uses the value of `@Input public placeholder` to display the label / placeholder
@@ -388,6 +398,11 @@ export class StarkDropdownComponent
 				: this.originalPlaceholder;
 			this.stateChanges.next();
 		}
+
+		if (changes["color"] && !changes["color"].isFirstChange()) {
+			this.syncHostColorClass(changes["color"].previousValue, changes["color"].currentValue);
+			this.syncFormFieldHostClasses();
+		}
 	}
 
 	/**
@@ -396,6 +411,7 @@ export class StarkDropdownComponent
 	public ngOnDestroy(): void {
 		this.stateChanges.complete();
 		this.fm.stopMonitoring(this.elementRef.nativeElement);
+		this.clearFormFieldHostClasses();
 
 		if (this.translateOnLangChangeSubscription) {
 			this.translateOnLangChangeSubscription.unsubscribe();
@@ -466,6 +482,69 @@ export class StarkDropdownComponent
 	public getOptionLabel(option: any): any {
 		const optionLabel: string = this.optionsAreSimpleTypes ? option : option[<string>this.optionLabelProperty];
 		return optionLabel.toString(); // IMPORTANT: the label should be a STRING otherwise the translate directive fails
+	}
+
+	/**
+	 * Keeps the host and surrounding `mat-form-field` color classes synchronized
+	 * when the `color` input changes after initialization.
+	 * @param previousColor - Previously applied Stark color class suffix, if any.
+	 * @param nextColor - New Stark color class suffix to apply, if any.
+	 */
+	private syncHostColorClass(previousColor?: string, nextColor?: string): void {
+		if (previousColor) {
+			this.renderer.removeClass(this.elementRef.nativeElement, `stark-${previousColor}`);
+		}
+
+		if (nextColor) {
+			this.renderer.addClass(this.elementRef.nativeElement, `stark-${nextColor}`);
+		}
+	}
+
+	/**
+	 * Applies Stark helper classes to the closest parent `mat-form-field` without
+	 * depending on Angular Material's internal directive fields.
+	 */
+	private syncFormFieldHostClasses(): void {
+		const nextFormFieldHostElement = this.elementRef.nativeElement.closest("mat-form-field") ?? undefined;
+		if (this.formFieldHostElement && this.formFieldHostElement !== nextFormFieldHostElement) {
+			this.clearFormFieldHostClasses();
+		}
+
+		this.formFieldHostElement = nextFormFieldHostElement;
+		if (!this.formFieldHostElement) {
+			this.appliedFormFieldColorClass = undefined;
+			return;
+		}
+
+		this.renderer.addClass(this.formFieldHostElement, "stark-dropdown-mat-form-field");
+
+		const nextColorClass = this.color ? `stark-${this.color}` : undefined;
+		if (this.appliedFormFieldColorClass && this.appliedFormFieldColorClass !== nextColorClass) {
+			this.renderer.removeClass(this.formFieldHostElement, this.appliedFormFieldColorClass);
+		}
+
+		if (nextColorClass) {
+			this.renderer.addClass(this.formFieldHostElement, nextColorClass);
+		}
+
+		this.appliedFormFieldColorClass = nextColorClass;
+	}
+
+	/**
+	 * Removes the helper classes applied to the surrounding `mat-form-field`.
+	 */
+	private clearFormFieldHostClasses(): void {
+		if (!this.formFieldHostElement) {
+			return;
+		}
+
+		this.renderer.removeClass(this.formFieldHostElement, "stark-dropdown-mat-form-field");
+		if (this.appliedFormFieldColorClass) {
+			this.renderer.removeClass(this.formFieldHostElement, this.appliedFormFieldColorClass);
+			this.appliedFormFieldColorClass = undefined;
+		}
+
+		this.formFieldHostElement = undefined;
 	}
 
 	/**

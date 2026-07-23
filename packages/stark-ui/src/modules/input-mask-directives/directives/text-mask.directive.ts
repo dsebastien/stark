@@ -13,7 +13,7 @@ const directiveName = "[starkTextMask]";
  */
 export const STARK_TEXT_MASK_VALUE_ACCESSOR: Provider = {
 	provide: NG_VALUE_ACCESSOR,
-	// eslint-disable-next-line @angular-eslint/no-forward-ref
+
 	useExisting: forwardRef(() => StarkTextMaskDirective),
 	multi: true
 };
@@ -37,11 +37,12 @@ export const STARK_TEXT_MASK_VALUE_ACCESSOR: Provider = {
  *
  */
 @Directive({
+	standalone: false,
 	host: {
-		"(input)": "_handleInput($event.target.value)",
+		"(input)": "_handleInput($any($event.target).value)",
 		"(blur)": "onTouched()",
 		"(compositionstart)": "_compositionStart()",
-		"(compositionend)": "_compositionEnd($event.target.value)"
+		"(compositionend)": "_compositionEnd($any($event.target).value)"
 	},
 	selector: directiveName,
 	exportAs: "starkTextMask",
@@ -72,6 +73,11 @@ export class StarkTextMaskDirective extends MaskedInputDirective implements OnCh
 	};
 
 	/**
+	 * Latest user-entered value without static mask characters.
+	 */
+	private lastUnmaskedValue = "";
+
+	/**
 	 * Class constructor
 	 * @param _renderer - Angular `Renderer2` wrapper for DOM manipulations.
 	 * @param _elementRef - Reference to the DOM element where this directive is applied to.
@@ -91,18 +97,73 @@ export class StarkTextMaskDirective extends MaskedInputDirective implements OnCh
 	 * @param changes - Contains the changed properties
 	 */
 	public override ngOnChanges(changes: SimpleChanges): void {
+		const inputElement = this.getInputElement();
+		const currentUnmaskedValue = this.getUnmaskedValue(inputElement?.value || "", this.textMaskConfig) || this.lastUnmaskedValue;
+
 		this.textMaskConfig = this.normalizeMaskConfig(this.maskConfig);
+
+		if (this.textMaskConfig.mask === false) {
+			(<any>this).textMaskInputElement = undefined;
+			if (inputElement) {
+				inputElement.value = currentUnmaskedValue;
+			}
+			this.lastUnmaskedValue = currentUnmaskedValue;
+			return;
+		}
 
 		super.ngOnChanges(changes);
 
-		// TODO: temporary workaround to update the model when the maskConfig changes since this is not yet implemented in text-mask and still being discussed
-		// see: https://github.com/text-mask/text-mask/issues/657
-		if (changes["maskConfig"] && !changes["maskConfig"].isFirstChange() && this.textMaskConfig.mask !== false) {
-			// trigger a dummy "input" event in the input to trigger the changes in the model (only if the mask was not disabled!)
-			const ev: Event = document.createEvent("Event");
-			ev.initEvent("input", true, true);
-			(<HTMLInputElement>this.elementRef.nativeElement).dispatchEvent(ev);
+		if (changes["maskConfig"] && !changes["maskConfig"].isFirstChange()) {
+			const textMaskInputElement: { update: (value: string) => void } | undefined = (<any>this).textMaskInputElement;
+			if (textMaskInputElement) {
+				textMaskInputElement.update(currentUnmaskedValue);
+			}
+
+			this.lastUnmaskedValue = this.getUnmaskedValue(inputElement?.value || "");
+
+			// Re-emit the normalized value so Angular forms stay in sync after a runtime mask change.
+			if (inputElement) {
+				this.onChange(inputElement.value);
+			}
 		}
+	}
+
+	/**
+	 * Writes the model value to the host input while preserving the unmasked text representation.
+	 * @param value - The incoming Angular forms value.
+	 */
+	public override writeValue(value: any): void {
+		const normalizedValue = String(value ?? "");
+		const inputElement = this.getInputElement();
+		this.lastUnmaskedValue = this.getUnmaskedValue(normalizedValue);
+
+		if (this.textMaskConfig.mask === false) {
+			if (inputElement) {
+				inputElement.value = normalizedValue;
+			}
+			return;
+		}
+
+		super.writeValue(value);
+		this.lastUnmaskedValue = this.getUnmaskedValue(inputElement?.value || normalizedValue);
+	}
+
+	/**
+	 * Tracks user input across masked and unmasked states before delegating to the text-mask runtime.
+	 * @param value - The raw value emitted by the host input.
+	 */
+	public override _handleInput(value: string): void {
+		if (this.textMaskConfig.mask === false) {
+			this.lastUnmaskedValue = value || "";
+			this.onChange(this.lastUnmaskedValue);
+			return;
+		}
+
+		this.lastUnmaskedValue = this.getUnmaskedValue(value || "");
+		super._handleInput(value);
+
+		const inputElement = this.getInputElement();
+		this.lastUnmaskedValue = this.getUnmaskedValue(inputElement?.value || this.lastUnmaskedValue);
 	}
 
 	/**
@@ -112,5 +173,45 @@ export class StarkTextMaskDirective extends MaskedInputDirective implements OnCh
 	public normalizeMaskConfig(maskConfig: StarkTextMaskConfig): Ng2TextMaskConfig {
 		// TODO: Ng2TextMaskConfig is not the same as Core TextMaskConfig
 		return { ...this.defaultTextMaskConfig, ...(<any>maskConfig) };
+	}
+
+	private getInputElement(): HTMLInputElement | undefined {
+		const nativeElement = this.elementRef.nativeElement;
+		if (nativeElement instanceof HTMLInputElement) {
+			return nativeElement;
+		}
+
+		return nativeElement.getElementsByTagName("INPUT")[0];
+	}
+
+	private getUnmaskedValue(value: string, maskConfig: Ng2TextMaskConfig = this.textMaskConfig): string {
+		if (!value || maskConfig.mask === false || !(maskConfig.mask instanceof Array)) {
+			return value || "";
+		}
+
+		const placeholderChar = maskConfig.placeholderChar || this.defaultTextMaskConfig.placeholderChar || "_";
+		let rawValue = "";
+		let valueIndex = 0;
+
+		for (const maskToken of maskConfig.mask) {
+			const currentChar = value[valueIndex];
+			if (typeof currentChar === "undefined") {
+				break;
+			}
+
+			if (maskToken instanceof RegExp) {
+				if (currentChar !== placeholderChar) {
+					rawValue += currentChar;
+				}
+				valueIndex++;
+				continue;
+			}
+
+			if (value.startsWith(maskToken, valueIndex)) {
+				valueIndex += maskToken.length;
+			}
+		}
+
+		return rawValue;
 	}
 }

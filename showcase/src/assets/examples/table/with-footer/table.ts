@@ -8,6 +8,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-footer",
 	templateUrl: "./table-with-footer.component.html",
 	styleUrls: ["./table-with-footer.component.scss"],

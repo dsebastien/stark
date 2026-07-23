@@ -5,8 +5,7 @@ import { StarkAppSidebarComponent } from "./components";
 import { STARK_APP_SIDEBAR_SERVICE, StarkAppSidebarServiceImpl } from "./services";
 
 @NgModule({
-	declarations: [StarkAppSidebarComponent],
-	imports: [CommonModule, MatSidenavModule],
+	imports: [CommonModule, MatSidenavModule, StarkAppSidebarComponent],
 	exports: [StarkAppSidebarComponent]
 })
 export class StarkAppSidebarModule {

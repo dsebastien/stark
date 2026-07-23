@@ -1,5 +1,5 @@
 import { RawParams, TransitionOptions } from "@uirouter/core";
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 
 /**
  * Key defined to find the service in a store
@@ -112,17 +112,12 @@ export const reloadSuccess = createAction(`[${starkRoutingStoreKey}] Reload Succ
  */
 export const reloadFailure = createAction(`[${starkRoutingStoreKey}] Reload Failure`, props<{ state: string; params: RawParams }>());
 
-/**
- * @ignore
- */
-const all = union({
-	navigate,
-	navigateSuccess,
-	navigateFailure,
-	navigateRejection,
-	navigationHistoryLimitReached,
-	reload,
-	reloadSuccess,
-	reloadFailure
-});
-export type Types = typeof all;
+export type Types =
+	| ReturnType<typeof navigate>
+	| ReturnType<typeof navigateSuccess>
+	| ReturnType<typeof navigateFailure>
+	| ReturnType<typeof navigateRejection>
+	| ReturnType<typeof navigationHistoryLimitReached>
+	| ReturnType<typeof reload>
+	| ReturnType<typeof reloadSuccess>
+	| ReturnType<typeof reloadFailure>;

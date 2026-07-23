@@ -32,7 +32,7 @@ import {
 } from "@angular/forms";
 import { FocusMonitor, FocusOrigin } from "@angular/cdk/a11y";
 import { BooleanInput, coerceBooleanProperty } from "@angular/cdk/coercion";
-import { MatLegacyFormField as MatFormField, MatLegacyFormFieldControl as MatFormFieldControl } from "@angular/material/legacy-form-field";
+import { MatFormFieldControl } from "@angular/material/form-field";
 import moment from "moment";
 import { Subject, Subscription } from "rxjs";
 import { TranslateService } from "@ngx-translate/core";
@@ -61,6 +61,7 @@ const componentName = "stark-date-time-picker";
  * Component to select a date and a time together
  */
 @Component({
+	standalone: false,
 	selector: "stark-date-time-picker",
 	templateUrl: "./date-time-picker.component.html",
 	providers: [
@@ -76,7 +77,7 @@ const componentName = "stark-date-time-picker";
 		},
 		{
 			// This implementation has been made thanks to the official documentation.
-			// See: https://v7.material.angular.io/guide/creating-a-custom-form-field-control
+			// See: https://material.angular.dev/guide/creating-a-custom-form-field-control
 			provide: MatFormFieldControl,
 			useExisting: StarkDateTimePickerComponent
 		}
@@ -128,6 +129,9 @@ export class StarkDateTimePickerComponent
 		return this._value;
 	}
 
+	/**
+	 * Updates the composite date-time value and synchronizes the inner form controls.
+	 */
 	public set value(value: Date | null) {
 		if (value) {
 			this.dateTimeFormGroup.setValue({
@@ -153,6 +157,9 @@ export class StarkDateTimePickerComponent
 		return this._placeholder;
 	}
 
+	/**
+	 * Updates the placeholder and immediately translates it for Material form-field rendering.
+	 */
 	public set placeholder(value: string) {
 		this.originalPlaceholder = value || "";
 		// Handle translation internally because mat-form-field uses the value of `@Input public placeholder` to display the label / placeholder
@@ -174,6 +181,9 @@ export class StarkDateTimePickerComponent
 		return this._required;
 	}
 
+	/**
+	 * Updates whether both date and time fields are required.
+	 */
 	public set required(value: boolean) {
 		this._required = coerceBooleanProperty(value);
 		if (this._required) {
@@ -185,6 +195,9 @@ export class StarkDateTimePickerComponent
 		}
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `required` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_required: BooleanInput;
 
@@ -197,20 +210,32 @@ export class StarkDateTimePickerComponent
 	/**
 	 * Determines if DateTimePicker is disabled
 	 */
-	@Input()
 	public get disabled(): boolean {
 		return this._disabled;
 	}
 
+	/**
+	 * Enables or disables the composite field and keeps child controls in sync.
+	 */
+	@Input()
 	public set disabled(value: boolean) {
 		this._disabled = coerceBooleanProperty(value);
 
 		if (this._disabled) {
-			this.dateTimeFormGroup.disable();
+			this.dateTimeFormGroup.disable({ emitEvent: false });
 		} else {
-			this.dateTimeFormGroup.enable();
+			this.dateTimeFormGroup.enable({ emitEvent: false });
 		}
+
+		this.syncDisabledState();
+		this.stateChanges.next();
 	}
+
+	/**
+	 * Accepts template-side boolean coercion for the `disabled` input.
+	 */
+	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
+	public static ngAcceptInputType_disabled: BooleanInput;
 
 	/**
 	 * @ignore
@@ -226,6 +251,9 @@ export class StarkDateTimePickerComponent
 		return this._timeMask;
 	}
 
+	/**
+	 * Normalizes the time-mask configuration used by the embedded input.
+	 */
 	public set timeMask(value: StarkTimestampMaskConfig) {
 		// only valid mask configs are accepted, otherwise the default mask is used
 		// eslint-disable-next-line no-prototype-builtins
@@ -268,7 +296,6 @@ export class StarkDateTimePickerComponent
 	@Input()
 	public set max(value: moment.Moment | null) {
 		if (value === undefined) {
-			// eslint-disable-next-line no-null/no-null
 			this._max = null;
 		} else if (value instanceof Date) {
 			this._max = moment(value);
@@ -277,10 +304,16 @@ export class StarkDateTimePickerComponent
 		}
 	}
 
+	/**
+	 * Returns the normalized maximum date-time constraint.
+	 */
 	public get max(): moment.Moment | null {
 		return this._max;
 	}
 
+	/**
+	 * Accepts `Date`-compatible template input for the `max` constraint.
+	 */
 	// Information about input setter coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_max: StarkDateInput;
 
@@ -288,7 +321,7 @@ export class StarkDateTimePickerComponent
 	 * @ignore
 	 * Angular expects a Moment or null value.
 	 */
-	// eslint-disable-next-line no-null/no-null
+
 	private _max: moment.Moment | null = null;
 
 	/**
@@ -297,7 +330,6 @@ export class StarkDateTimePickerComponent
 	@Input()
 	public set min(value: moment.Moment | null) {
 		if (value === undefined) {
-			// eslint-disable-next-line no-null/no-null
 			this._min = null;
 		} else if (value instanceof Date) {
 			this._min = moment(value);
@@ -306,10 +338,16 @@ export class StarkDateTimePickerComponent
 		}
 	}
 
+	/**
+	 * Returns the normalized minimum date-time constraint.
+	 */
 	public get min(): moment.Moment | null {
 		return this._min;
 	}
 
+	/**
+	 * Accepts `Date`-compatible template input for the `min` constraint.
+	 */
 	// Information about input setter coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_min: StarkDateInput;
 
@@ -317,7 +355,7 @@ export class StarkDateTimePickerComponent
 	 * @ignore
 	 * Angular expects a Moment or null value.
 	 */
-	// eslint-disable-next-line no-null/no-null
+
 	public _min: moment.Moment | null = null;
 
 	/**
@@ -494,6 +532,19 @@ export class StarkDateTimePickerComponent
 	}
 
 	/**
+	 * Synchronize the disabled state with the child controls backing the composite field.
+	 */
+	private syncDisabledState(): void {
+		if (this.datePicker) {
+			this.datePicker.disabled = this._disabled;
+		}
+
+		if (this.timeInput) {
+			this.timeInput.nativeElement.disabled = this._disabled;
+		}
+	}
+
+	/**
 	 * Default date in case no date is defined
 	 */
 	public defaultDate = new Date(0);
@@ -512,7 +563,6 @@ export class StarkDateTimePickerComponent
 	 * @param _fm - The Angular Material Focus Monitor service
 	 * @param elementRef - Reference to the DOM element where this component is attached to.
 	 * @param renderer - Angular `Renderer2` wrapper for DOM manipulations.
-	 * @param matFormField - The parent MatFormField directive surrounding this component
 	 * @param injector - The Injector of the application
 	 * @param cdRef - Reference to the change detector attached to this component
 	 * @param translateService - The `TranslateService` instance of the application.
@@ -523,7 +573,6 @@ export class StarkDateTimePickerComponent
 		private _fm: FocusMonitor,
 		elementRef: ElementRef,
 		renderer: Renderer2,
-		private matFormField: MatFormField,
 		private injector: Injector,
 		private cdRef: ChangeDetectorRef,
 		private translateService: TranslateService
@@ -558,9 +607,7 @@ export class StarkDateTimePickerComponent
 			this.ngControl.valueAccessor = this;
 		}
 
-		// the parent node of the _connectionContainerRef is the 'div.form-field-wrapper' which defines the final width of the form field
-		const parentNode: HTMLElement = this.renderer.parentNode(this.matFormField._connectionContainerRef.nativeElement);
-		this.renderer.addClass(parentNode, `${componentName}-form-field-wrapper`);
+		this.syncDisabledState();
 
 		this.translateOnLangChangeSubscription = this.translateService.onLangChange.subscribe(() => {
 			// re-assign the placeholder to refresh the translation (see 'placeholder' setter)
@@ -584,6 +631,10 @@ export class StarkDateTimePickerComponent
 				validators.push(this._starkMaxDateValidator(this.max.toDate()));
 			}
 			this.dateTimeFormGroup.setValidators(validators);
+		}
+
+		if (changes["disabled"]) {
+			this.cdRef.detectChanges();
 		}
 
 		if (changes["max"] || changes["min"] || changes["required"]) {

@@ -5,7 +5,7 @@
 
 @mixin stark-login-page() {
   .stark-login-page {
-    .mat-card-content {
+    .mat-mdc-card-content {
       a {
         margin-left: -16px;
         margin-right: -16px;
@@ -18,7 +18,7 @@
           background-color: rgba(0, 0, 0, 0.1);
         }
 
-        .mat-list-text h3 {
+        .mat-mdc-list-item-title {
           font-weight: bold;
         }
       }

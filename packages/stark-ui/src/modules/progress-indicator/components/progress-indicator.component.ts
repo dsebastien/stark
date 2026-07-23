@@ -12,6 +12,7 @@ const componentName = "stark-progress-indicator";
  * Component that is dynamically created by the {@link StarkProgressIndicatorDirective}
  */
 @Component({
+	standalone: true,
 	selector: "stark-progress-indicator",
 	templateUrl: "./progress-indicator.component.html",
 	encapsulation: ViewEncapsulation.None,

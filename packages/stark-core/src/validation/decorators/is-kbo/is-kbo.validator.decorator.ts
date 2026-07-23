@@ -33,13 +33,13 @@ class StarkIsKBOConstraint implements ValidatorConstraintInterface {
 /**
  * Validator decorator that uses the StarkIsKBO validator constraint
  * @param validationOptions - The options that will define the validity of the kbo number
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkIsKBO(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkIsKBO(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkIsKBOConstraint

@@ -1,6 +1,7 @@
 import { Component } from "@angular/core";
 
 @Component({
+	standalone: false,
 	selector: "demo-dropdown",
 	styleUrls: ["./demo-dropdown.component.scss"],
 	templateUrl: "./demo-dropdown.component.html"

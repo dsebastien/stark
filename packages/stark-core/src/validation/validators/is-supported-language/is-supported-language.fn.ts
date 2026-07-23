@@ -15,7 +15,7 @@ export const starkIsSupportedLanguageValidatorName = "starkIsSupportedLanguage";
  */
 export function starkIsSupportedLanguage(isoCode: string): boolean {
 	if (typeof isoCode === "string") {
-		const languageConstant: StarkLanguage = StarkLanguages[isoCode.toUpperCase().replace("-", "_")];
+		const languageConstant = <StarkLanguage | undefined>Reflect.get(StarkLanguages, isoCode.toUpperCase().replace("-", "_"));
 		if (languageConstant) {
 			return true;
 		}

@@ -32,13 +32,13 @@ class StarkIsSupportedLanguageConstraint implements ValidatorConstraintInterface
 /**
  * Validator decorator that uses the StarkIsSupportedLanguage validator constraint
  * @param validationOptions - The options that will define the validity of the language
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkIsSupportedLanguage(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkIsSupportedLanguage(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkIsSupportedLanguageConstraint

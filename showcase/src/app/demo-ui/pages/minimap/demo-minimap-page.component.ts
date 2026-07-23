@@ -3,6 +3,7 @@ import { StarkMinimapItemProperties } from "@nationalbankbelgium/stark-ui";
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-minimap",
 	templateUrl: "./demo-minimap-page.component.html",
 	styleUrls: ["./demo-minimap-page.component.scss"]

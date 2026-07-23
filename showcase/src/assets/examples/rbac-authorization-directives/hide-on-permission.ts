@@ -3,6 +3,7 @@ import { MatButtonToggleChange } from "@angular/material/button-toggle";
 import { StarkRBACDirectivePermission } from "@nationalbankbelgium/stark-rbac";
 
 @Component({
+	standalone: false,
 	selector: "demo-authorization-directives",
 	templateUrl: "./demo-authorization-directives-page.component.html",
 	styleUrls: ["./demo-authorization-directives-page.component.scss"]

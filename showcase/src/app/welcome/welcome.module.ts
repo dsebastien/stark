@@ -1,8 +1,8 @@
 import { NgModule } from "@angular/core";
 import { UIRouterModule } from "@uirouter/angular";
 import { MatDividerModule } from "@angular/material/divider";
-import { MatLegacyFormFieldModule as MatFormFieldModule } from "@angular/material/legacy-form-field";
-import { MatLegacyInputModule as MatInputModule } from "@angular/material/legacy-input";
+import { MatFormFieldModule } from "@angular/material/form-field";
+import { MatInputModule } from "@angular/material/input";
 import { NgxFormErrorsModule, NgxFormErrorsMessageService } from "@nationalbankbelgium/ngx-form-errors";
 import { SharedModule } from "../shared";
 import { GettingStartedPageComponent, NewsPageComponent, ReactiveFormErrorsPageComponent } from "./pages";

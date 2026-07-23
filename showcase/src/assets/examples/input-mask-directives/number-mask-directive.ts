@@ -4,6 +4,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { StarkNumberMaskConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-number-mask",
 	styleUrls: ["./demo-number-mask.component.scss"],
 	templateUrl: "./demo-number-mask.component.html"

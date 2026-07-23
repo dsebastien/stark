@@ -7,11 +7,12 @@ import { StoreDevtoolsModule } from "@ngrx/store-devtools";
 import { EffectsModule } from "@ngrx/effects";
 import { storeLogger } from "ngrx-store-logger";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
+import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from "@angular/material/form-field";
 import { MatIconModule, MatIconRegistry } from "@angular/material/icon";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
+import { MatButtonModule } from "@angular/material/button";
 import { MatButtonToggleModule } from "@angular/material/button-toggle";
-import { MatLegacyCardModule as MatCardModule } from "@angular/material/legacy-card";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
+import { MatCardModule } from "@angular/material/card";
+import { MatTooltipModule } from "@angular/material/tooltip";
 import { DateAdapter } from "@angular/material/core";
 import { filter } from "rxjs/operators";
 
@@ -199,6 +200,7 @@ export const metaReducers: MetaReducer<State>[] = ENV === "development" ? [logge
 	 */
 	providers: [
 		environment.ENV_PROVIDERS,
+		{ provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { subscriptSizing: "dynamic" } },
 		{ provide: STARK_APP_CONFIG, useFactory: starkAppConfigFactory },
 		{ provide: STARK_APP_METADATA, useFactory: starkAppMetadataFactory },
 		{ provide: STARK_MOCK_DATA, useFactory: starkMockDataFactory },
