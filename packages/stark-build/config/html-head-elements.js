@@ -1,6 +1,10 @@
-// This code has been copied from: https://github.com/fulls1z3/html-elements-webpack-plugin/blob/master/lib/html-elements-webpack-plugin.js
+"use strict";
 
 const RE_ENDS_WITH_BS = /\/$/;
+
+function escapeAttribute(value) {
+	return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
 
 /**
  * Create an HTML tag with attributes from a map.
@@ -13,33 +17,32 @@ const RE_ENDS_WITH_BS = /\/$/;
  * @param publicPath a path to add to eh start of static asset url
  * @returns {string}
  */
-function createTag(tagName, attrMap, publicPath) {
-	publicPath = publicPath || "";
-
+function createTag(tagName, attrMap, publicPath = "") {
 	// add trailing slash if we have a publicPath and it doesn't have one.
 	if (publicPath && !RE_ENDS_WITH_BS.test(publicPath)) {
 		publicPath += "/";
 	}
 
 	const attributes = Object.getOwnPropertyNames(attrMap)
-		.filter(function (name) {
-			return name[0] !== "=";
+		.filter((name) => {
+			return !name.startsWith("=");
 		})
-		.map(function (name) {
-			var value = attrMap[name];
+		.map((name) => {
+			let value = attrMap[name];
 
 			if (publicPath) {
 				// check if we have explicit instruction, use it if so (e.g: =herf: false)
 				// if no instruction, use public path if it's href attribute.
-				const usePublicPath = attrMap.hasOwnProperty("=" + name) ? !!attrMap["=" + name] : name === "href";
+				const publicPathOption = `=${name}`;
+				const usePublicPath = Object.hasOwn(attrMap, publicPathOption) ? Boolean(attrMap[publicPathOption]) : name === "href";
 
 				if (usePublicPath) {
 					// remove a starting trailing slash if the value has one so we wont have //
-					value = publicPath + (value[0] === "/" ? value.substr(1) : value);
+					value = publicPath + (String(value).startsWith("/") ? String(value).slice(1) : value);
 				}
 			}
 
-			return `${name}="${value}"`;
+			return `${name}="${escapeAttribute(value)}"`;
 		});
 
 	const closingTag = tagName === "script" ? "</script>" : "";
@@ -69,18 +72,14 @@ function createTag(tagName, attrMap, publicPath) {
  */
 function getHtmlElementString(dataSource, publicPath) {
 	return Object.getOwnPropertyNames(dataSource)
-		.map(function (name) {
+		.map((name) => {
 			if (Array.isArray(dataSource[name])) {
-				return dataSource[name].map(function (attrs) {
-					return createTag(name, attrs, publicPath);
-				});
+				return dataSource[name].map((attrs) => createTag(name, attrs, publicPath));
 			} else {
 				return [createTag(name, dataSource[name], publicPath)];
 			}
 		})
-		.reduce(function (arr, curr) {
-			return arr.concat(curr);
-		}, [])
+		.flat()
 		.join("\n\t");
 }
 

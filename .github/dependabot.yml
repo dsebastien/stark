@@ -10,12 +10,6 @@ updates:
       - dependency-name: "@angular/*"
         versions:
           - ">=0"
-      - dependency-name: "@angular-builders/*"
-        versions:
-          - ">=0"
-      - dependency-name: "@angular-devkit/build-angular"
-        versions:
-          - ">=0"
       - dependency-name: "@mdi/angular-material"
         versions:
           - ">=5"

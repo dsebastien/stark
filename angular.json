@@ -10,18 +10,21 @@
       "prefix": "stark",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:ng-packagr",
+          "builder": "@angular/build:ng-packagr",
           "options": {
             "tsConfig": "./packages/stark-core/tsconfig.lib.json",
             "project": "./packages/stark-core/ng-package.json"
           }
         },
         "test": {
-          "builder": "@angular-devkit/build-angular:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "main": "./packages/stark-core/base.spec.ts",
-            "tsConfig": "./packages/stark-core/tsconfig.spec.json",
-            "karmaConfig": "./packages/stark-core/karma.conf.js"
+            "buildTarget": "stark-core:build",
+            "providersFile": "./packages/stark-core/testing/src/vitest-testbed.providers.ts",
+            "runner": "vitest",
+            "runnerConfig": "./packages/stark-core/vitest.config.mjs",
+            "setupFiles": ["./packages/stark-core/base.spec.ts"],
+            "tsConfig": "./packages/stark-core/tsconfig.spec.json"
           }
         },
         "lint": {
@@ -39,18 +42,20 @@
       "prefix": "stark",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:ng-packagr",
+          "builder": "@angular/build:ng-packagr",
           "options": {
             "tsConfig": "./packages/stark-rbac/tsconfig.lib.json",
             "project": "./packages/stark-rbac/ng-package.json"
           }
         },
         "test": {
-          "builder": "@angular-devkit/build-angular:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "main": "./packages/stark-rbac/base.spec.ts",
-            "tsConfig": "./packages/stark-rbac/tsconfig.spec.json",
-            "karmaConfig": "./packages/stark-rbac/karma.conf.js"
+            "buildTarget": "stark-rbac:build",
+            "runner": "vitest",
+            "runnerConfig": "./packages/stark-rbac/vitest.config.mjs",
+            "setupFiles": ["./packages/stark-rbac/base.spec.ts"],
+            "tsConfig": "./packages/stark-rbac/tsconfig.spec.json"
           }
         }
       }
@@ -62,18 +67,89 @@
       "prefix": "stark",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:ng-packagr",
+          "builder": "@angular/build:ng-packagr",
           "options": {
             "tsConfig": "./packages/stark-ui/tsconfig.lib.json",
             "project": "./packages/stark-ui/ng-package.json"
           }
         },
         "test": {
-          "builder": "@angular-devkit/build-angular:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "main": "./packages/stark-ui/base.spec.ts",
-            "tsConfig": "./packages/stark-ui/tsconfig.spec.json",
-            "karmaConfig": "./packages/stark-ui/karma.conf.js"
+            "buildTarget": "stark-ui:build",
+            "include": [
+              "packages/stark-ui/src/modules/action-bar/components/action-bar.component.spec.ts",
+              "packages/stark-ui/src/modules/app-footer/components/app-footer.component.spec.ts",
+              "packages/stark-ui/src/modules/app-data/components/app-data.component.spec.ts",
+              "packages/stark-ui/src/modules/app-logo/components/app-logo.component.spec.ts",
+              "packages/stark-ui/src/modules/app-logout/components/app-logout.component.spec.ts",
+              "packages/stark-ui/src/modules/app-menu/components/app-menu.component.spec.ts",
+              "packages/stark-ui/src/modules/app-menu/components/app-menu-item.component.spec.ts",
+              "packages/stark-ui/src/modules/app-sidebar/services/app-sidebar.service.spec.ts",
+              "packages/stark-ui/src/modules/collapsible/components/collapsible.component.spec.ts",
+              "packages/stark-ui/src/modules/progress-indicator/components/progress-indicator.component.spec.ts",
+              "packages/stark-ui/src/modules/progress-indicator/directives/progress-indicator.directive.spec.ts",
+              "packages/stark-ui/src/modules/progress-indicator/reducers/progress-indicator.reducer.spec.ts",
+              "packages/stark-ui/src/modules/progress-indicator/services/progress-indicator.service.spec.ts",
+              "packages/stark-ui/src/modules/minimap/components/minimap.component.spec.ts",
+              "packages/stark-ui/src/modules/message-pane/services/message-pane.service.spec.ts",
+              "packages/stark-ui/src/modules/message-pane/components/message-pane.component.spec.ts",
+              "packages/stark-ui/src/modules/message-pane/effects/message-pane.effects.spec.ts",
+              "packages/stark-ui/src/modules/message-pane/reducers/messages-pane.reducer.spec.ts",
+              "packages/stark-ui/src/modules/slider/components/slider.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/pages/preloading/preloading-page.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/pages/session-expired/session-expired-page.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/pages/session-logout/session-logout-page.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/pages/login/login-page.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/components/session-card/session-card.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/session-ui.module.spec.ts",
+              "packages/stark-ui/src/modules/breadcrumb/components/breadcrumb.component.spec.ts",
+              "packages/stark-ui/src/modules/date-picker/components/date-picker.component.spec.ts",
+              "packages/stark-ui/src/modules/date-range-picker/components/date-range-picker.component.spec.ts",
+              "packages/stark-ui/src/modules/date-time-picker/components/date-time-picker.component.spec.ts",
+              "packages/stark-ui/src/modules/dropdown/components/dropdown.component.spec.ts",
+              "packages/stark-ui/src/modules/generic-search/classes/abstract-search-component.spec.ts",
+              "packages/stark-ui/src/modules/generic-search/components/generic-search/generic-search.component.spec.ts",
+              "packages/stark-ui/src/modules/language-selector/components/language-selector.component.spec.ts",
+              "packages/stark-ui/src/modules/pagination/components/pagination.component.spec.ts",
+              "packages/stark-ui/src/modules/dialogs/components/alert-dialog.component.spec.ts",
+              "packages/stark-ui/src/modules/dialogs/components/confirm-dialog.component.spec.ts",
+              "packages/stark-ui/src/modules/dialogs/components/prompt-dialog.component.spec.ts",
+              "packages/stark-ui/src/modules/input-mask-directives/directives/email-mask.directive.spec.ts",
+              "packages/stark-ui/src/modules/input-mask-directives/directives/number-mask.directive.spec.ts",
+              "packages/stark-ui/src/modules/input-mask-directives/directives/text-mask.directive.spec.ts",
+              "packages/stark-ui/src/modules/input-mask-directives/directives/timestamp-pipe.fn.spec.ts",
+              "packages/stark-ui/src/modules/input-mask-directives/directives/timestamp-mask.directive.spec.ts",
+              "packages/stark-ui/src/modules/pretty-print/components/pretty-print.component.spec.ts",
+              "packages/stark-ui/src/modules/pretty-print/services/pretty-print.service.spec.ts",
+              "packages/stark-ui/src/modules/restrict-input-directive/directives/restrict-input.directive.spec.ts",
+              "packages/stark-ui/src/modules/route-search/components/route-search.component.spec.ts",
+              "packages/stark-ui/src/modules/svg-view-box/directives/svg-view-box.directive.spec.ts",
+              "packages/stark-ui/src/modules/table/components/table.component.spec.ts",
+              "packages/stark-ui/src/modules/transform-input-directive/directives/transform-input.directive.spec.ts",
+              "packages/stark-ui/src/modules/toast-notification/components/toast-notification.component.spec.ts",
+              "packages/stark-ui/src/modules/toast-notification/services/toast-notification.service.spec.ts",
+              "packages/stark-ui/src/modules/app-sidebar/components/app-sidebar.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/components/session-timeout-warning-dialog/session-timeout-warning-dialog.component.spec.ts",
+              "packages/stark-ui/src/modules/session-ui/effects/session-timeout-warning.effect.spec.ts",
+              "packages/stark-ui/src/common/translations/merge-translations.spec.ts",
+              "packages/stark-ui/src/util/dom/dom.util.spec.ts",
+              "packages/stark-ui/src/util/form/form.util.spec.ts"
+            ],
+            "runner": "vitest",
+            "runnerConfig": "./packages/stark-ui/vitest.config.mjs",
+            "setupFiles": ["./packages/stark-ui/base.vitest.spec.ts"],
+            "tsConfig": "./packages/stark-ui/tsconfig.spec.json"
+          }
+        },
+        "test-vitest-smoke": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "stark-ui:build",
+            "include": ["packages/stark-ui/src/util/dom/dom.util.spec.ts"],
+            "runner": "vitest",
+            "runnerConfig": "./packages/stark-ui/vitest.config.mjs",
+            "tsConfig": "./packages/stark-ui/tsconfig.spec.vitest-smoke.json"
           }
         },
         "lint": {

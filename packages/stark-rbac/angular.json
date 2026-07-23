@@ -10,30 +10,30 @@
       "prefix": "stark",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:ng-packagr",
+          "builder": "@angular/build:ng-packagr",
           "options": {
             "tsConfig": "tsconfig.lib.json",
             "project": "ng-package.json"
           }
         },
         "test": {
-          "builder": "@angular-devkit/build-angular:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "main": "base.spec.ts",
-            "tsConfig": "tsconfig.spec.json",
-            "karmaConfig": "karma.conf.js"
+            "buildTarget": "stark-rbac:build",
+            "runner": "vitest",
+            "setupFiles": ["base.spec.ts"],
+            "tsConfig": "tsconfig.spec.json"
           }
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
           "options": {
-            "lintFilePatterns": ["./**/*.ts", "./**/*.html"]
+            "lintFilePatterns": ["./*.ts", "./src/**/*.ts", "./src/**/*.html", "./testing/**/*.ts"]
           }
         }
       }
     }
   },
-  "defaultProject": "stark-rbac",
   "cli": {
     "analytics": false
   }

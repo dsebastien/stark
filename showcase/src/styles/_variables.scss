@@ -7,8 +7,8 @@
 }
 
 // A separate css with the font-faces defined can also be added
-// If the fonts are hosted remotely (eg: https://fonts.gstatic.com)
-// the host and port should be added to "cspFontSrc" property in /config/webpack-custom-config.dev.json
+// If the fonts are hosted remotely (eg: https://fonts.gstatic.com),
+// add that origin to the "font-src" directives under projects.<app>.architect.serve.options.headers in angular.json
 @import url('https://fonts.googleapis.com/css?family=Roboto');
 
 // Define the custom maps for Stark styles if needed 
