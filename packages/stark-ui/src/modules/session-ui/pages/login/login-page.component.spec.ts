@@ -1,9 +1,6 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { RawParams } from "@uirouter/core";
-import { CommonModule } from "@angular/common";
-import { MatLegacyCardModule as MatCardModule } from "@angular/material/legacy-card";
-import { MatLegacyListModule as MatListModule } from "@angular/material/legacy-list";
-import { MatDividerModule } from "@angular/material/divider";
+import { TranslateModule } from "@ngx-translate/core";
 import {
 	STARK_LOGGING_SERVICE,
 	STARK_ROUTING_SERVICE,
@@ -11,25 +8,35 @@ import {
 	STARK_USER_SERVICE,
 	StarkUser
 } from "@nationalbankbelgium/stark-core";
-import {
-	MockStarkLoggingService,
-	MockStarkRoutingService,
-	MockStarkSessionService,
-	MockStarkUserService
-} from "@nationalbankbelgium/stark-core/testing";
-import { TranslateModule } from "@ngx-translate/core";
-import { StarkAppLogoModule } from "@nationalbankbelgium/stark-ui/src/modules/app-logo";
-import { StarkSessionCardComponent } from "../../components/session-card/session-card.component";
 import { StarkLoginPageComponent } from "./login-page.component";
+import { vi } from "vitest";
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+	error: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+type UserServiceMock = {
+	getAllUsers: ReturnType<typeof vi.fn<() => StarkUser[]>>;
+};
+
+type SessionServiceMock = {
+	login: ReturnType<typeof vi.fn<(user: StarkUser) => void>>;
+};
+
+type RoutingServiceMock = {
+	navigateTo: ReturnType<typeof vi.fn<(state: string, params?: RawParams) => void>>;
+	navigateToHome: ReturnType<typeof vi.fn<() => void>>;
+};
 
 describe("LoginPageComponent", () => {
 	let component: StarkLoginPageComponent;
 	let fixture: ComponentFixture<StarkLoginPageComponent>;
 
-	const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
-	const mockUserService: MockStarkUserService = new MockStarkUserService();
-	const mockSessionService: MockStarkSessionService = new MockStarkSessionService();
-	const mockRoutingService: MockStarkRoutingService = new MockStarkRoutingService();
+	let mockLogger: LoggingServiceMock;
+	let mockUserService: UserServiceMock;
+	let mockSessionService: SessionServiceMock;
+	let mockRoutingService: RoutingServiceMock;
 	const mockUser: StarkUser = { firstName: "John", lastName: "Doe", username: "jdoe", uuid: "mock-uuid", roles: [] };
 
 	const mockUserWithRoles: StarkUser = {
@@ -40,25 +47,41 @@ describe("LoginPageComponent", () => {
 		roles: ["admin", "developer"]
 	};
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkSessionCardComponent, StarkLoginPageComponent],
-			imports: [CommonModule, MatCardModule, MatDividerModule, MatListModule, StarkAppLogoModule, TranslateModule.forRoot()],
+	beforeEach(async () => {
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>(),
+			error: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		mockUserService = {
+			getAllUsers: vi.fn(() => [mockUser])
+		};
+		mockSessionService = {
+			login: vi.fn<(user: StarkUser) => void>()
+		};
+		mockRoutingService = {
+			navigateTo: vi.fn<(state: string, params?: RawParams) => void>(),
+			navigateToHome: vi.fn<() => void>()
+		};
+
+		await TestBed.configureTestingModule({
+			imports: [TranslateModule.forRoot(), StarkLoginPageComponent],
 			providers: [
 				{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger },
 				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService },
 				{ provide: STARK_USER_SERVICE, useValue: mockUserService },
 				{ provide: STARK_SESSION_SERVICE, useValue: mockSessionService }
 			]
-		}).compileComponents()));
+		}).compileComponents();
+	});
 
 	beforeEach(() => {
 		fixture = TestBed.createComponent(StarkLoginPageComponent);
 		component = fixture.componentInstance;
 
-		mockSessionService.login.calls.reset();
-		mockRoutingService.navigateTo.calls.reset();
-		mockRoutingService.navigateToHome.calls.reset();
+		mockLogger.error.mockClear();
+		mockSessionService.login.mockClear();
+		mockRoutingService.navigateTo.mockClear();
+		mockRoutingService.navigateToHome.mockClear();
 	});
 
 	describe("on initialization", () => {
@@ -78,7 +101,7 @@ describe("LoginPageComponent", () => {
 
 	describe("userProfilesAvailable", () => {
 		it("should return FALSE if users array is undefined or empty", () => {
-			component.users = <any>undefined;
+			component.users = undefined as unknown as StarkUser[];
 			expect(component.userProfilesAvailable()).toBe(false);
 
 			component.users = [];
@@ -110,8 +133,8 @@ describe("LoginPageComponent", () => {
 			expect(mockRoutingService.navigateTo).not.toHaveBeenCalled();
 			expect(mockRoutingService.navigateToHome).toHaveBeenCalledTimes(1);
 
-			mockSessionService.login.calls.reset();
-			mockRoutingService.navigateToHome.calls.reset();
+			mockSessionService.login.mockClear();
+			mockRoutingService.navigateToHome.mockClear();
 			const mockState = "mock-state";
 			const mockStateParams: RawParams = {
 				param: "mock-state-param"

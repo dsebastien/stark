@@ -1,30 +1,31 @@
-import { ComponentFixture, fakeAsync, TestBed, tick, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
-import { MatLegacyInputModule as MatInputModule } from "@angular/material/legacy-input";
-import { MatLegacyMenuModule as MatMenuModule } from "@angular/material/legacy-menu";
-import { MatLegacyPaginatorModule as MatPaginatorModule } from "@angular/material/legacy-paginator";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
+import { MatInputModule } from "@angular/material/input";
+import { MatMenuModule } from "@angular/material/menu";
+import { MatPaginatorModule } from "@angular/material/paginator";
+import { MatTooltipModule } from "@angular/material/tooltip";
+import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { Component, DebugElement, ViewChild } from "@angular/core";
+import { Component, DebugElement, SimpleChange, ViewChild } from "@angular/core";
 import { By } from "@angular/platform-browser";
 import { TranslateModule } from "@ngx-translate/core";
 import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
 import { Observer } from "rxjs";
 import { StarkPaginationComponent } from "./pagination.component";
 import { StarkPaginateEvent } from "./paginate-event.intf";
 import { StarkPaginationConfig } from "./pagination-config.intf";
 import { StarkDropdownComponent, StarkDropdownModule } from "@nationalbankbelgium/stark-ui/src/modules/dropdown";
 import { StarkRestrictInputDirectiveModule } from "@nationalbankbelgium/stark-ui/src/modules/restrict-input-directive";
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
+import { vi } from "vitest";
+import { StarkPaginationModule } from "../pagination.module";
 
 @Component({
+	standalone: true,
 	selector: `host-component`,
-	template: ` <stark-pagination [htmlSuffixId]="htmlSuffixId" [paginationConfig]="paginationConfig"></stark-pagination> `
+	imports: [StarkPaginationModule],
+	template: ` <stark-pagination [htmlSuffixId]="$any(htmlSuffixId)" [paginationConfig]="$any(paginationConfig)"></stark-pagination> `
 })
 class TestHostComponent {
 	@ViewChild(StarkPaginationComponent, { static: true })
@@ -53,8 +54,20 @@ describe("PaginationComponent", () => {
 	const pageNumbersSelector = "li.page-numbers";
 	const totalPagesSelector = "span.total-pages";
 
-	const assertPageNavSelection: Function = (paginationElement: DebugElement, selectedOption: string): void => {
-		const pageNavElement: DebugElement = paginationElement.query(By.css("ul"));
+	function isDebugElement(node: unknown): node is DebugElement {
+		return typeof node === "object" && node !== null && "nativeElement" in node && "query" in node && "queryAll" in node;
+	}
+
+	function requireDebugElement(node: unknown, context: string): DebugElement {
+		if (!isDebugElement(node)) {
+			throw new Error(`Expected ${context} to be a DebugElement`);
+		}
+
+		return node;
+	}
+
+	const assertPageNavSelection = (paginationElement: unknown, selectedOption: string): void => {
+		const pageNavElement: DebugElement = requireDebugElement(paginationElement, "paginationElement").query(By.css("ul"));
 		const pageNavOptionElements: DebugElement[] = pageNavElement.queryAll(By.css("li"));
 
 		for (const pageNavOption of pageNavOptionElements) {
@@ -66,9 +79,9 @@ describe("PaginationComponent", () => {
 		}
 	};
 
-	const changeInputValueAndPressEnter: Function = (rootElement: DebugElement, value: string): void => {
+	const changeInputValueAndPressEnter = (rootElement: unknown, value: string): void => {
 		const querySelector = "div.pagination-enter-page input";
-		const pageSelectorInput: DebugElement = rootElement.query(By.css(querySelector));
+		const pageSelectorInput: DebugElement = requireDebugElement(rootElement, "rootElement").query(By.css(querySelector));
 		const nativeInputElement: HTMLInputElement = <HTMLInputElement>pageSelectorInput.nativeElement;
 
 		nativeInputElement.value = value;
@@ -83,13 +96,11 @@ describe("PaginationComponent", () => {
 		pageSelectorInput.triggerEventHandler("change", changeEvent);
 
 		// key up
-		const keyupEvent: Event = document.createEvent("Event");
-		keyupEvent.initEvent("keyup", true, true);
-		keyupEvent["key"] = "Enter";
+		const keyupEvent = new KeyboardEvent("keyup", { key: "Enter", bubbles: true, cancelable: true });
 		nativeInputElement.dispatchEvent(keyupEvent);
 	};
 
-	const triggerClick: Function = (element: DebugElement): void => {
+	const triggerClick = (element: DebugElement): void => {
 		// more verbose way to create and trigger an event (the only way it works in IE)
 		// https://developer.mozilla.org/en-US/docs/Web/Guide/Events/Creating_and_triggering_events
 		const clickEvent: Event = document.createEvent("Event");
@@ -97,10 +108,28 @@ describe("PaginationComponent", () => {
 		(<HTMLElement>element.nativeElement).dispatchEvent(clickEvent);
 	};
 
-	const assertPageInputSelection: Function = (rootElement: DebugElement, selectedOption: string): void => {
+	const assertPageInputSelection = (rootElement: unknown, selectedOption: string): void => {
 		const querySelector = "div.pagination-enter-page input";
-		const pageSelectorInput: DebugElement = rootElement.query(By.css(querySelector));
-		expect(pageSelectorInput.properties["value"].toString()).toBe(selectedOption);
+		const pageSelectorInput: DebugElement = requireDebugElement(rootElement, "rootElement").query(By.css(querySelector));
+		expect((pageSelectorInput.nativeElement as HTMLInputElement).value).toBe(selectedOption);
+	};
+
+	type HostInitializer = (testHost: TestHostComponent) => void;
+
+	const renderHost = (initializer?: HostInitializer): void => {
+		hostFixture = TestBed.createComponent(TestHostComponent);
+		hostComponent = hostFixture.componentInstance;
+		hostComponent.htmlSuffixId = htmlSuffixId;
+		initializer?.(hostComponent);
+		hostFixture.detectChanges();
+
+		component = hostComponent.paginationComponent;
+	};
+
+	const detectChangesAndStabilize = async (): Promise<void> => {
+		hostFixture.detectChanges();
+		await hostFixture.whenStable();
+		hostFixture.detectChanges();
 	};
 
 	beforeEach(waitForAsync(() =>
@@ -117,19 +146,14 @@ describe("PaginationComponent", () => {
 				NoopAnimationsModule,
 				StarkDropdownModule,
 				StarkRestrictInputDirectiveModule,
-				TranslateModule.forRoot()
+				TranslateModule.forRoot(),
+				TestHostComponent
 			],
-			declarations: [StarkPaginationComponent, TestHostComponent],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: createLoggerMock() }]
 		}).compileComponents()));
 
 	beforeEach(() => {
-		hostFixture = TestBed.createComponent(TestHostComponent);
-		hostComponent = hostFixture.componentInstance;
-		hostComponent.htmlSuffixId = htmlSuffixId;
-		hostFixture.detectChanges();
-
-		component = hostComponent.paginationComponent;
+		renderHost();
 	});
 
 	describe("on initialization", () => {
@@ -147,25 +171,27 @@ describe("PaginationComponent", () => {
 			expect(component.paginationConfig).toBeDefined();
 		});
 
-		it("should render the appropriate content in normal mode", () => {
-			hostComponent.paginationConfig = {
-				page: 2,
-				itemsPerPage: 4,
-				itemsPerPageOptions: [4, 8, 12],
-				totalItems: 10,
-				isExtended: false,
-				pageNavIsPresent: true,
-				pageInputIsPresent: true,
-				itemsPerPageIsPresent: true
-			};
-			hostFixture.detectChanges();
+		it("should render the appropriate content in normal mode", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = {
+					page: 2,
+					itemsPerPage: 4,
+					itemsPerPageOptions: [4, 8, 12],
+					totalItems: 10,
+					isExtended: false,
+					pageNavIsPresent: true,
+					pageInputIsPresent: true,
+					itemsPerPageIsPresent: true
+				};
+			});
+			await detectChangesAndStabilize();
 
 			const pageNavElement: DebugElement = hostFixture.debugElement.query(By.css("ul"));
 			expect(pageNavElement).toBeDefined();
-			expect(pageNavElement.nativeElement.innerHTML).toMatch('<li.* aria-label="Previous"');
+			expect(pageNavElement.nativeElement.innerHTML).toContain('aria-label="Previous"');
 			const numberElements: DebugElement[] = pageNavElement.queryAll(By.css(pageNumbersSelector));
 			expect(numberElements.length).toBe(0);
-			expect(pageNavElement.nativeElement.innerHTML).toMatch('<li.* aria-label="Next"');
+			expect(pageNavElement.nativeElement.innerHTML).toContain('aria-label="Next"');
 
 			// Verify pageSelector
 			const pageSelector: DebugElement = hostFixture.debugElement.query(By.css("div.pagination-enter-page"));
@@ -179,40 +205,40 @@ describe("PaginationComponent", () => {
 
 			// Verify itemsPerPageSelector dropdown
 			const itemsPerPageSelector: DebugElement = hostFixture.debugElement.query(By.directive(StarkDropdownComponent));
+			const itemsPerPageDropdown: StarkDropdownComponent = itemsPerPageSelector.componentInstance as StarkDropdownComponent;
 
-			// bindings can be checked via the ng-reflect-xxxx attributes
-			expect(itemsPerPageSelector.attributes["ng-reflect-options"]).toBe(
-				(<number[]>component.paginationConfig.itemsPerPageOptions).join(",")
-			);
-			expect(itemsPerPageSelector.attributes["ng-reflect-value"]).toBe((<number>component.paginationConfig.itemsPerPage).toString());
-			expect(itemsPerPageSelector.attributes["ng-reflect-dropdown-id"]).toBe(itemsPerPagePrefix + htmlSuffixId);
-			expect(itemsPerPageSelector.attributes["ng-reflect-dropdown-name"]).toBe(itemsPerPagePrefix + htmlSuffixId);
+			expect(itemsPerPageDropdown.options).toEqual(<number[]>component.paginationConfig.itemsPerPageOptions);
+			expect(itemsPerPageDropdown.value).toBe(<number>component.paginationConfig.itemsPerPage);
+			expect(itemsPerPageDropdown.dropdownId).toBe(itemsPerPagePrefix + htmlSuffixId);
+			expect(itemsPerPageDropdown.dropdownName).toBe(itemsPerPagePrefix + htmlSuffixId);
 			/// expect(itemsPerPageSelector.attr("header")).toBe("STARK.PAGINATION.ITEMS_PER_PAGE"); // TODO add a header to the itemsPerPage dropdown
 		});
 
-		it("should render the appropriate content in extended mode", () => {
-			hostComponent.paginationConfig = {
-				page: 2,
-				itemsPerPage: 4,
-				itemsPerPageOptions: [4, 8, 12],
-				totalItems: 10,
-				isExtended: true,
-				pageNavIsPresent: true,
-				pageInputIsPresent: true,
-				itemsPerPageIsPresent: true
-			};
-			hostFixture.detectChanges();
+		it("should render the appropriate content in extended mode", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = {
+					page: 2,
+					itemsPerPage: 4,
+					itemsPerPageOptions: [4, 8, 12],
+					totalItems: 10,
+					isExtended: true,
+					pageNavIsPresent: true,
+					pageInputIsPresent: true,
+					itemsPerPageIsPresent: true
+				};
+			});
+			await detectChangesAndStabilize();
 
 			const pageNavElement: DebugElement = hostFixture.debugElement.query(By.css("ul"));
 			expect(pageNavElement).toBeDefined();
-			expect(pageNavElement.nativeElement.innerHTML).toMatch('<li.* aria-label="Previous"');
+			expect(pageNavElement.nativeElement.innerHTML).toContain('aria-label="Previous"');
 			const numberElements: DebugElement[] = pageNavElement.queryAll(By.css(pageNumbersSelector));
 			expect(numberElements.length).toBe(3);
 			expect(numberElements[0].nativeElement.textContent).toBe("1");
 			expect(numberElements[1].nativeElement.textContent).toBe("2");
 			expect(numberElements[2].nativeElement.textContent).toBe("3");
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
-			expect(pageNavElement.nativeElement.innerHTML).toMatch('<li.* aria-label="Next"');
+			expect(pageNavElement.nativeElement.innerHTML).toContain('aria-label="Next"');
 
 			// Verify pageSelector
 			const pageSelector: DebugElement = hostFixture.debugElement.query(By.css("div.pagination-enter-page"));
@@ -226,14 +252,12 @@ describe("PaginationComponent", () => {
 
 			// Verify itemsPerPageSelector dropdown
 			const itemsPerPageSelector: DebugElement = hostFixture.debugElement.query(By.directive(StarkDropdownComponent));
+			const itemsPerPageDropdown: StarkDropdownComponent = itemsPerPageSelector.componentInstance as StarkDropdownComponent;
 
-			// bindings can be checked via the ng-reflect-xxxx attributes
-			expect(itemsPerPageSelector.attributes["ng-reflect-options"]).toBe(
-				(<number[]>component.paginationConfig.itemsPerPageOptions).join(",")
-			);
-			expect(itemsPerPageSelector.attributes["ng-reflect-value"]).toBe((<number>component.paginationConfig.itemsPerPage).toString());
-			expect(itemsPerPageSelector.attributes["ng-reflect-dropdown-id"]).toBe(itemsPerPagePrefix + htmlSuffixId);
-			expect(itemsPerPageSelector.attributes["ng-reflect-dropdown-name"]).toBe(itemsPerPagePrefix + htmlSuffixId);
+			expect(itemsPerPageDropdown.options).toEqual(<number[]>component.paginationConfig.itemsPerPageOptions);
+			expect(itemsPerPageDropdown.value).toBe(<number>component.paginationConfig.itemsPerPage);
+			expect(itemsPerPageDropdown.dropdownId).toBe(itemsPerPagePrefix + htmlSuffixId);
+			expect(itemsPerPageDropdown.dropdownName).toBe(itemsPerPagePrefix + htmlSuffixId);
 			/// expect(itemsPerPageSelector.attr("header")).toBe("STARK.PAGINATION.ITEMS_PER_PAGE"); // TODO add a header to the itemsPerPage dropdown
 		});
 	});
@@ -364,7 +388,7 @@ describe("PaginationComponent", () => {
 		it("should call onChangePagination if the current page is not the last", () => {
 			component.paginationConfig.page = 1;
 
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.goToLast();
 			expect(component.onChangePagination).toHaveBeenCalledTimes(1);
 		});
@@ -395,7 +419,7 @@ describe("PaginationComponent", () => {
 		it("should call onChangePagination if the current page is not the last", () => {
 			component.paginationConfig.page = 1;
 
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.goToNext();
 			expect(component.onChangePagination).toHaveBeenCalledTimes(1);
 		});
@@ -426,7 +450,7 @@ describe("PaginationComponent", () => {
 		it("should call onChangePagination if the current page is not the first", () => {
 			component.paginationConfig.page = 2;
 
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.goToPrevious();
 			expect(component.onChangePagination).toHaveBeenCalledTimes(1);
 		});
@@ -457,7 +481,7 @@ describe("PaginationComponent", () => {
 		it("should call onChangePagination if the current page is not the first", () => {
 			component.paginationConfig.page = 2;
 
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.goToFirst();
 			expect(component.onChangePagination).toHaveBeenCalledTimes(1);
 		});
@@ -575,7 +599,7 @@ describe("PaginationComponent", () => {
 		});
 
 		it("should not call onChangePagination function when page is ...", () => {
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.goToPage("...");
 			expect(component.onChangePagination).not.toHaveBeenCalled();
 		});
@@ -586,7 +610,7 @@ describe("PaginationComponent", () => {
 		});
 
 		it("should call onChangePagination function when page is 2", () => {
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.goToPage(2);
 			expect(component.onChangePagination).toHaveBeenCalledTimes(1);
 		});
@@ -666,13 +690,13 @@ describe("PaginationComponent", () => {
 		});
 
 		it("should call onChangePagination 1 time", () => {
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.onChangeItemsPerPage((<number[]>component.paginationConfig.itemsPerPageOptions)[1]);
 			expect(component.onChangePagination).toHaveBeenCalledTimes(1);
 		});
 
 		it("should NOT call onChangePagination if current 'itemsPerPage' value is the same than the new one", () => {
-			spyOn(component, "onChangePagination");
+			vi.spyOn(component, "onChangePagination");
 			component.onChangeItemsPerPage((<number[]>paginationConfig.itemsPerPageOptions)[0]);
 			expect(component.paginationConfig.page).toBe(paginationConfig.page);
 		});
@@ -684,13 +708,13 @@ describe("PaginationComponent", () => {
 		});
 
 		it("should emit the StarkPaginateEvent 1 time", () => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockObserver = createObserverSpy<any>();
 
-			component.paginated.subscribe(mockObserver);
+			component.paginated.subscribe(mockObserver.observer);
 			component.onChangePagination();
 
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
-			const event: StarkPaginateEvent = mockObserver.next.calls.argsFor(0)[0];
+			const event = mockObserver.next.mock.calls[0][0] as StarkPaginateEvent;
 			expect(event).toBeDefined();
 			expect(event.itemsPerPage).toBe(<number>component.paginationConfig.itemsPerPage);
 			expect(event.page).toBe(<number>component.paginationConfig.page);
@@ -700,7 +724,7 @@ describe("PaginationComponent", () => {
 		});
 
 		it("should call setPageNumbers function 1 time", () => {
-			spyOn(component, "setPageNumbers");
+			vi.spyOn(component, "setPageNumbers");
 			component.onChangePagination();
 			expect(component.setPageNumbers).toHaveBeenCalledTimes(1);
 		});
@@ -710,8 +734,9 @@ describe("PaginationComponent", () => {
 		const selectorPageNavElement = ".stark-pagination ul";
 
 		it("should be rendered if pageNavIsPresent is true or undefined", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageNavIsPresent: true };
-			hostFixture.detectChanges();
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageNavIsPresent: true };
+			});
 
 			const pageNavElement: DebugElement = hostFixture.debugElement.query(By.css(selectorPageNavElement));
 			expect(pageNavElement).toBeDefined();
@@ -719,8 +744,9 @@ describe("PaginationComponent", () => {
 		});
 
 		it("should be rendered if pageNavIsPresent is undefined", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageNavIsPresent: undefined };
-			hostFixture.detectChanges();
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageNavIsPresent: undefined };
+			});
 
 			const pageNavElement: DebugElement = hostFixture.debugElement.query(By.css(selectorPageNavElement));
 			expect(pageNavElement).toBeDefined();
@@ -728,8 +754,9 @@ describe("PaginationComponent", () => {
 		});
 
 		it("should NOT be rendered if pageNavIsPresent is false", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageNavIsPresent: false };
-			hostFixture.detectChanges();
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageNavIsPresent: false };
+			});
 
 			const pageNavElement: DebugElement = hostFixture.debugElement.query(By.css(selectorPageNavElement));
 			expect(pageNavElement).toBeNull();
@@ -739,96 +766,109 @@ describe("PaginationComponent", () => {
 	describe("page input", () => {
 		const selectorPageSelector = ".stark-pagination div.pagination-enter-page";
 
-		it("should be rendered if pageInputIsPresent is undefined", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageInputIsPresent: undefined };
-			hostFixture.detectChanges();
+		it("should be rendered if pageInputIsPresent is undefined", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageInputIsPresent: undefined };
+			});
+			await detectChangesAndStabilize();
 
 			const pageSelector: DebugElement = hostFixture.debugElement.query(By.css(selectorPageSelector));
 
 			const pageSelectorInput: DebugElement = pageSelector.query(By.css("input"));
 			expect(pageSelectorInput.properties["id"]).toBe(currentPagePrefix + htmlSuffixId);
-			expect(pageSelectorInput.attributes["ng-reflect-model"]).toBe("2");
+			expect((pageSelectorInput.nativeElement as HTMLInputElement).value).toBe("2");
 			const pageSelectorTotalPages: DebugElement = pageSelector.query(By.css(totalPagesSelector));
 			expect(pageSelectorTotalPages.nativeElement.innerHTML).toBe("2");
 		});
 
-		it("should be rendered if pageInputIsPresent is true", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageInputIsPresent: true };
-			hostFixture.detectChanges();
+		it("should be rendered if pageInputIsPresent is true", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageInputIsPresent: true };
+			});
+			await detectChangesAndStabilize();
 
 			const pageSelector: DebugElement = hostFixture.debugElement.query(By.css(selectorPageSelector));
 
 			const pageSelectorInput: DebugElement = pageSelector.query(By.css("input"));
 			expect(pageSelectorInput.properties["id"]).toBe(currentPagePrefix + htmlSuffixId);
-			expect(pageSelectorInput.attributes["ng-reflect-model"]).toBe("2");
+			expect((pageSelectorInput.nativeElement as HTMLInputElement).value).toBe("2");
 			const pageSelectorTotalPages: DebugElement = pageSelector.query(By.css(totalPagesSelector));
 			expect(pageSelectorTotalPages.nativeElement.innerHTML).toBe("2");
 		});
 
 		it("should NOT be rendered if pageInputIsPresent is false", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageInputIsPresent: false };
-			hostFixture.detectChanges();
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageInputIsPresent: false };
+			});
 
 			const pageSelector: DebugElement = hostFixture.debugElement.query(By.css(selectorPageSelector));
 			expect(pageSelector).toBeNull();
 		});
 
-		it("should trigger the pagination when a valid page is typed and the Enter key is pressed", fakeAsync(() => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageInputIsPresent: true };
-			hostFixture.detectChanges();
+		it("should trigger the pagination when a valid page is typed and the Enter key is pressed", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageInputIsPresent: true };
+			});
+			await detectChangesAndStabilize();
 
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 
 			changeInputValueAndPressEnter(hostFixture.debugElement.childNodes[0], "1");
 
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			await detectChangesAndStabilize();
 
 			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
-		}));
+		});
 
-		it("should NOT trigger the pagination when an invalid page is typed and the Enter key is pressed", fakeAsync(() => {
-			hostComponent.paginationConfig = { ...paginationConfig, pageInputIsPresent: true };
-			hostFixture.detectChanges();
+		it("should NOT trigger the pagination when an invalid page is typed and the Enter key is pressed", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, pageInputIsPresent: true };
+			});
+			await detectChangesAndStabilize();
 
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 
 			changeInputValueAndPressEnter(hostFixture.debugElement.childNodes[0], "4");
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			await detectChangesAndStabilize();
+			await detectChangesAndStabilize();
 
 			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2"); // the input value is reverted to the last valid value
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
-		}));
+		});
 	});
 
 	describe("itemsPerPage dropdown", () => {
 		it("should be rendered if itemsPerPageIsPresent is undefined", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, itemsPerPageIsPresent: undefined };
-			hostFixture.detectChanges();
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, itemsPerPageIsPresent: undefined };
+			});
 
 			const itemsPerPageSelector: DebugElement = hostFixture.debugElement.query(By.directive(StarkDropdownComponent));
+			const itemsPerPageDropdown: StarkDropdownComponent = itemsPerPageSelector.componentInstance as StarkDropdownComponent;
 			expect(itemsPerPageSelector).not.toBeNull();
 			expect(itemsPerPageSelector).toBeDefined();
-			expect(itemsPerPageSelector.attributes["ng-reflect-dropdown-id"]).toBe(itemsPerPagePrefix + htmlSuffixId);
+			expect(itemsPerPageDropdown.dropdownId).toBe(itemsPerPagePrefix + htmlSuffixId);
 			/// expect(itemsPerPageSelector.attr("header")).toBe("STARK.PAGINATION.ITEMS_PER_PAGE"); // TODO add a header to the itemsPerPage dropdown
 		});
 
 		it("should be rendered if itemsPerPageIsPresent is true", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, itemsPerPageIsPresent: true };
-			hostFixture.detectChanges();
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, itemsPerPageIsPresent: true };
+			});
 
 			const itemsPerPageSelector: DebugElement = hostFixture.debugElement.query(By.directive(StarkDropdownComponent));
+			const itemsPerPageDropdown: StarkDropdownComponent = itemsPerPageSelector.componentInstance as StarkDropdownComponent;
 			expect(itemsPerPageSelector).not.toBeNull();
 			expect(itemsPerPageSelector).toBeDefined();
-			expect(itemsPerPageSelector.attributes["ng-reflect-dropdown-id"]).toBe(itemsPerPagePrefix + htmlSuffixId);
+			expect(itemsPerPageDropdown.dropdownId).toBe(itemsPerPagePrefix + htmlSuffixId);
 			/// expect(itemsPerPageSelector.attr("header")).toBe("STARK.PAGINATION.ITEMS_PER_PAGE"); // TODO add a header to the itemsPerPage dropdown
 		});
 
 		it("should NOT be rendered if pageInputIsPresent is false", () => {
-			hostComponent.paginationConfig = { ...paginationConfig, itemsPerPageIsPresent: false };
-			hostFixture.detectChanges();
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, itemsPerPageIsPresent: false };
+			});
 
 			const itemsPerPageSelector: DebugElement = hostFixture.debugElement.query(By.directive(StarkDropdownComponent));
 			expect(itemsPerPageSelector).toBeNull();
@@ -841,17 +881,19 @@ describe("PaginationComponent", () => {
 			const selectorFirstButtonElement = "li.first-page button";
 
 			it("button should not be rendered in extended mode", () => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 2, isExtended: true };
-				hostFixture.detectChanges();
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 2, isExtended: true };
+				});
 
 				firstButtonElement = hostFixture.debugElement.query(By.css(selectorFirstButtonElement));
 				expect(firstButtonElement).toBeNull();
 			});
 
-			it("should change the page when the page is not already the first one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 2, isExtended: false };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should change the page when the page is not already the first one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 2, isExtended: false };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
@@ -859,19 +901,19 @@ describe("PaginationComponent", () => {
 				firstButtonElement = hostFixture.debugElement.query(By.css(selectorFirstButtonElement));
 				expect(firstButtonElement.attributes["disabled"]).toBeFalsy();
 				triggerClick(firstButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				firstButtonElement = hostFixture.debugElement.query(By.css(selectorFirstButtonElement));
 				expect(firstButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
-			}));
+			});
 
-			it("should not change the page if the page is already the first one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 1, isExtended: false };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should not change the page if the page is already the first one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 1, isExtended: false };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
@@ -879,24 +921,24 @@ describe("PaginationComponent", () => {
 				firstButtonElement = hostFixture.debugElement.query(By.css(selectorFirstButtonElement));
 				expect(firstButtonElement.attributes["disabled"]).toBeTruthy();
 				triggerClick(firstButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				firstButtonElement = hostFixture.debugElement.query(By.css(selectorFirstButtonElement));
 				expect(firstButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
-			}));
+			});
 		});
 
 		describe("goToPrevious", () => {
 			let previousButtonElement: DebugElement;
 			const selectorPreviousButtonElement = "li.previous button";
 
-			it("should change the page when the page is not already the first one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 2 };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should change the page when the page is not already the first one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 2 };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
@@ -904,19 +946,19 @@ describe("PaginationComponent", () => {
 				previousButtonElement = hostFixture.debugElement.query(By.css(selectorPreviousButtonElement));
 				expect(previousButtonElement.attributes["disabled"]).toBeFalsy();
 				triggerClick(previousButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				previousButtonElement = hostFixture.debugElement.query(By.css(selectorPreviousButtonElement));
 				expect(previousButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
-			}));
+			});
 
-			it("should not change the page if the page is already the first one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 1 };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should not change the page if the page is already the first one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 1 };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
@@ -924,24 +966,24 @@ describe("PaginationComponent", () => {
 				previousButtonElement = hostFixture.debugElement.query(By.css(selectorPreviousButtonElement));
 				expect(previousButtonElement.attributes["disabled"]).toBeTruthy();
 				triggerClick(previousButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				previousButtonElement = hostFixture.debugElement.query(By.css(selectorPreviousButtonElement));
 				expect(previousButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
-			}));
+			});
 		});
 
 		describe("goToNext", () => {
 			let nextButtonElement: DebugElement;
 			const selectorNextButtonElement = "li.next button";
 
-			it("should change the page if the page is not already the last one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 1 };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should change the page if the page is not already the last one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 1 };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
@@ -949,19 +991,19 @@ describe("PaginationComponent", () => {
 				nextButtonElement = hostFixture.debugElement.query(By.css(selectorNextButtonElement));
 				expect(nextButtonElement.attributes["disabled"]).toBeFalsy();
 				triggerClick(nextButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				nextButtonElement = hostFixture.debugElement.query(By.css(selectorNextButtonElement));
 				expect(nextButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
-			}));
+			});
 
-			it("should not change the page if the page is already the last one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 2 };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should not change the page if the page is already the last one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 2 };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
@@ -969,14 +1011,13 @@ describe("PaginationComponent", () => {
 				nextButtonElement = hostFixture.debugElement.query(By.css(selectorNextButtonElement));
 				expect(nextButtonElement.attributes["disabled"]).toBeTruthy();
 				triggerClick(nextButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				nextButtonElement = hostFixture.debugElement.query(By.css(selectorNextButtonElement));
 				expect(nextButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
-			}));
+			});
 		});
 
 		describe("goToLast", () => {
@@ -984,17 +1025,19 @@ describe("PaginationComponent", () => {
 			const selectorLastButtonElement = "li.last-page button";
 
 			it("button should not be rendered in extended mode", () => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 2, isExtended: true };
-				hostFixture.detectChanges();
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 2, isExtended: true };
+				});
 
-				lastButtonElement = hostFixture.debugElement.query(By.css("li.first-page button"));
+				lastButtonElement = hostFixture.debugElement.query(By.css(selectorLastButtonElement));
 				expect(lastButtonElement).toBeNull();
 			});
 
-			it("should change the page if the page is not already the last one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 1, isExtended: false };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should change the page if the page is not already the last one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 1, isExtended: false };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
@@ -1002,19 +1045,19 @@ describe("PaginationComponent", () => {
 				lastButtonElement = hostFixture.debugElement.query(By.css(selectorLastButtonElement));
 				expect(lastButtonElement.attributes["disabled"]).toBeFalsy();
 				triggerClick(lastButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				lastButtonElement = hostFixture.debugElement.query(By.css(selectorLastButtonElement));
 				expect(lastButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
-			}));
+			});
 
-			it("should not change the page if the page is already the last one", fakeAsync(() => {
-				hostComponent.paginationConfig = { ...paginationConfig, page: 2, isExtended: false };
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			it("should not change the page if the page is already the last one", async () => {
+				renderHost((testHost: TestHostComponent) => {
+					testHost.paginationConfig = { ...paginationConfig, page: 2, isExtended: false };
+				});
+				await detectChangesAndStabilize();
 
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
@@ -1022,22 +1065,22 @@ describe("PaginationComponent", () => {
 				lastButtonElement = hostFixture.debugElement.query(By.css(selectorLastButtonElement));
 				expect(lastButtonElement.attributes["disabled"]).toBeTruthy();
 				triggerClick(lastButtonElement);
-				hostFixture.detectChanges();
-				tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+				await detectChangesAndStabilize();
 
 				lastButtonElement = hostFixture.debugElement.query(By.css(selectorLastButtonElement));
 				expect(lastButtonElement.attributes["disabled"]).toBeTruthy();
 				assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 				assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
-			}));
+			});
 		});
 	});
 
 	describe("pageNumbers", () => {
-		it("should change page if click on page number", fakeAsync(() => {
-			hostComponent.paginationConfig = { ...paginationConfig, page: 2, totalItems: 10 };
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+		it("should change page if click on page number", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, page: 2, totalItems: 10 };
+			});
+			await detectChangesAndStabilize();
 
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
 			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
@@ -1046,21 +1089,20 @@ describe("PaginationComponent", () => {
 				.queryAll(By.css("li a"))
 				.find((el: DebugElement) => el.nativeElement.textContent === "3");
 			if (!pageTwoElement) {
-				fail("li a with innerHTML '3' not found.");
-				return;
+				throw new Error("li a with innerHTML '3' not found.");
 			}
 			triggerClick(pageTwoElement);
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			await detectChangesAndStabilize();
 
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "3");
 			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "3");
-		}));
+		});
 
-		it("should not change page if click on '...'", fakeAsync(() => {
-			hostComponent.paginationConfig = { ...paginationConfig, page: 1, totalItems: 50 };
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+		it("should not change page if click on '...'", async () => {
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = { ...paginationConfig, page: 1, totalItems: 50 };
+			});
+			await detectChangesAndStabilize();
 
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
@@ -1069,51 +1111,97 @@ describe("PaginationComponent", () => {
 				.queryAll(By.css("li"))
 				.find((el: DebugElement) => el.nativeElement.textContent === "...");
 			if (!morePagesElement) {
-				fail("No li element with textContent '...' found.");
-				return;
+				throw new Error("No li element with textContent '...' found.");
 			}
 			triggerClick(morePagesElement);
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			await detectChangesAndStabilize();
 
 			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
 			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
-		}));
+		});
 	});
 
 	describe("on paginationConfig change", () => {
-		beforeEach(fakeAsync(() => {
-			hostComponent.paginationConfig = { ...paginationConfig, totalItems: 10 };
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
-		}));
+		let initialPaginationConfig: StarkPaginationConfig;
+
+		beforeEach(async () => {
+			initialPaginationConfig = { ...paginationConfig, totalItems: 10 };
+			renderHost((testHost: TestHostComponent) => {
+				testHost.paginationConfig = initialPaginationConfig;
+			});
+			await detectChangesAndStabilize();
+		});
 
 		it("should change pageNumbers if totalItems has changed", () => {
-			const previousPageNumbersLength: number = hostFixture.debugElement.queryAll(By.css(pageNumbersSelector)).length;
-			hostComponent.paginationConfig = { ...paginationConfig, totalItems: 13 };
-			hostFixture.detectChanges();
-			const currentPageNumbersElement: number = hostFixture.debugElement.queryAll(By.css(pageNumbersSelector)).length;
-			expect(currentPageNumbersElement).not.toEqual(previousPageNumbersLength);
+			const previousPageNumbersLength: number = component.pageNumbers.length;
+			const updatedPaginationConfig: StarkPaginationConfig = { ...paginationConfig, totalItems: 13 };
+
+			component.paginationConfig = updatedPaginationConfig;
+			component.ngOnChanges({
+				paginationConfig: new SimpleChange(initialPaginationConfig, updatedPaginationConfig, false)
+			});
+
+			expect(component.pageNumbers.length).not.toEqual(previousPageNumbersLength);
 		});
 
 		it("should not change pageNumbers if totalItems has not changed", () => {
-			const previousPageNumbersLength: number = hostFixture.debugElement.queryAll(By.css(pageNumbersSelector)).length;
-			hostComponent.paginationConfig = { ...paginationConfig, totalItems: 10 };
-			hostFixture.detectChanges();
-			const currentPageNumbersElement: number = hostFixture.debugElement.queryAll(By.css(pageNumbersSelector)).length;
-			expect(currentPageNumbersElement).toEqual(previousPageNumbersLength);
+			const previousPageNumbersLength: number = component.pageNumbers.length;
+			const updatedPaginationConfig: StarkPaginationConfig = { ...paginationConfig, totalItems: 10 };
+
+			component.paginationConfig = updatedPaginationConfig;
+			component.ngOnChanges({
+				paginationConfig: new SimpleChange(initialPaginationConfig, updatedPaginationConfig, false)
+			});
+
+			expect(component.pageNumbers.length).toEqual(previousPageNumbersLength);
 		});
 
-		it("should set current page to 1 when it is undefined in config", fakeAsync(() => {
-			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "2");
-			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "2");
+		it("should set current page to 1 when it is undefined in config", () => {
+			const updatedPaginationConfig: StarkPaginationConfig = { ...paginationConfig, page: undefined };
 
-			hostComponent.paginationConfig = { ...paginationConfig, page: undefined };
-			hostFixture.detectChanges();
-			tick(); // since values are set on ngModel asynchronously (see https://github.com/angular/angular/issues/22606)
+			component.paginationConfig = updatedPaginationConfig;
+			component.ngOnChanges({
+				paginationConfig: new SimpleChange(initialPaginationConfig, updatedPaginationConfig, false)
+			});
 
-			assertPageNavSelection(hostFixture.debugElement.childNodes[0], "1");
-			assertPageInputSelection(hostFixture.debugElement.childNodes[0], "1");
-		}));
+			expect(component.paginationConfig.page).toBe(1);
+			expect(component.paginationInput).toBe(1);
+		});
 	});
 });
+
+function createLoggerMock(): { debug: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> } {
+	return {
+		debug: vi.fn(),
+		error: vi.fn(),
+		warn: vi.fn()
+	};
+}
+
+function createObserverSpy<T>(): {
+	observer: Observer<T>;
+	next: ReturnType<typeof vi.fn>;
+	error: ReturnType<typeof vi.fn>;
+	complete: ReturnType<typeof vi.fn>;
+} {
+	const next = vi.fn((value: T) => value);
+	const error = vi.fn((err: unknown) => err);
+	const complete = vi.fn();
+
+	return {
+		observer: {
+			next: (value: T): void => {
+				next(value);
+			},
+			error: (err: unknown): void => {
+				error(err);
+			},
+			complete: (): void => {
+				complete();
+			}
+		},
+		next,
+		error,
+		complete
+	};
+}

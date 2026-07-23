@@ -1,5 +1,7 @@
 {
   "extends": "./tsconfig.json",
-  "files": null,
-  "include": ["**/*.ts"]
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec"
+  },
+  "include": ["base.vitest.spec.ts", "src/**/*.spec.ts", "src/**/*.d.ts", "testing/**/*.d.ts", "typings/**/*.d.ts"]
 }

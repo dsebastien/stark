@@ -1,76 +1,85 @@
-import { Component, DebugElement } from "@angular/core";
+import { Component, DebugElement, SimpleChange } from "@angular/core";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { ComponentFixture, fakeAsync, TestBed } from "@angular/core/testing";
-import { Observer } from "rxjs";
-import { StarkTimestampMaskDirective } from "./timestamp-mask.directive";
+import { vi } from "vitest";
+import { StarkInputMaskDirectivesModule } from "../input-mask-directives.module";
 import { StarkTimestampMaskConfig } from "./timestamp-mask-config.intf";
+import { StarkTimestampMaskDirective } from "./timestamp-mask.directive";
+
+type ObserverSpy = {
+	next: ReturnType<typeof vi.fn<(value: unknown) => void>>;
+	error: ReturnType<typeof vi.fn<(error: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
+
+const createObserverSpy = (): ObserverSpy => ({
+	next: vi.fn<(value: unknown) => void>(),
+	error: vi.fn<(error: unknown) => void>(),
+	complete: vi.fn<() => void>()
+});
 
 describe("TimestampMaskDirective", () => {
-	let fixture: ComponentFixture<TestComponent>;
-	let hostComponent: TestComponent;
-	let inputElement: DebugElement;
-
 	const timestampMaskConfig: StarkTimestampMaskConfig = {
 		format: "DD/MM/YYYY"
 	};
 
-	@Component({
-		selector: "test-component",
-		template: getTemplate("[starkTimestampMask]='timestampMaskConfig'")
-	})
-	class TestComponent {
-		public timestampMaskConfig: StarkTimestampMaskConfig = timestampMaskConfig;
-		public ngModelValue = "";
-		public formControl = new UntypedFormControl("");
-	}
-
-	function getTemplate(timestampMaskDirective: string): string {
-		return "<input " + "type='text' " + timestampMaskDirective + ">";
-	}
-
-	function initializeComponentFixture(): void {
-		fixture = TestBed.createComponent(TestComponent);
-		hostComponent = fixture.componentInstance;
-		inputElement = fixture.debugElement.query(By.css("input"));
-		// trigger initial data binding
-		fixture.detectChanges();
-	}
-
 	function changeInputValue(inputDebugElement: DebugElement, value: string, eventType: string = "input"): void {
 		(<HTMLInputElement>inputDebugElement.nativeElement).value = value;
 
-		// more verbose way to create and trigger an event (the only way it works in IE)
-		// https://developer.mozilla.org/en-US/docs/Web/Guide/Events/Creating_and_triggering_events
 		const ev: Event = document.createEvent("Event");
 		ev.initEvent(eventType, true, true);
 		(<HTMLInputElement>inputDebugElement.nativeElement).dispatchEvent(ev);
 	}
 
-	// Inject module dependencies
-	beforeEach(() => {
-		TestBed.configureTestingModule({
-			declarations: [StarkTimestampMaskDirective, TestComponent],
-			imports: [FormsModule, ReactiveFormsModule],
-			providers: []
-		});
-	});
+	@Component({
+		standalone: true,
+		selector: "stark-timestamp-mask-uncontrolled-host",
+		imports: [StarkInputMaskDirectivesModule],
+		template: "<input type='text' [starkTimestampMask]='timestampMaskConfig'>"
+	})
+	class UncontrolledHostComponent {
+		public timestampMaskConfig: StarkTimestampMaskConfig | undefined = timestampMaskConfig;
+	}
 
 	describe("uncontrolled", () => {
-		beforeEach(fakeAsync(() =>
-			// compile template and css
-			TestBed.compileComponents()));
+		let fixture: ComponentFixture<UncontrolledHostComponent>;
+		let hostComponent: UncontrolledHostComponent;
+		let inputElement: DebugElement;
+
+		const renderHost = (): void => {
+			fixture = TestBed.createComponent(UncontrolledHostComponent);
+			hostComponent = fixture.componentInstance;
+			inputElement = fixture.debugElement.query(By.css("input"));
+			fixture.detectChanges();
+		};
+
+		const getDirective = (): StarkTimestampMaskDirective => inputElement.injector.get(StarkTimestampMaskDirective);
+
+		const updateMaskConfig = (maskConfig: StarkTimestampMaskConfig | undefined): void => {
+			const directive = getDirective();
+			const previousMaskConfig = directive.maskConfig;
+
+			hostComponent.timestampMaskConfig = maskConfig;
+			directive.maskConfig = maskConfig;
+			directive.ngOnChanges({
+				maskConfig: new SimpleChange(previousMaskConfig, maskConfig, false)
+			});
+		};
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [UncontrolledHostComponent]
+			});
+
+			renderHost();
 		});
 
 		it("should render the appropriate content", () => {
-			expect(inputElement.attributes["ng-reflect-mask-config"]).toBeDefined(); // starkTimestampMask directive
+			expect(getDirective()).toBeDefined();
 		});
 
 		it("should update the input value and show the mask only when a valid event is triggered in the input field", () => {
-			// Angular2 text-mask directive handles only the "input" event
 			const validEvents: string[] = ["input"];
 
 			for (const eventType of validEvents) {
@@ -94,7 +103,7 @@ describe("TimestampMaskDirective", () => {
 				changeInputValue(inputElement, "123", eventType);
 				fixture.detectChanges();
 
-				expect(inputElement.nativeElement.value).toBe("123"); // no mask shown
+				expect(inputElement.nativeElement.value).toBe("123");
 			}
 		});
 
@@ -115,8 +124,7 @@ describe("TimestampMaskDirective", () => {
 
 			expect(inputElement.nativeElement.value).toBe("12/3_/____");
 
-			hostComponent.timestampMaskConfig = { ...timestampMaskConfig, format: "DD-MM" };
-			fixture.detectChanges();
+			updateMaskConfig({ ...timestampMaskConfig, format: "DD-MM" });
 
 			expect(inputElement.nativeElement.value).toBe("12-3_");
 		});
@@ -127,13 +135,12 @@ describe("TimestampMaskDirective", () => {
 
 			expect(inputElement.nativeElement.value).toBe("12/3_/____");
 
-			hostComponent.timestampMaskConfig = <any>undefined;
-			fixture.detectChanges();
+			updateMaskConfig(undefined);
 
 			changeInputValue(inputElement, "whatever");
 			fixture.detectChanges();
 
-			expect(inputElement.nativeElement.value).toBe("whatever"); // no mask at all
+			expect(inputElement.nativeElement.value).toBe("whatever");
 		});
 
 		it("should allow to enter February 29 manually in the input field when a year is foreseen but is not yet entered", () => {
@@ -142,15 +149,10 @@ describe("TimestampMaskDirective", () => {
 
 			expect(inputElement.nativeElement.value).toBe("29/02/____");
 
-			// FIXME: currently the text-mask library throws if the value is not cleared before changing the config
-			// in fact the model in not changed after changing the config. which is not implemented yet in text-mask and still being discussed
-			// see: https://github.com/text-mask/text-mask/issues/657
-			// the error is thrown as long as the entered value is not valid according to the new config
 			changeInputValue(inputElement, "");
 			fixture.detectChanges();
 
-			hostComponent.timestampMaskConfig = { ...timestampMaskConfig, format: "MM-DD-YY" };
-			fixture.detectChanges();
+			updateMaskConfig({ ...timestampMaskConfig, format: "MM-DD-YY" });
 
 			changeInputValue(inputElement, "0229");
 			fixture.detectChanges();
@@ -159,26 +161,55 @@ describe("TimestampMaskDirective", () => {
 		});
 	});
 
+	@Component({
+		standalone: true,
+		selector: "stark-timestamp-mask-ng-model-host",
+		imports: [FormsModule, StarkInputMaskDirectivesModule],
+		template: "<input type='text' [(ngModel)]='ngModelValue' [starkTimestampMask]='timestampMaskConfig'>"
+	})
+	class NgModelHostComponent {
+		public timestampMaskConfig: StarkTimestampMaskConfig | undefined = timestampMaskConfig;
+		public ngModelValue = "";
+	}
+
 	describe("with ngModel", () => {
-		beforeEach(fakeAsync(() => {
-			const newTemplate: string = getTemplate("[(ngModel)]='ngModelValue' [starkTimestampMask]='timestampMaskConfig'");
+		let fixture: ComponentFixture<NgModelHostComponent>;
+		let hostComponent: NgModelHostComponent;
+		let inputElement: DebugElement;
 
-			TestBed.overrideTemplate(TestComponent, newTemplate);
+		const renderHost = (): void => {
+			fixture = TestBed.createComponent(NgModelHostComponent);
+			hostComponent = fixture.componentInstance;
+			inputElement = fixture.debugElement.query(By.css("input"));
+			fixture.detectChanges();
+		};
 
-			// compile template and css
-			return TestBed.compileComponents();
-		}));
+		const getDirective = (): StarkTimestampMaskDirective => inputElement.injector.get(StarkTimestampMaskDirective);
+
+		const updateMaskConfig = (maskConfig: StarkTimestampMaskConfig | undefined): void => {
+			const directive = getDirective();
+			const previousMaskConfig = directive.maskConfig;
+
+			hostComponent.timestampMaskConfig = maskConfig;
+			directive.maskConfig = maskConfig;
+			directive.ngOnChanges({
+				maskConfig: new SimpleChange(previousMaskConfig, maskConfig, false)
+			});
+		};
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [NgModelHostComponent]
+			});
+
+			renderHost();
 		});
 
 		it("should render the appropriate content", () => {
-			expect(inputElement.attributes["ng-reflect-mask-config"]).toBeDefined(); // starkTimestampMask directive
+			expect(getDirective()).toBeDefined();
 		});
 
 		it("should update the input value and show the mask only when a valid event is triggered in the input field", () => {
-			// Angular2 text-mask directive handles only the "input" event
 			const validEvents: string[] = ["input"];
 
 			for (const eventType of validEvents) {
@@ -202,8 +233,7 @@ describe("TimestampMaskDirective", () => {
 				changeInputValue(inputElement, "123", eventType);
 				fixture.detectChanges();
 
-				// IMPORTANT: the ngModel is not changed with invalid events, just with "input" events
-				expect(hostComponent.ngModelValue).toBe(""); // no mask shown
+				expect(hostComponent.ngModelValue).toBe("");
 			}
 		});
 
@@ -218,8 +248,7 @@ describe("TimestampMaskDirective", () => {
 			}
 		});
 
-		// FIXME NG0100: ExpressionChangedAfterItHasBeenCheckedError - #2860 https://github.com/NationalBankBelgium/stark/issues/2860
-		xit("should refresh the mask whenever the configuration changes", () => {
+		it("should refresh the mask whenever the configuration changes", () => {
 			changeInputValue(inputElement, "123");
 			fixture.detectChanges();
 
@@ -237,13 +266,12 @@ describe("TimestampMaskDirective", () => {
 
 			expect(hostComponent.ngModelValue).toBe("12/3_/____");
 
-			hostComponent.timestampMaskConfig = <any>undefined;
-			fixture.detectChanges();
+			updateMaskConfig(undefined);
 
 			changeInputValue(inputElement, "whatever");
 			fixture.detectChanges();
 
-			expect(hostComponent.ngModelValue).toBe("whatever"); // no mask at all
+			expect(hostComponent.ngModelValue).toBe("whatever");
 		});
 
 		it("should allow to enter February 29 manually in the input field when a year is foreseen but is not yet entered", () => {
@@ -252,15 +280,10 @@ describe("TimestampMaskDirective", () => {
 
 			expect(hostComponent.ngModelValue).toBe("29/02/____");
 
-			// FIXME: currently the text-mask library throws if the value is not cleared before changing the config
-			// in fact the model in not changed after changing the config. which is not implemented yet in text-mask and still being discussed
-			// see: https://github.com/text-mask/text-mask/issues/657
-			// the error is thrown as long as the entered value is not valid according to the new config
 			changeInputValue(inputElement, "");
 			fixture.detectChanges();
 
-			hostComponent.timestampMaskConfig = { ...timestampMaskConfig, format: "MM-DD-YY" };
-			fixture.detectChanges();
+			updateMaskConfig({ ...timestampMaskConfig, format: "MM-DD-YY" });
 
 			changeInputValue(inputElement, "0229");
 			fixture.detectChanges();
@@ -269,31 +292,63 @@ describe("TimestampMaskDirective", () => {
 		});
 	});
 
+	@Component({
+		standalone: true,
+		selector: "stark-timestamp-mask-form-control-host",
+		imports: [ReactiveFormsModule, StarkInputMaskDirectivesModule],
+		template: "<input type='text' [formControl]='formControl' [starkTimestampMask]='timestampMaskConfig'>"
+	})
+	class FormControlHostComponent {
+		public timestampMaskConfig: StarkTimestampMaskConfig | undefined = timestampMaskConfig;
+		public formControl = new UntypedFormControl("");
+	}
+
 	describe("with FormControl", () => {
-		let mockValueChangeObserver: jasmine.SpyObj<Observer<any>>;
+		let fixture: ComponentFixture<FormControlHostComponent>;
+		let hostComponent: FormControlHostComponent;
+		let inputElement: DebugElement;
+		let mockValueChangeObserver: ObserverSpy;
 
-		beforeEach(fakeAsync(() => {
-			const newTemplate: string = getTemplate("[formControl]='formControl' [starkTimestampMask]='timestampMaskConfig'");
+		const renderHost = (): void => {
+			fixture = TestBed.createComponent(FormControlHostComponent);
+			hostComponent = fixture.componentInstance;
+			inputElement = fixture.debugElement.query(By.css("input"));
+			fixture.detectChanges();
 
-			TestBed.overrideTemplate(TestComponent, newTemplate);
+			mockValueChangeObserver = createObserverSpy();
+			hostComponent.formControl.valueChanges.subscribe({
+				next: mockValueChangeObserver.next,
+				error: mockValueChangeObserver.error,
+				complete: mockValueChangeObserver.complete
+			});
+		};
 
-			// compile template and css
-			return TestBed.compileComponents();
-		}));
+		const getDirective = (): StarkTimestampMaskDirective => inputElement.injector.get(StarkTimestampMaskDirective);
+
+		const updateMaskConfig = (maskConfig: StarkTimestampMaskConfig | undefined): void => {
+			const directive = getDirective();
+			const previousMaskConfig = directive.maskConfig;
+
+			hostComponent.timestampMaskConfig = maskConfig;
+			directive.maskConfig = maskConfig;
+			directive.ngOnChanges({
+				maskConfig: new SimpleChange(previousMaskConfig, maskConfig, false)
+			});
+		};
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [FormControlHostComponent]
+			});
 
-			mockValueChangeObserver = jasmine.createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
-			hostComponent.formControl.valueChanges.subscribe(mockValueChangeObserver);
+			renderHost();
 		});
 
 		it("should render the appropriate content", () => {
-			expect(inputElement.attributes["ng-reflect-mask-config"]).toBeDefined(); // starkTimestampMask directive
+			expect(getDirective()).toBeDefined();
 		});
 
 		it("should update the input value and show the mask only when a valid event is triggered in the input field", () => {
-			// Angular2 text-mask directive handles only the "input" event
 			const validEvents: string[] = ["input"];
 
 			for (const eventType of validEvents) {
@@ -302,7 +357,7 @@ describe("TimestampMaskDirective", () => {
 				expect(hostComponent.formControl.value).toBe("");
 				expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 
-				mockValueChangeObserver.next.calls.reset();
+				mockValueChangeObserver.next.mockClear();
 				changeInputValue(inputElement, "123", eventType);
 				fixture.detectChanges();
 
@@ -312,7 +367,7 @@ describe("TimestampMaskDirective", () => {
 				expect(mockValueChangeObserver.complete).not.toHaveBeenCalled();
 			}
 
-			mockValueChangeObserver.next.calls.reset();
+			mockValueChangeObserver.next.mockClear();
 			const invalidEvents: string[] = ["blur", "keyup", "change", "focus", "keydown", "keypress", "click"];
 
 			for (const eventType of invalidEvents) {
@@ -321,12 +376,11 @@ describe("TimestampMaskDirective", () => {
 				expect(hostComponent.formControl.value).toBe("");
 				expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 
-				mockValueChangeObserver.next.calls.reset();
+				mockValueChangeObserver.next.mockClear();
 				changeInputValue(inputElement, "123", eventType);
 				fixture.detectChanges();
 
-				// IMPORTANT: the formControl is not changed with invalid events, just with "input" events
-				expect(hostComponent.formControl.value).toBe(""); // no mask shown
+				expect(hostComponent.formControl.value).toBe("");
 				expect(mockValueChangeObserver.next).not.toHaveBeenCalled();
 				expect(mockValueChangeObserver.error).not.toHaveBeenCalled();
 				expect(mockValueChangeObserver.complete).not.toHaveBeenCalled();
@@ -337,7 +391,7 @@ describe("TimestampMaskDirective", () => {
 			const invalidValues: string[] = ["a", " ", "whatever"];
 
 			for (const value of invalidValues) {
-				mockValueChangeObserver.next.calls.reset();
+				mockValueChangeObserver.next.mockClear();
 				changeInputValue(inputElement, value);
 				fixture.detectChanges();
 
@@ -355,9 +409,8 @@ describe("TimestampMaskDirective", () => {
 			expect(hostComponent.formControl.value).toBe("12/3_/____");
 			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 
-			mockValueChangeObserver.next.calls.reset();
-			hostComponent.timestampMaskConfig = { ...timestampMaskConfig, format: "DD-MM" };
-			fixture.detectChanges();
+			mockValueChangeObserver.next.mockClear();
+			updateMaskConfig({ ...timestampMaskConfig, format: "DD-MM" });
 
 			expect(hostComponent.formControl.value).toBe("12-3_");
 			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
@@ -372,16 +425,15 @@ describe("TimestampMaskDirective", () => {
 			expect(hostComponent.formControl.value).toBe("12/3_/____");
 			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 
-			mockValueChangeObserver.next.calls.reset();
-			hostComponent.timestampMaskConfig = <any>undefined;
-			fixture.detectChanges();
-			expect(mockValueChangeObserver.next).not.toHaveBeenCalled(); // no value change, the mask was just disabled
+			mockValueChangeObserver.next.mockClear();
+			updateMaskConfig(undefined);
+			expect(mockValueChangeObserver.next).not.toHaveBeenCalled();
 
-			mockValueChangeObserver.next.calls.reset();
+			mockValueChangeObserver.next.mockClear();
 			changeInputValue(inputElement, "whatever");
 			fixture.detectChanges();
 
-			expect(hostComponent.formControl.value).toBe("whatever"); // no mask at all
+			expect(hostComponent.formControl.value).toBe("whatever");
 			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockValueChangeObserver.error).not.toHaveBeenCalled();
 			expect(mockValueChangeObserver.complete).not.toHaveBeenCalled();
@@ -393,15 +445,10 @@ describe("TimestampMaskDirective", () => {
 
 			expect(hostComponent.formControl.value).toBe("29/02/____");
 
-			// FIXME: currently the text-mask library throws if the value is not cleared before changing the config
-			// in fact the model in not changed after changing the config. which is not implemented yet in text-mask and still being discussed
-			// see: https://github.com/text-mask/text-mask/issues/657
-			// the error is thrown as long as the entered value is not valid according to the new config
 			changeInputValue(inputElement, "");
 			fixture.detectChanges();
 
-			hostComponent.timestampMaskConfig = { ...timestampMaskConfig, format: "MM-DD-YY" };
-			fixture.detectChanges();
+			updateMaskConfig({ ...timestampMaskConfig, format: "MM-DD-YY" });
 
 			changeInputValue(inputElement, "0229");
 			fixture.detectChanges();

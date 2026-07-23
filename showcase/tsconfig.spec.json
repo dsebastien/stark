@@ -1,4 +1,19 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["src/assets", "dist"]
+  "compilerOptions": {
+    "types": ["node"],
+    "paths": {
+      "@nationalbankbelgium/stark-core": ["../packages/stark-core/public_api.ts"],
+      "@nationalbankbelgium/stark-core/testing": ["../packages/stark-core/testing/public_api.ts"],
+      "@nationalbankbelgium/stark-rbac": ["../packages/stark-rbac/public_api.ts"],
+      "@nationalbankbelgium/stark-ui": ["../packages/stark-ui/public_api.ts"],
+      "@nationalbankbelgium/stark-ui/testing": ["../packages/stark-ui/testing/public_api.ts"]
+    }
+  },
+  "files": ["base.vitest.spec.ts", "src/polyfills.browser.ts"],
+  "include": ["src/**/*.spec.ts", "src/**/*.d.ts"],
+  "exclude": ["src/assets", "dist", "src/**/*.e2e.ts", "e2e/**/*.ts"],
+  "angularCompilerOptions": {
+    "strictTemplates": false
+  }
 }

@@ -1,8 +1,7 @@
+import deepFreeze from "deep-freeze-strict";
 import { StarkSettingsActions } from "../actions";
 import { StarkSettings } from "../entities";
 import { settingsReducer } from "./settings.reducer";
-
-const deepFreeze: Function = require("deep-freeze-strict");
 
 describe("Reducer: SettingsReducer", () => {
 	let settings: StarkSettings;

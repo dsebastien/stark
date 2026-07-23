@@ -1,13 +1,19 @@
+import { vi } from "vitest";
 import { StarkAppSidebarServiceImpl } from "./app-sidebar.service";
 import { StarkAppSidebarOpenEvent } from "./app-sidebar-open-event.intf";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import createSpy = jasmine.createSpy;
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
 
 describe("AppSidebarService", () => {
 	let service: StarkAppSidebarServiceImpl;
+
 	beforeEach(() => {
-		const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
-		service = new StarkAppSidebarServiceImpl(mockLogger);
+		const mockLogger: LoggingServiceMock = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		service = new StarkAppSidebarServiceImpl(mockLogger as any);
 	});
 
 	it("openMenu() should raise the correct event", () => {
@@ -32,7 +38,7 @@ describe("AppSidebarService", () => {
 	});
 
 	it("close() should raise an event", () => {
-		const closeSidebars: jasmine.Spy = createSpy("closeSidebarsSpy");
+		const closeSidebars = vi.fn<() => void>();
 		service.closeSidebar$.subscribe(() => {
 			closeSidebars();
 		});

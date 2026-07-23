@@ -1,29 +1,27 @@
 import { StarkRBACAuthorizationService } from "@nationalbankbelgium/stark-rbac";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkRBACAuthorizationService} interface.
  */
-export class MockStarkRBACAuthorizationService implements SpyObj<StarkRBACAuthorizationService> {
+export class MockStarkRBACAuthorizationService {
 	/**
 	 * See [StarkRBACAuthorizationService initializeService()]{@link StarkRBACAuthorizationService#initializeService} method
 	 */
-	public initializeService: Spy<StarkRBACAuthorizationService["initializeService"]> = createSpy("initializeService");
+	public initializeService = vi.fn<StarkRBACAuthorizationService["initializeService"]>();
 
 	/**
 	 * See [StarkRBACAuthorizationService hasRole()]{@link StarkRBACAuthorizationService#hasRole} method
 	 */
-	public hasRole: Spy<StarkRBACAuthorizationService["hasRole"]> = createSpy("hasRole");
+	public hasRole = vi.fn<StarkRBACAuthorizationService["hasRole"]>();
 
 	/**
 	 * See [StarkRBACAuthorizationService hasAnyRole()]{@link StarkRBACAuthorizationService#hasAnyRole} method
 	 */
-	public hasAnyRole: Spy<StarkRBACAuthorizationService["hasAnyRole"]> = createSpy("hasAnyRole");
+	public hasAnyRole = vi.fn<StarkRBACAuthorizationService["hasAnyRole"]>();
 
 	/**
 	 * See [StarkRBACAuthorizationService isAnonymous()]{@link StarkRBACAuthorizationService#isAnonymous} method
 	 */
-	public isAnonymous: Spy<StarkRBACAuthorizationService["isAnonymous"]> = createSpy("isAnonymous");
+	public isAnonymous = vi.fn<StarkRBACAuthorizationService["isAnonymous"]>();
 }

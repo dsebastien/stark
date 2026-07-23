@@ -4,15 +4,14 @@ import { MockStarkHttpService, MockStarkLoggingService } from "@nationalbankbelg
 import { StarkBackend, StarkBackendImpl, StarkHttpRequestType, StarkSingleItemResponseWrapper } from "../../http/entities";
 import { StarkApplicationConfig, StarkApplicationConfigImpl } from "../../../configuration";
 import { Observer, of } from "rxjs";
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
+import { createMockObject, type VitestMockObject } from "@nationalbankbelgium/stark-core/testing";
 
 describe("StarkUserRepository", () => {
 	let userRepository: StarkUserRepository;
 	let mockHttpService: MockStarkHttpService<any>;
 	const mockLoggingService = new MockStarkLoggingService();
 	let mockAppConfig: StarkApplicationConfig;
-	let mockObserver: SpyObj<Observer<any>>;
+	let mockObserver: VitestMockObject<Observer<any>>;
 	const userProfileBackend: StarkBackend = {
 		name: "userProfile",
 		url: "http://localhost:5000",
@@ -64,7 +63,7 @@ describe("StarkUserRepository", () => {
 
 			userRepository = new StarkUserRepositoryImpl(mockHttpService, mockLoggingService, mockAppConfig);
 
-			mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			mockObserver = createMockObject<Observer<any>>(["next", "error", "complete"]);
 		});
 
 		it("should trigger a HTTP GET request targeting the 'userProfile' backend from STARK_APP_CONFIG via the StarkHttpService to fetch the user", () => {
@@ -74,13 +73,13 @@ describe("StarkUserRepository", () => {
 				starkHttpHeaders: new Map()
 			};
 
-			mockHttpService.executeSingleItemRequest.and.returnValue(of(dummySuccessResponse));
+			mockHttpService.executeSingleItemRequest.mockReturnValue(of(dummySuccessResponse));
 
-			userRepository.getUser().subscribe(mockObserver);
+			userRepository.getUser().subscribe(mockObserver as Observer<any>);
 
 			expect(mockHttpService.executeCollectionRequest).not.toHaveBeenCalled();
 			expect(mockHttpService.executeSingleItemRequest).toHaveBeenCalledTimes(1);
-			const httpRequest = mockHttpService.executeSingleItemRequest.calls.argsFor(0)[0];
+			const httpRequest = mockHttpService.executeSingleItemRequest.mock.calls[0][0];
 			expect(httpRequest.requestType).toBe(StarkHttpRequestType.GET);
 			expect(httpRequest.backend).toBe(userProfileBackend);
 			expect(httpRequest.queryParameters).toEqual(new Map([["style", "full-details"]]));
@@ -102,13 +101,13 @@ describe("StarkUserRepository", () => {
 				starkHttpHeaders: new Map()
 			};
 
-			mockHttpService.executeSingleItemRequest.and.returnValue(of(dummySuccessResponse));
+			mockHttpService.executeSingleItemRequest.mockReturnValue(of(dummySuccessResponse));
 
-			userRepository.getUser().subscribe(mockObserver);
+			userRepository.getUser().subscribe(mockObserver as Observer<any>);
 
 			expect(mockHttpService.executeCollectionRequest).not.toHaveBeenCalled();
 			expect(mockHttpService.executeSingleItemRequest).toHaveBeenCalledTimes(1);
-			let httpRequest = mockHttpService.executeSingleItemRequest.calls.argsFor(0)[0];
+			let httpRequest = mockHttpService.executeSingleItemRequest.mock.calls[0][0];
 			expect(httpRequest.resourcePath).toBe(DEFAULT_USER_PROFILE_RESOURCE_PATH);
 
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
@@ -116,18 +115,18 @@ describe("StarkUserRepository", () => {
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).toHaveBeenCalled();
 
-			mockObserver.next.calls.reset();
-			mockObserver.complete.calls.reset();
-			mockHttpService.executeSingleItemRequest.calls.reset();
+			mockObserver.next.mockClear();
+			mockObserver.complete.mockClear();
+			mockHttpService.executeSingleItemRequest.mockClear();
 
 			starkUserProfileResourcePath = "dummy-resource-path";
 			userRepository = new StarkUserRepositoryImpl(mockHttpService, mockLoggingService, mockAppConfig, starkUserProfileResourcePath);
 
-			userRepository.getUser().subscribe(mockObserver);
+			userRepository.getUser().subscribe(mockObserver as Observer<any>);
 
 			expect(mockHttpService.executeCollectionRequest).not.toHaveBeenCalled();
 			expect(mockHttpService.executeSingleItemRequest).toHaveBeenCalledTimes(1);
-			httpRequest = mockHttpService.executeSingleItemRequest.calls.argsFor(0)[0];
+			httpRequest = mockHttpService.executeSingleItemRequest.mock.calls[0][0];
 			expect(httpRequest.resourcePath).toBe(starkUserProfileResourcePath);
 			expect(httpRequest.resourcePath).not.toBe(DEFAULT_USER_PROFILE_RESOURCE_PATH);
 

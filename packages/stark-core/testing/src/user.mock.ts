@@ -1,18 +1,17 @@
 import { StarkUserService } from "@nationalbankbelgium/stark-core";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkUserService} interface.
  */
-export class MockStarkUserService implements SpyObj<StarkUserService> {
+export class MockStarkUserService {
 	/**
 	 * See [StarkUserService fetchUserProfile()]{@link StarkUserService#fetchUserProfile} method
 	 */
-	public fetchUserProfile: Spy<StarkUserService["fetchUserProfile"]> = jasmine.createSpy("fetchUserProfile");
+	public fetchUserProfile = vi.fn<StarkUserService["fetchUserProfile"]>();
 
 	/**
 	 * See [StarkUserService getAllUsers()]{@link StarkUserService#getAllUsers} method
 	 */
-	public getAllUsers: Spy<StarkUserService["getAllUsers"]> = jasmine.createSpy("getAllUsers");
+	public getAllUsers = vi.fn<StarkUserService["getAllUsers"]>();
 }

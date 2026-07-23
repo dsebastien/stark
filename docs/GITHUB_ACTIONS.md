@@ -83,46 +83,12 @@ See the following example to understand how these actions can be used:
 All the information about these actions can be found on [github.com/marketplace/actions/upload-a-build-artifact](https://github.com/marketplace/actions/upload-a-build-artifact)
 and [github.com/marketplace/actions/download-a-build-artifact](https://github.com/marketplace/actions/download-a-build-artifact).
 
-## BrowserStack actions
+## Browser-based E2E jobs
 
-Running BrowserStack in GitHub Actions requires setting different actions as explained on [github.com/browserstack/github-actions](https://github.com/browserstack/github-actions).
+The Angular 22 baseline in this repository no longer ships maintained Playwright or BrowserStack workflow steps for `starter` or `showcase`.
+Those paths were retired when the repository was rebaselined on Angular's native unit-test builder and Vitest.
 
-You can find the Stark configuration below:
-
-```yaml
-steps:
-  - name: BrowserStack Env Setup
-    uses: browserstack/github-actions/setup-env@master
-    with:
-      username: ${{ secrets.BROWSERSTACK_USERNAME }}
-      access-key: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-      project-name: "Stark Showcase"
-    if: env.IS_MAIN_ENVIRONMENT == 1
-
-  - name: BrowserStack Local Tunnel Setup
-    uses: browserstack/github-actions/setup-local@master
-    with:
-      local-testing: "start"
-      local-logging-level: "all-logs"
-      local-identifier: "github-actions-${{ github.run_number }}"
-    if: env.IS_MAIN_ENVIRONMENT == 1
-
-  - name: Running application under test
-    run: npm run server:prod:ci &
-    if: env.IS_MAIN_ENVIRONMENT == 1
-    working-directory: showcase
-
-  - name: Running test on BrowserStack
-    run: npm run protractor:browserstack
-    if: env.IS_MAIN_ENVIRONMENT == 1
-    working-directory: showcase
-
-  - name: BrowserStackLocal Stop
-    uses: browserstack/github-actions/setup-local@master
-    with:
-      local-testing: stop
-    if: env.IS_MAIN_ENVIRONMENT == 1
-```
+If a consuming application still needs browser E2E coverage in GitHub Actions, treat that as application-specific workflow code rather than part of Stark's default shared setup.
 
 ## Coveralls Action
 
@@ -180,7 +146,7 @@ For instance, in `if` condition, the following functions can be used:
 
 Sometimes, it can be required to use a variable in multiple steps in a plan.
 
-For instance, in Stark, we define a variable `IS_MAIN_ENVIRONMENT` to trigger some logic as BrowserStack or Coveralls only once.
+For instance, in Stark, we define a variable `IS_MAIN_ENVIRONMENT` to trigger some logic such as Coveralls only once.
 To define our variable, we populate the `GITHUB_ENV` variable with the definition of our variable:
 
 ```yaml

@@ -1,8 +1,7 @@
+import deepFreeze from "deep-freeze-strict";
 import { StarkLogging, StarkLogMessageImpl, StarkLogMessageType } from "../entities";
 import { loggingReducer } from "./logging.reducer";
 import { StarkLoggingActions } from "../actions";
-
-const deepFreeze: Function = require("deep-freeze-strict");
 
 describe("Reducer: LoggingReducer", () => {
 	let starkLogging: StarkLogging;

@@ -1,106 +1,102 @@
 import { StarkRoutingService } from "@nationalbankbelgium/stark-core";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkRoutingService} interface.
  */
-export class MockStarkRoutingService implements SpyObj<StarkRoutingService> {
+export class MockStarkRoutingService {
 	/**
 	 * See [StarkRoutingService navigateTo()]{@link StarkRoutingService#navigateTo} method
 	 */
-	public navigateTo: Spy<StarkRoutingService["navigateTo"]> = createSpy("navigateTo");
+	public navigateTo = vi.fn<StarkRoutingService["navigateTo"]>();
 
 	/**
 	 * See [StarkRoutingService navigateToHome()]{@link StarkRoutingService#navigateToHome} method
 	 */
-	public navigateToHome: Spy<StarkRoutingService["navigateToHome"]> = createSpy("navigateToHome");
+	public navigateToHome = vi.fn<StarkRoutingService["navigateToHome"]>();
 
 	/**
 	 * See [StarkRoutingService navigateToPrevious()]{@link StarkRoutingService#navigateToPrevious} method
 	 */
-	public navigateToPrevious: Spy<StarkRoutingService["navigateToPrevious"]> = createSpy("navigateToPrevious");
+	public navigateToPrevious = vi.fn<StarkRoutingService["navigateToPrevious"]>();
 
 	/**
 	 * See [StarkRoutingService reload()]{@link StarkRoutingService#reload} method
 	 */
-	public reload: Spy<StarkRoutingService["reload"]> = createSpy("reload");
+	public reload = vi.fn<StarkRoutingService["reload"]>();
 
 	/**
 	 * See [StarkRoutingService getCurrentStateName()]{@link StarkRoutingService#getCurrentStateName} method
 	 */
-	public getCurrentStateName: Spy<StarkRoutingService["getCurrentStateName"]> = createSpy("getCurrentStateName");
+	public getCurrentStateName = vi.fn<StarkRoutingService["getCurrentStateName"]>();
 
 	/**
 	 * See [StarkRoutingService getCurrentState()]{@link StarkRoutingService#getCurrentState} method
 	 */
-	public getCurrentState: Spy<StarkRoutingService["getCurrentState"]> = createSpy("getCurrentState");
+	public getCurrentState = vi.fn<StarkRoutingService["getCurrentState"]>();
 
 	/**
 	 * See [StarkRoutingService getCurrentStateConfig()]{@link StarkRoutingService#getCurrentStateConfig} method
 	 */
-	public getCurrentStateConfig: Spy<StarkRoutingService["getCurrentStateConfig"]> = createSpy("getCurrentStateConfig");
+	public getCurrentStateConfig = vi.fn<StarkRoutingService["getCurrentStateConfig"]>();
 
 	/**
 	 * See [StarkRoutingService getStatesConfig()]{@link StarkRoutingService#getStatesConfig} method
 	 */
-	public getStatesConfig: Spy<StarkRoutingService["getStatesConfig"]> = createSpy("getStatesConfig");
+	public getStatesConfig = vi.fn<StarkRoutingService["getStatesConfig"]>();
 
 	/**
 	 * See [StarkRoutingService getStateConfigByUrlPath()]{@link StarkRoutingService#getStateConfigByUrlPath} method
 	 */
-	public getStateConfigByUrlPath: Spy<StarkRoutingService["getStateConfigByUrlPath"]> = createSpy("getStateConfigByUrlPath");
+	public getStateConfigByUrlPath = vi.fn<StarkRoutingService["getStateConfigByUrlPath"]>();
 
 	/**
 	 * See [StarkRoutingService getStateDeclarationByStateName()]{@link StarkRoutingService#getStateDeclarationByStateName} method
 	 */
-	public getStateDeclarationByStateName: Spy<StarkRoutingService["getStateDeclarationByStateName"]> =
-		createSpy("getStateDeclarationByStateName");
+	public getStateDeclarationByStateName = vi.fn<StarkRoutingService["getStateDeclarationByStateName"]>();
 
 	/**
 	 * See [StarkRoutingService getCurrentStateParams()]{@link StarkRoutingService#getCurrentStateParams} method
 	 */
-	public getCurrentStateParams: Spy<StarkRoutingService["getCurrentStateParams"]> = createSpy("getCurrentStateParams");
+	public getCurrentStateParams = vi.fn<StarkRoutingService["getCurrentStateParams"]>();
 
 	/**
 	 * See [StarkRoutingService getStateTreeParams()]{@link StarkRoutingService#getStateTreeParams} method
 	 */
-	public getStateTreeParams: Spy<StarkRoutingService["getStateTreeParams"]> = createSpy("getStateTreeParams");
+	public getStateTreeParams = vi.fn<StarkRoutingService["getStateTreeParams"]>();
 
 	/**
 	 * See [StarkRoutingService getStateTreeResolves()]{@link StarkRoutingService#getStateTreeResolves} method
 	 */
-	public getStateTreeResolves: Spy<StarkRoutingService["getStateTreeResolves"]> = createSpy("getStateTreeResolves");
+	public getStateTreeResolves = vi.fn<StarkRoutingService["getStateTreeResolves"]>();
 
 	/**
 	 * See [StarkRoutingService getStateTreeData()]{@link StarkRoutingService#getStateTreeData} method
 	 */
-	public getStateTreeData: Spy<StarkRoutingService["getStateTreeData"]> = createSpy("getStateTreeData");
+	public getStateTreeData = vi.fn<StarkRoutingService["getStateTreeData"]>();
 
 	/**
 	 * See [StarkRoutingService isCurrentUiState()]{@link StarkRoutingService#isCurrentUiState} method
 	 */
-	public isCurrentUiState: Spy<StarkRoutingService["isCurrentUiState"]> = createSpy("isCurrentUiState");
+	public isCurrentUiState = vi.fn<StarkRoutingService["isCurrentUiState"]>();
 
 	/**
 	 * See [StarkRoutingService isCurrentUiStateIncludedIn()]{@link StarkRoutingService#isCurrentUiStateIncludedIn} method
 	 */
-	public isCurrentUiStateIncludedIn: Spy<StarkRoutingService["isCurrentUiStateIncludedIn"]> = createSpy("includesState");
+	public isCurrentUiStateIncludedIn = vi.fn<StarkRoutingService["isCurrentUiStateIncludedIn"]>();
 
 	/**
 	 * See [StarkRoutingService addKnownNavigationRejectionCause()]{@link StarkRoutingService#addKnownNavigationRejectionCause} method
 	 */
-	public addKnownNavigationRejectionCause: Spy<StarkRoutingService["addKnownNavigationRejectionCause"]> =
-		createSpy("addKnownNavigationRejectionCause");
+	public addKnownNavigationRejectionCause = vi.fn<StarkRoutingService["addKnownNavigationRejectionCause"]>();
 
 	/**
 	 * See [StarkRoutingService addTransitionHook()]{@link StarkRoutingService#addTransitionHook} method
 	 */
-	public addTransitionHook: Spy<StarkRoutingService["addTransitionHook"]> = createSpy("addTransitionHook");
+	public addTransitionHook = vi.fn<StarkRoutingService["addTransitionHook"]>();
 
 	/**
 	 * See [StarkRoutingService getTranslationKeyFromState()]{@link StarkRoutingService#getTranslationKeyFromState} method
 	 */
-	public getTranslationKeyFromState: Spy<StarkRoutingService["getTranslationKeyFromState"]> = createSpy("getTranslationKeyFromState");
+	public getTranslationKeyFromState = vi.fn<StarkRoutingService["getTranslationKeyFromState"]>();
 }

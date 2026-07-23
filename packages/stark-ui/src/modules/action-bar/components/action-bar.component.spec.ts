@@ -1,22 +1,30 @@
 /* eslint-disable @angular-eslint/component-max-inline-declarations */
 import { Component, ViewChild } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
-import { MatIconModule } from "@angular/material/icon";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyMenuModule as MatMenuModule } from "@angular/material/legacy-menu";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
+import { STARK_LOGGING_SERVICE, type StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
+import { vi } from "vitest";
+import { StarkActionBarModule } from "../action-bar.module";
 import { StarkActionBarComponent, StarkActionBarComponentMode } from "./action-bar.component";
 import { StarkAction } from "./action.intf";
 import { StarkActionBarConfig } from "./action-bar-config.intf";
-import createSpy = jasmine.createSpy;
 
 describe("ActionBarComponent", () => {
+	const loggingServiceMock: StarkLoggingService = {
+		correlationId: "dummyCorrelationId",
+		correlationIdHttpHeaderName: "Correlation-Id-HttpHeaderName",
+		generateNewCorrelationId: vi.fn(),
+		debug: vi.fn(),
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn()
+	} as unknown as StarkLoggingService;
+
 	@Component({
+		standalone: true,
 		selector: "host-component",
+		imports: [StarkActionBarModule],
 		template: `
 			<stark-action-bar
 				[mode]="mode"
@@ -30,8 +38,8 @@ describe("ActionBarComponent", () => {
 		@ViewChild(StarkActionBarComponent, { static: true })
 		public starkActionBar!: StarkActionBarComponent;
 
-		public mode?: StarkActionBarComponentMode;
-		public actionBarId?: string;
+		public mode: StarkActionBarComponentMode = "full";
+		public actionBarId = "";
 		public actionBarConfig: StarkActionBarConfig = { actions: [] };
 		public alternativeActions?: StarkAction[];
 	}
@@ -43,14 +51,7 @@ describe("ActionBarComponent", () => {
 	let component: StarkActionBarComponent;
 	const buttonToggleSelector = ".extend-action-bar";
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkActionBarComponent, TestHostComponent],
-			imports: [MatButtonModule, MatIconModule, MatIconTestingModule, MatMenuModule, MatTooltipModule, TranslateModule.forRoot()],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }, TranslateService]
-		}).compileComponents()));
-
-	beforeEach(() => {
+	function renderHost(initializer?: (host: TestHostComponent) => void): void {
 		hostFixture = TestBed.createComponent(TestHostComponent);
 		hostComponent = hostFixture.componentInstance;
 		const demoActions: StarkAction[] = [
@@ -58,7 +59,7 @@ describe("ActionBarComponent", () => {
 				id: "userDetailValidate",
 				label: "Validate",
 				icon: "check",
-				actionCall: createSpy("actionCallSpy"),
+				actionCall: vi.fn(),
 				isEnabled: false,
 				isVisible: true
 			},
@@ -66,7 +67,7 @@ describe("ActionBarComponent", () => {
 				id: "userDetailSave",
 				label: "Save",
 				icon: "content-save",
-				actionCall: createSpy("actionCallSpy"),
+				actionCall: vi.fn(),
 				isEnabled: true,
 				isVisible: true
 			}
@@ -76,22 +77,35 @@ describe("ActionBarComponent", () => {
 			actions: demoActions,
 			isPresent: true
 		};
+		initializer?.(hostComponent);
 		hostFixture.detectChanges();
 		component = hostComponent.starkActionBar;
+	}
+
+	beforeEach(waitForAsync(() =>
+		TestBed.configureTestingModule({
+			imports: [MatIconTestingModule, TestHostComponent, TranslateModule.forRoot()],
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: loggingServiceMock }, TranslateService]
+		}).compileComponents()));
+
+	beforeEach(() => {
+		renderHost();
 	});
 
 	describe("@Input() mode", () => {
 		it("should have the toggle action bar button visible in full mode", () => {
-			hostComponent.mode = "full";
-			hostFixture.detectChanges();
+			renderHost((host) => {
+				host.mode = "full";
+			});
 
 			const buttonToggleExtend: HTMLElement = hostFixture.nativeElement.querySelector(buttonToggleSelector);
 			expect(buttonToggleExtend).toBeDefined();
 		});
 
 		it("should not have the toggle action bar button visible in compact mode", () => {
-			hostComponent.mode = "compact";
-			hostFixture.detectChanges();
+			renderHost((host) => {
+				host.mode = "compact";
+			});
 
 			const buttonToggleExtend: HTMLElement = hostFixture.nativeElement.querySelector(buttonToggleSelector);
 			expect(buttonToggleExtend).toBeNull();
@@ -100,8 +114,9 @@ describe("ActionBarComponent", () => {
 
 	describe("@Input() actionBarId", () => {
 		it("should have set the id of the action bar", () => {
-			hostComponent.actionBarId = "action-bar-id";
-			hostFixture.detectChanges();
+			renderHost((host) => {
+				host.actionBarId = "action-bar-id";
+			});
 
 			const actionBar: HTMLElement = hostFixture.nativeElement.querySelector("#" + hostComponent.actionBarId);
 			expect(actionBar).toBeDefined();
@@ -128,8 +143,9 @@ describe("ActionBarComponent", () => {
 
 	describe("@Input() alternativeActions", () => {
 		beforeEach(() => {
-			hostComponent.alternativeActions = hostComponent.actionBarConfig.actions;
-			hostFixture.detectChanges();
+			renderHost((host) => {
+				host.alternativeActions = host.actionBarConfig.actions;
+			});
 		});
 
 		it("should display", () => {
@@ -140,20 +156,21 @@ describe("ActionBarComponent", () => {
 
 	describe("toggle extended action bar", () => {
 		it("should toggle the action bar extension", () => {
-			hostComponent.mode = "full";
-			hostFixture.detectChanges();
+			renderHost((host) => {
+				host.mode = "full";
+			});
 
 			const buttonToggleExtend: HTMLElement = hostFixture.nativeElement.querySelector(buttonToggleSelector);
-			spyOn(component, "toggleExtendedActionBar").and.callThrough();
+			const toggleSpy = vi.spyOn(component, "toggleExtendedActionBar");
 			buttonToggleExtend.click();
 			hostFixture.detectChanges();
 
-			expect(component.toggleExtendedActionBar).toHaveBeenCalledTimes(1);
+			expect(toggleSpy).toHaveBeenCalledTimes(1);
 			expect(component.isExtended).toBe(true);
 			buttonToggleExtend.click();
 
 			hostFixture.detectChanges();
-			expect(component.toggleExtendedActionBar).toHaveBeenCalledTimes(2);
+			expect(toggleSpy).toHaveBeenCalledTimes(2);
 			expect(component.isExtended).toBe(false);
 		});
 	});

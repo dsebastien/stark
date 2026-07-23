@@ -1,37 +1,75 @@
-import { fakeAsync, inject, TestBed, tick, waitForAsync } from "@angular/core/testing";
-import { Component, ModuleWithProviders } from "@angular/core";
+import { TestBed } from "@angular/core/testing";
+import { Component } from "@angular/core";
 import { OverlayContainer } from "@angular/cdk/overlay";
-import { UIRouterModule } from "@uirouter/angular";
+import {
+	StateObject,
+	StateService,
+	UIRouterGlobals,
+	UrlService,
+	_UIROUTER_INSTANCE_PROVIDERS,
+	_UIROUTER_SERVICE_PROVIDERS,
+	locationStrategy,
+	makeRootProviders,
+	UIView
+} from "@uirouter/angular";
 import { Store } from "@ngrx/store";
 import { EffectsModule } from "@ngrx/effects";
 import { provideMockActions } from "@ngrx/effects/testing";
-import { StateObject, StateService, UIRouter, UIRouterGlobals } from "@uirouter/core";
 import { TranslateModule } from "@ngx-translate/core";
-import { catchError, switchMap } from "rxjs/operators";
-import { from, of, throwError } from "rxjs";
+import { of } from "rxjs";
 import {
+	STARK_APP_CONFIG,
+	STARK_LOGGING_SERVICE,
+	STARK_ROUTING_SERVICE,
 	SESSION_STATES,
 	STARK_SESSION_SERVICE,
 	starkSessionExpiredStateName,
 	starkSessionLogoutStateName
 } from "@nationalbankbelgium/stark-core";
-import { MockStarkSessionService } from "@nationalbankbelgium/stark-core/testing";
 import { StarkSessionUiModule } from "./session-ui.module";
-import createSpyObj = jasmine.createSpyObj;
-import SpyObj = jasmine.SpyObj;
+import { vi } from "vitest";
+
+type StoreMock = {
+	dispatch: ReturnType<typeof vi.fn<(action: unknown) => void>>;
+};
+
+type OverlayContainerMock = {
+	ngOnDestroy: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type SessionServiceMock = {
+	pauseUserActivityTracking: ReturnType<typeof vi.fn<() => void>>;
+	resumeUserActivityTracking: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+	correlationId: string;
+};
+
+type RoutingServiceMock = {
+	navigateToHome: ReturnType<typeof vi.fn<() => void>>;
+};
 
 describe("SessionUiModule", () => {
 	let $state: StateService;
 	let $globals: UIRouterGlobals;
-	let router: UIRouter;
-	let overlayContainer: SpyObj<OverlayContainer>;
 	const homeStateNAme = "homepage";
 
-	@Component({ selector: "home-component", template: "HOME" })
+	@Component({ standalone: true, selector: "home-component", template: "HOME" })
 	class HomeComponent {}
 
-	const routerModule: ModuleWithProviders<UIRouterModule> = UIRouterModule.forRoot({
+	@Component({
+		standalone: true,
+		imports: [UIView],
+		selector: "session-ui-test-root",
+		template: '<ui-view name="initOrExit"></ui-view>'
+	})
+	class SessionUiTestRootComponent {}
+
+	const routerConfig = {
 		useHash: true,
+		deferIntercept: true,
 		states: [
 			{
 				name: homeStateNAme,
@@ -41,104 +79,116 @@ describe("SessionUiModule", () => {
 			},
 			...SESSION_STATES // these are the parent states of the Session UI States
 		]
-	});
+	};
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [HomeComponent],
-			imports: [routerModule, EffectsModule.forRoot([]), TranslateModule.forRoot(), StarkSessionUiModule.forRoot()],
+	let overlayContainer: OverlayContainerMock;
+	let mockLogger: LoggingServiceMock;
+	let mockRoutingService: RoutingServiceMock;
+
+	beforeEach(async () => {
+		TestBed.resetTestingModule();
+
+		overlayContainer = {
+			ngOnDestroy: vi.fn<() => void>()
+		};
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>(),
+			correlationId: "mock-correlation-id"
+		};
+		mockRoutingService = {
+			navigateToHome: vi.fn<() => void>()
+		};
+
+		await TestBed.configureTestingModule({
+			imports: [
+				HomeComponent,
+				SessionUiTestRootComponent,
+				EffectsModule.forRoot([]),
+				TranslateModule.forRoot(),
+				StarkSessionUiModule.forRoot()
+			],
 			providers: [
+				..._UIROUTER_INSTANCE_PROVIDERS,
+				..._UIROUTER_SERVICE_PROVIDERS,
+				locationStrategy(routerConfig.useHash),
+				...makeRootProviders(routerConfig),
 				provideMockActions(() => of("some action")),
 				{
 					provide: Store,
-					useValue: createSpyObj<Store<any>>("Store", ["dispatch"])
+					useValue: {
+						dispatch: vi.fn<(action: unknown) => void>()
+					} satisfies StoreMock
 				},
 				{
 					provide: OverlayContainer,
-					useValue: createSpyObj<OverlayContainer>("OverlayContainer", ["ngOnDestroy"])
+					useValue: overlayContainer
+				},
+				{
+					provide: STARK_LOGGING_SERVICE,
+					useValue: mockLogger
+				},
+				{
+					provide: STARK_APP_CONFIG,
+					useValue: { baseUrl: "base-url" }
+				},
+				{
+					provide: STARK_ROUTING_SERVICE,
+					useValue: mockRoutingService
 				},
 				{
 					provide: STARK_SESSION_SERVICE,
-					useValue: new MockStarkSessionService()
+					useValue: {
+						pauseUserActivityTracking: vi.fn<() => void>(),
+						resumeUserActivityTracking: vi.fn<() => void>()
+					} satisfies SessionServiceMock
 				}
 			]
-		}).compileComponents()));
+		}).compileComponents();
 
-	// Inject module dependencies
-	beforeEach(inject([UIRouter, OverlayContainer], (_router: UIRouter, _overlayContainer: SpyObj<OverlayContainer>) => {
-		router = _router;
-		overlayContainer = _overlayContainer;
-		$state = router.stateService;
-		$globals = router.globals;
-
-		overlayContainer.ngOnDestroy.calls.reset();
-	}));
+		TestBed.createComponent(SessionUiTestRootComponent).detectChanges();
+		$state = TestBed.inject(StateService);
+		$globals = TestBed.inject(UIRouterGlobals);
+		overlayContainer.ngOnDestroy.mockClear();
+	});
 
 	afterEach(() => {
 		// IMPORTANT: reset the url after each test,
 		// otherwise UI-Router will try to find a match of the current url and navigate to it!!
-		router.urlService.url("");
+		const urlService = TestBed.inject(UrlService, null);
+		urlService?.url("");
 	});
 
 	describe("session UI states", () => {
 		describe("starkSessionExpiredState", () => {
-			it("when navigating to the state, it should destroy the Angular CDK OverlayContainer", fakeAsync(() => {
-				from($state.go(homeStateNAme))
-					.pipe(
-						switchMap((enteredState: StateObject) => {
-							expect(enteredState).toBeDefined();
-							expect(enteredState.name).toBe(homeStateNAme);
+			it("when navigating to the state, it should destroy the Angular CDK OverlayContainer", async () => {
+				const homeState: StateObject = await $state.go(homeStateNAme);
+				expect(homeState).toBeDefined();
+				expect(homeState.name).toBe(homeStateNAme);
+				expect($globals.$current.name).toBe(homeState.name);
+				expect(overlayContainer.ngOnDestroy).not.toHaveBeenCalled();
 
-							expect($globals.$current.name).toBe(enteredState.name);
-							expect(overlayContainer.ngOnDestroy).not.toHaveBeenCalled();
-
-							return $state.go(starkSessionExpiredStateName);
-						}),
-						catchError((error: any) => throwError(`currentState ${error}`))
-					)
-					.subscribe(
-						(enteredState: StateObject) => {
-							expect(enteredState).toBeDefined();
-							expect(enteredState.name).toBe(starkSessionExpiredStateName);
-
-							expect($globals.$current.name).toBe(enteredState.name);
-							expect(overlayContainer.ngOnDestroy).toHaveBeenCalledTimes(1);
-						},
-						(error: any) => fail(error)
-					);
-
-				tick();
-			}));
+				const enteredState: StateObject = await $state.go(starkSessionExpiredStateName);
+				expect(enteredState).toBeDefined();
+				expect(enteredState.name).toBe(starkSessionExpiredStateName);
+				expect($globals.$current.name).toBe(enteredState.name);
+				expect(overlayContainer.ngOnDestroy).toHaveBeenCalledTimes(1);
+			});
 		});
 
 		describe("starkSessionLogoutState", () => {
-			it("when navigating to the state, it should destroy the Angular CDK OverlayContainer", fakeAsync(() => {
-				from($state.go(homeStateNAme))
-					.pipe(
-						switchMap((enteredState: StateObject) => {
-							expect(enteredState).toBeDefined();
-							expect(enteredState.name).toBe(homeStateNAme);
+			it("when navigating to the state, it should destroy the Angular CDK OverlayContainer", async () => {
+				const homeState: StateObject = await $state.go(homeStateNAme);
+				expect(homeState).toBeDefined();
+				expect(homeState.name).toBe(homeStateNAme);
+				expect($globals.$current.name).toBe(homeState.name);
+				expect(overlayContainer.ngOnDestroy).not.toHaveBeenCalled();
 
-							expect($globals.$current.name).toBe(enteredState.name);
-							expect(overlayContainer.ngOnDestroy).not.toHaveBeenCalled();
-
-							return $state.go(starkSessionLogoutStateName);
-						}),
-						catchError((error: any) => throwError(`currentState ${error}`))
-					)
-					.subscribe(
-						(enteredState: StateObject) => {
-							expect(enteredState).toBeDefined();
-							expect(enteredState.name).toBe(starkSessionLogoutStateName);
-
-							expect($globals.$current.name).toBe(enteredState.name);
-							expect(overlayContainer.ngOnDestroy).toHaveBeenCalledTimes(1);
-						},
-						(error: any) => fail(error)
-					);
-
-				tick();
-			}));
+				const enteredState: StateObject = await $state.go(starkSessionLogoutStateName);
+				expect(enteredState).toBeDefined();
+				expect(enteredState.name).toBe(starkSessionLogoutStateName);
+				expect($globals.$current.name).toBe(enteredState.name);
+				expect(overlayContainer.ngOnDestroy).toHaveBeenCalledTimes(1);
+			});
 		});
 	});
 });

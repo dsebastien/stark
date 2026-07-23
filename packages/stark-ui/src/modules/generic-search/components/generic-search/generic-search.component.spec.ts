@@ -1,21 +1,22 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { Component, EventEmitter } from "@angular/core";
-import { CommonModule } from "@angular/common";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
-import { MatIconModule } from "@angular/material/icon";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { UntypedFormGroup } from "@angular/forms";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyMenuModule as MatMenuModule } from "@angular/material/legacy-menu";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { TranslateModule } from "@ngx-translate/core";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkGenericSearchComponent } from "./generic-search.component";
+import { TranslateModule } from "@ngx-translate/core";
+import { vi } from "vitest";
 import { StarkSearchFormComponent } from "../../classes";
-import { StarkActionBarModule } from "@nationalbankbelgium/stark-ui/src/modules/action-bar";
+import { StarkGenericSearchModule } from "../../generic-search.module";
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn>;
+	error: ReturnType<typeof vi.fn>;
+	warn: ReturnType<typeof vi.fn>;
+};
 
 @Component({
+	standalone: true,
 	selector: "search-form-component",
 	template: ""
 })
@@ -28,12 +29,14 @@ class TestSearchFormComponent implements StarkSearchFormComponent<any> {
 	}
 
 	public resetSearchForm(_searchCriteria: any): void {
-		/* noop*/
+		/* noop */
 	}
 }
 
 @Component({
+	standalone: true,
 	selector: "host-component",
+	imports: [StarkGenericSearchModule, TestSearchFormComponent],
 	template: `
 		<stark-generic-search>
 			<search-form-component #searchForm></search-form-component>
@@ -43,32 +46,22 @@ class TestSearchFormComponent implements StarkSearchFormComponent<any> {
 class TestHostComponent {}
 
 @Component({
+	standalone: true,
 	selector: "bad-host-component",
-	template: ` <stark-generic-search> </stark-generic-search> `
+	imports: [StarkGenericSearchModule],
+	template: `<stark-generic-search></stark-generic-search>`
 })
-class BadTestHostComponent extends TestHostComponent {}
+class BadTestHostComponent {}
 
 describe("GenericSearchComponent", () => {
 	let hostFixture: ComponentFixture<TestHostComponent>;
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			imports: [
-				CommonModule,
-				FormsModule,
-				ReactiveFormsModule,
-				MatButtonModule,
-				MatIconModule,
-				MatIconTestingModule,
-				MatMenuModule,
-				MatTooltipModule,
-				NoopAnimationsModule,
-				StarkActionBarModule,
-				TranslateModule.forRoot()
-			],
-			declarations: [StarkGenericSearchComponent, TestSearchFormComponent, TestHostComponent, BadTestHostComponent],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
-		}).compileComponents()));
+	beforeEach(async () => {
+		await TestBed.configureTestingModule({
+			imports: [TestHostComponent, BadTestHostComponent, MatIconTestingModule, NoopAnimationsModule, TranslateModule.forRoot()],
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: createLoggerMock() }]
+		}).compileComponents();
+	});
 
 	it("should throw error because `searchFormComponent` is not included", () => {
 		hostFixture = TestBed.createComponent(BadTestHostComponent);
@@ -85,3 +78,11 @@ describe("GenericSearchComponent", () => {
 		hostFixture.detectChanges();
 	});
 });
+
+function createLoggerMock(): LoggingServiceMock {
+	return {
+		debug: vi.fn(),
+		error: vi.fn(),
+		warn: vi.fn()
+	};
+}

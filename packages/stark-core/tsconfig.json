@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "rootDir": ".",
-    "typeRoots": ["../../node_modules/@types", "../stark-build/typings"],
+    "typeRoots": ["../../node_modules/@types", "../stark-build/typings", "./typings"],
     "emitDecoratorMetadata": false,
     "paths": {
       "@nationalbankbelgium/stark-core": ["./public_api.ts"],

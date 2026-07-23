@@ -1,66 +1,67 @@
-/* angular imports */
 import { Component, ViewChild } from "@angular/core";
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { MatButtonToggleModule } from "@angular/material/button-toggle";
-import { MatLegacyFormFieldModule as MatFormFieldModule } from "@angular/material/legacy-form-field";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { DateAdapter } from "@angular/material/core";
-import { MatLegacySelectModule as MatSelectModule } from "@angular/material/legacy-select";
-import { CommonModule } from "@angular/common";
-import { TranslateModule } from "@ngx-translate/core";
-/* stark-core imports */
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import {
 	STARK_APP_METADATA,
 	STARK_LOGGING_SERVICE,
 	STARK_SESSION_SERVICE,
 	StarkApplicationMetadata,
 	StarkApplicationMetadataImpl,
+	StarkSessionService,
 	StarkLanguages
 } from "@nationalbankbelgium/stark-core";
-
-import { MockStarkLoggingService, MockStarkSessionService } from "@nationalbankbelgium/stark-core/testing";
-/* stark-ui imports */
+import { TranslateModule } from "@ngx-translate/core";
+import { Observable, of, throwError } from "rxjs";
+import { vi } from "vitest";
+import { StarkLanguageSelectorModule } from "../language-selector.module";
 import { StarkLanguageSelectorComponent, StarkLanguageSelectorMode } from "./language-selector.component";
-import { StarkDropdownModule } from "@nationalbankbelgium/stark-ui/src/modules/dropdown";
-import { of, throwError } from "rxjs";
 
-/**
- * To be able to test changes to the input fields, the Language-Selector component is hosted inside the TestComponentHost class.
- */
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn>;
+	error: ReturnType<typeof vi.fn>;
+	warn: ReturnType<typeof vi.fn>;
+};
+
+type SessionServiceMock = {
+	getCurrentLanguage: ReturnType<typeof vi.fn>;
+	setCurrentLanguage: ReturnType<typeof vi.fn>;
+};
+
+type DateAdapterMock = {
+	setLocale: ReturnType<typeof vi.fn>;
+};
+
 @Component({
-	selector: `host-component`,
-	template: ` <stark-language-selector mode="mode"></stark-language-selector> `
+	standalone: true,
+	selector: "host-component",
+	imports: [StarkLanguageSelectorModule],
+	template: `<stark-language-selector [mode]="mode"></stark-language-selector>`
 })
 class TestHostComponent {
 	@ViewChild(StarkLanguageSelectorComponent, { static: true })
 	public languageSelectorComponent!: StarkLanguageSelectorComponent;
 
-	public mode?: StarkLanguageSelectorMode;
+	public mode: StarkLanguageSelectorMode = "dropdown";
 }
 
 describe("LanguageSelectorComponent", () => {
 	let component: StarkLanguageSelectorComponent;
-	let hostComponent: TestHostComponent;
 	let hostFixture: ComponentFixture<TestHostComponent>;
+	let logger: LoggingServiceMock;
+	let sessionService: SessionServiceMock;
+	let dateAdapter: DateAdapterMock;
 
-	let appMetadata: StarkApplicationMetadata;
-	appMetadata = new StarkApplicationMetadataImpl();
-	appMetadata.supportedLanguages = [StarkLanguages.EN_US, StarkLanguages.FR_BE, StarkLanguages.NL_BE];
+	const appMetadata: StarkApplicationMetadata = createAppMetadata();
 
 	describe("on initialization", () => {
-		const mockSessionService: MockStarkSessionService = new MockStarkSessionService();
-		mockSessionService.getCurrentLanguage.and.returnValue(of("fr"));
-
-		beforeEach(waitForAsync(() => compileComponent(mockSessionService)));
-
-		beforeEach(() => {
-			initializeComponent();
+		beforeEach(async () => {
+			await renderHost(of("fr"));
 		});
 
 		it("should set internal component properties", () => {
 			expect(hostFixture).toBeDefined();
 			expect(component).toBeDefined();
-
-			expect(component.logger).not.toBeNull();
 			expect(component.logger).toBeDefined();
 		});
 
@@ -72,29 +73,19 @@ describe("LanguageSelectorComponent", () => {
 	});
 
 	describe("on failing initialization", () => {
-		const mockSessionService: MockStarkSessionService = new MockStarkSessionService();
-		mockSessionService.getCurrentLanguage.and.returnValue(throwError("dummy-error"));
-
-		beforeEach(waitForAsync(() => compileComponent(mockSessionService)));
-
-		beforeEach(() => {
-			initializeComponent();
+		beforeEach(async () => {
+			await renderHost(throwError(() => "dummy-error"));
 		});
 
 		it("should log an error when the sessionService.getCurrentLanguage fails", () => {
 			expect(component.logger).toBeDefined();
-			expect(component.logger.error).toHaveBeenCalledTimes(1);
+			expect(logger.error).toHaveBeenCalledTimes(1);
 		});
 	});
 
 	describe("on changeLanguage", () => {
-		const mockSessionService: MockStarkSessionService = new MockStarkSessionService();
-		mockSessionService.getCurrentLanguage.and.returnValue(of("fr"));
-
-		beforeEach(waitForAsync(() => compileComponent(mockSessionService)));
-
-		beforeEach(() => {
-			initializeComponent();
+		beforeEach(async () => {
+			await renderHost(of("fr"));
 		});
 
 		it("should change the selected language", () => {
@@ -110,38 +101,50 @@ describe("LanguageSelectorComponent", () => {
 		});
 	});
 
-	/**
-	 * This function contains the component compilation code
-	 * Instead of repeating the code, it is placed in a separate function
-	 */
-	function compileComponent(mockSessionService: MockStarkSessionService): Promise<any> {
-		return TestBed.configureTestingModule({
-			imports: [
-				CommonModule,
-				MatButtonToggleModule,
-				MatFormFieldModule,
-				MatSelectModule,
-				StarkDropdownModule,
-				TranslateModule.forRoot()
-			],
-			declarations: [StarkLanguageSelectorComponent, TestHostComponent],
+	async function renderHost(currentLanguage$: Observable<string>): Promise<void> {
+		logger = createLoggerMock();
+		sessionService = createSessionServiceMock(currentLanguage$);
+		dateAdapter = createDateAdapterMock();
+
+		await TestBed.configureTestingModule({
+			imports: [TestHostComponent, NoopAnimationsModule, TranslateModule.forRoot()],
 			providers: [
 				{ provide: STARK_APP_METADATA, useValue: appMetadata },
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_SESSION_SERVICE, useValue: mockSessionService },
-				DateAdapter
+				{ provide: STARK_LOGGING_SERVICE, useValue: logger },
+				{ provide: STARK_SESSION_SERVICE, useValue: sessionService as unknown as StarkSessionService },
+				{ provide: DateAdapter, useValue: dateAdapter as unknown as DateAdapter<unknown> }
 			]
 		}).compileComponents();
-	}
 
-	/**
-	 * This function contains the component initialization code
-	 * Instead of repeating the code, it is placed in a separate function
-	 */
-	function initializeComponent(): void {
 		hostFixture = TestBed.createComponent(TestHostComponent);
-		hostComponent = hostFixture.componentInstance;
-		hostFixture.detectChanges(); // trigger initial data binding
-		component = hostComponent.languageSelectorComponent;
+		hostFixture.detectChanges();
+		component = hostFixture.componentInstance.languageSelectorComponent;
 	}
 });
+
+function createAppMetadata(): StarkApplicationMetadata {
+	const appMetadata = new StarkApplicationMetadataImpl();
+	appMetadata.supportedLanguages = [StarkLanguages.EN_US, StarkLanguages.FR_BE, StarkLanguages.NL_BE];
+	return appMetadata;
+}
+
+function createLoggerMock(): LoggingServiceMock {
+	return {
+		debug: vi.fn(),
+		error: vi.fn(),
+		warn: vi.fn()
+	};
+}
+
+function createSessionServiceMock(currentLanguage$: Observable<string>): SessionServiceMock {
+	return {
+		getCurrentLanguage: vi.fn(() => currentLanguage$),
+		setCurrentLanguage: vi.fn()
+	};
+}
+
+function createDateAdapterMock(): DateAdapterMock {
+	return {
+		setLocale: vi.fn()
+	};
+}

@@ -7,5 +7,13 @@
 
 # Stark Testing
 
-Stark's testing module (aka stark-testing) provides the testing facilities of the Stark framework.
-It includes the default testing dependencies that we recommend (Jasmine/Karma) and provides configuration files for those, as well as support for code coverage reports.
+Stark's testing module (aka stark-testing) now provides the shared Vitest reporting helper used by the Angular 22 test path in this repository.
+The older shared Karma/Jasmine launcher configuration has been retired from the maintained baseline.
+
+The public `@nationalbankbelgium/stark-testing/vitest-reporting` export centralizes typed coverage and JUnit output paths for Stark packages and applications.
+
+```javascript
+import { createVitestReportingConfig } from "@nationalbankbelgium/stark-testing/vitest-reporting";
+
+const reporting = createVitestReportingConfig("my-application");
+```

@@ -14,10 +14,11 @@ import { StarkSettingsServiceImpl } from "./settings.service";
 import { StarkSettingsActions } from "../actions";
 import { StarkUser } from "../../user/entities";
 import { of } from "rxjs";
-import SpyObj = jasmine.SpyObj;
+import { createMockObject, type VitestMockObject } from "@nationalbankbelgium/stark-core/testing";
+import { vi } from "vitest";
 
 describe("Service: StarkSettingsService", () => {
-	let mockStore: SpyObj<Store<StarkCoreApplicationState>>;
+	let mockStore: VitestMockObject<Store<StarkCoreApplicationState>>;
 	let mockLogger: MockStarkLoggingService;
 	let appConfig: StarkApplicationConfig;
 	let appMetadata: StarkApplicationMetadata;
@@ -28,7 +29,7 @@ describe("Service: StarkSettingsService", () => {
 
 	beforeEach(() => {
 		mockLogger = new MockStarkLoggingService();
-		mockStore = jasmine.createSpyObj<Store<StarkCoreApplicationState>>("store", ["dispatch"]);
+		mockStore = createMockObject<Store<StarkCoreApplicationState>>(["dispatch"]);
 		appConfig = new StarkApplicationConfigImpl();
 		appConfig.defaultLanguage = "en";
 		appMetadata = new StarkApplicationMetadataImpl();
@@ -46,17 +47,17 @@ describe("Service: StarkSettingsService", () => {
 		};
 
 		mockSessionService = new MockStarkSessionService();
-		mockSessionService.getCurrentUser.and.returnValue(of(mockUser));
+		mockSessionService.getCurrentUser.mockReturnValue(of(mockUser));
 
 		settingsService = new StarkSettingsServiceImpl(
 			mockLogger,
 			mockSessionService,
 			appMetadata,
 			appConfig,
-			<Store<StarkCoreApplicationState>>(<unknown>mockStore)
+			mockStore as unknown as Store<StarkCoreApplicationState>
 		);
 		// reset the calls counter because there is a log in the constructor
-		mockStore.dispatch.calls.reset();
+		mockStore.dispatch.mockReset();
 	});
 	describe("on initialization", () => {
 		it("should throw an error in case the defaultLanguage in the app config is invalid", () => {
@@ -114,7 +115,7 @@ describe("Service: StarkSettingsService", () => {
 
 	describe("initializeSettings", () => {
 		beforeEach(() => {
-			spyOnProperty(navigator, "language").and.returnValue("fr-be");
+			vi.spyOn(navigator, "language", "get").mockReturnValue("fr-be");
 			browserLanguageCode = "fr";
 		});
 
@@ -126,19 +127,19 @@ describe("Service: StarkSettingsService", () => {
 		it("should set browser language as preferred language if user language is undefined OR null", () => {
 			// eslint-disable-next-line no-null/no-null
 			mockUser.language = <any>null;
-			mockSessionService.getCurrentUser.and.returnValue(of(mockUser));
+			mockSessionService.getCurrentUser.mockReturnValue(of(mockUser));
 			settingsService.initializeSettings();
 			expect(settingsService.preferredLanguage).toEqual(browserLanguageCode);
 
 			mockUser.language = undefined;
-			mockSessionService.getCurrentUser.and.returnValue(of(mockUser));
+			mockSessionService.getCurrentUser.mockReturnValue(of(mockUser));
 			settingsService.initializeSettings();
 			expect(settingsService.preferredLanguage).toEqual(browserLanguageCode);
 		});
 
 		it("should set browser language as preferred language if user language is NOT in supported languages", () => {
 			mockUser.language = "NL";
-			mockSessionService.getCurrentUser.and.returnValue(of(mockUser));
+			mockSessionService.getCurrentUser.mockReturnValue(of(mockUser));
 			settingsService.initializeSettings();
 			expect(settingsService.preferredLanguage).toEqual(browserLanguageCode);
 		});
@@ -162,7 +163,7 @@ describe("Service: StarkSettingsService", () => {
 			settingsService.setPreferredLanguage("NL");
 
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
-			expect(mockStore.dispatch.calls.argsFor(0)[0]).toEqual(StarkSettingsActions.setPreferredLanguage({ language: "NL" }));
+			expect(mockStore.dispatch.mock.calls[0][0]).toEqual(StarkSettingsActions.setPreferredLanguage({ language: "NL" }));
 			expect(settingsService.preferredLanguage).toEqual("NL");
 		});
 	});

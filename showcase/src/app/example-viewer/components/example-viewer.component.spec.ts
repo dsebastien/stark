@@ -1,81 +1,111 @@
-import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
+import { Component, NgModule, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
-import { MatLegacyTabsModule as MatTabsModule } from "@angular/material/legacy-tabs";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { HAMMER_LOADER } from "@angular/platform-browser";
-import { Observable, of, Subject, throwError } from "rxjs";
-import { delay, filter } from "rxjs/operators";
-import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkPrettyPrintModule } from "@nationalbankbelgium/stark-ui";
+import { MatButtonModule } from "@angular/material/button";
+import { MatTabsModule } from "@angular/material/tabs";
+import { MatTooltipModule } from "@angular/material/tooltip";
+import { of, throwError, type Observable } from "rxjs";
+import {
+	STARK_LOGGING_SERVICE,
+	STARK_ROUTING_SERVICE,
+	type StarkLoggingService,
+	type StarkRoutingService
+} from "@nationalbankbelgium/stark-core";
 
 import { ExampleFile, ExampleViewerComponent } from "./example-viewer.component";
-import SpyObj = jasmine.SpyObj;
-import Spy = jasmine.Spy;
 import { FileService } from "../services";
+import { vi } from "vitest";
+
+type FileServiceMock = {
+	fetchFile: ReturnType<typeof vi.fn<(path: string) => Observable<string>>>;
+};
+
+type LoggingServiceMock = Pick<StarkLoggingService, "error"> & {
+	error: ReturnType<typeof vi.fn<(message: string, error: unknown) => void>>;
+};
+
+type RoutingServiceMock = Pick<StarkRoutingService, "getCurrentStateName"> & {
+	getCurrentStateName: ReturnType<typeof vi.fn<() => string>>;
+};
+
+@Component({
+	standalone: false,
+	selector: "host-component",
+	template: `
+		<example-viewer [id]="id" [extensions]="extensions" [filesPath]="filesPath" [exampleTitle]="exampleTitle"></example-viewer>
+	`
+})
+class TestHostComponent {
+	@ViewChild(ExampleViewerComponent, { static: true })
+	public exampleViewer!: ExampleViewerComponent;
+
+	public id = "";
+	public extensions: string[] = [];
+	public filesPath?: string;
+	public exampleTitle?: string;
+}
+
+@NgModule({
+	declarations: [ExampleViewerComponent, TestHostComponent],
+	imports: [NoopAnimationsModule, MatButtonModule, MatTabsModule, MatTooltipModule],
+	schemas: [NO_ERRORS_SCHEMA]
+})
+class ExampleViewerTestModule {}
 
 describe("ExampleViewerComponent", () => {
-	@Component({
-		selector: "host-component",
-		template: `
-			<example-viewer [id]="id" [extensions]="extensions" [filesPath]="filesPath" [exampleTitle]="exampleTitle"></example-viewer>
-		`
-	})
-	class TestHostComponent {
-		@ViewChild(ExampleViewerComponent, { static: true })
-		public exampleViewer!: ExampleViewerComponent;
-
-		public id = "";
-		public extensions: string[] = [];
-		public filesPath?: string;
-		public exampleTitle?: string;
-	}
-
 	// IMPORTANT: The official way to test components using ChangeDetectionStrategy.OnPush is to wrap it with a test host component
 	// see https://github.com/angular/angular/issues/12313#issuecomment-444623173
 	let hostFixture: ComponentFixture<TestHostComponent>;
 	let hostComponent: TestHostComponent;
 	let component: ExampleViewerComponent;
-	let fileService: SpyObj<FileService>;
-	let logger: MockStarkLoggingService;
+	let fileService: FileServiceMock;
+	let logger: LoggingServiceMock;
 
 	// Router config
 	const mockStateName = "mock-state-name";
-	const router: MockStarkRoutingService = new MockStarkRoutingService();
-	router.getCurrentStateName.and.returnValue(mockStateName);
+	const router: RoutingServiceMock = {
+		getCurrentStateName: vi.fn<() => string>(() => mockStateName)
+	};
+
+	function renderHost(setup?: (host: TestHostComponent) => void): void {
+		if (hostFixture) {
+			hostFixture.destroy();
+		}
+
+		hostFixture = TestBed.createComponent(TestHostComponent);
+		hostComponent = hostFixture.componentInstance;
+		setup?.(hostComponent);
+		hostFixture.detectChanges(); // trigger initial data binding
+		component = hostComponent.exampleViewer;
+	}
 
 	beforeEach(waitForAsync(() => {
+		logger = {
+			error: vi.fn<(message: string, error: unknown) => void>()
+		};
+		fileService = {
+			fetchFile: vi.fn<(path: string) => Observable<string>>(() => of("initial dummy file content"))
+		};
+
 		return TestBed.configureTestingModule({
-			declarations: [ExampleViewerComponent, TestHostComponent],
-			imports: [NoopAnimationsModule, MatButtonModule, MatTabsModule, MatTooltipModule, StarkPrettyPrintModule],
+			imports: [ExampleViewerTestModule],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_ROUTING_SERVICE, useValue: router },
+				{ provide: STARK_LOGGING_SERVICE, useValue: logger },
+				{ provide: STARK_ROUTING_SERVICE, useValue: router as unknown as StarkRoutingService },
 				{
 					provide: FileService,
-					useValue: jasmine.createSpyObj("FileServiceSpy", ["fetchFile"])
-				},
-				{
-					// See https://github.com/NationalBankBelgium/stark/issues/1088
-					provide: HAMMER_LOADER,
-					useValue: (): Promise<any> => new Subject<any>().toPromise()
+					useValue: fileService as unknown as FileService
 				}
-			],
-			schemas: [NO_ERRORS_SCHEMA] // tells the Angular compiler to ignore unrecognized elements and attributes: mat-icon
+			]
 		}).compileComponents();
 	}));
 
 	beforeEach(() => {
-		logger = TestBed.inject<MockStarkLoggingService>(STARK_LOGGING_SERVICE);
-		fileService = <SpyObj<FileService>>TestBed.inject(FileService);
-		fileService.fetchFile.and.callFake(() => of("initial dummy file content"));
+		fileService.fetchFile.mockReset();
+		fileService.fetchFile.mockImplementation(() => of("initial dummy file content"));
+		logger.error.mockClear();
 
-		hostFixture = TestBed.createComponent(TestHostComponent);
-		hostComponent = hostFixture.componentInstance;
-		component = hostComponent.exampleViewer;
-		hostFixture.detectChanges(); // trigger initial data binding
+		renderHost();
 	});
 
 	describe("current state", () => {
@@ -86,93 +116,83 @@ describe("ExampleViewerComponent", () => {
 
 	describe("@Input() exampleTitle", () => {
 		it("should change the exampleTitle according to the @Input", () => {
+			renderHost((host) => {
+				host.exampleTitle = "Test title";
+			});
+
 			const h3: HTMLHeadingElement = hostFixture.nativeElement.querySelector("mat-card-header h3");
-			hostComponent.exampleTitle = "Test title";
-			hostFixture.detectChanges();
 			expect(h3.textContent).toContain(hostComponent.exampleTitle);
 		});
 	});
 
 	describe("@Input() extensions", () => {
-		it("should show the tabs when the file exist", (done: DoneFn) => {
-			hostComponent.extensions = ["CSS", "JS", "HTML", "SCSS", "TS"];
-			hostFixture.detectChanges();
+		it("should show the tabs when the file exist", () => {
+			renderHost((host) => {
+				host.extensions = ["CSS", "JS", "HTML", "SCSS", "TS"];
+			});
 
-			let button: HTMLButtonElement = hostFixture.nativeElement.querySelector("mat-card-header button");
-			button.click();
-			let tabs: any[] = hostFixture.nativeElement.querySelectorAll(".mat-tab-labels .mat-tab-label");
+			expect(component.exampleFiles.length).toBe(component.extensions.length);
+
+			let tabs: NodeListOf<HTMLElement> = hostFixture.nativeElement.querySelectorAll('[role="tab"]');
 			expect(tabs.length).toBe(0);
 
-			fileService.fetchFile.and.callFake(() => {
-				fileFetched.next("file has been fetched");
-				return of("some file content");
-			});
+			const button: HTMLButtonElement = hostFixture.nativeElement.querySelector("mat-card-header button");
+			button.click();
+			hostFixture.detectChanges();
 
-			const fileFetched: Subject<string> = new Subject();
-			const allFilesFetched: Observable<string> = fileFetched.asObservable().pipe(
-				filter((_value: string, index: number) => index === component.extensions.length - 1),
-				delay(10) // we need to give some time until the tabs are refreshed
-			);
-
-			allFilesFetched.subscribe(() => {
-				hostFixture.detectChanges();
-
-				button = hostFixture.nativeElement.querySelector("mat-card-header button");
-				button.click();
-
-				tabs = hostFixture.nativeElement.querySelectorAll(".mat-tab-labels .mat-tab-label");
-				expect(tabs.length).toBe(component.extensions.length);
-				done();
-			});
-
-			component.fetchExampleFiles();
+			tabs = hostFixture.nativeElement.querySelectorAll('[role="tab"]');
+			expect(tabs.length).toBe(component.extensions.length);
 		});
 	});
 
 	describe("@Input() id", () => {
 		it("should not render an anchor when not set", () => {
-			hostComponent.id = "";
-			hostFixture.detectChanges();
+			renderHost((host) => {
+				host.id = "";
+			});
 
 			const anchorIcon = hostFixture.nativeElement.querySelector("mat-card-title a.anchor-link");
-			expect(anchorIcon).withContext("anchor link element found.").toBeNull();
+			expect(anchorIcon).toBeNull();
 		});
 
 		it("should render an anchor when set", () => {
-			hostComponent.id = "some-hash";
-			hostFixture.detectChanges();
+			renderHost((host) => {
+				host.id = "some-hash";
+			});
 
 			const anchorIcon = hostFixture.nativeElement.querySelector("mat-card-title a.anchor-link");
-			expect(anchorIcon).not.withContext("anchor link element not found.").toBeNull();
+			expect(anchorIcon).not.toBeNull();
 		});
 	});
 
 	describe("fetchExampleFiles()", () => {
+		let addExampleFileSpy: ReturnType<typeof vi.fn<(file: ExampleFile) => void>>;
+
 		beforeEach(() => {
-			spyOn(component, "addExampleFile");
-			fileService.fetchFile.calls.reset();
-			logger.error.calls.reset();
+			addExampleFileSpy = vi.spyOn(component, "addExampleFile") as unknown as ReturnType<typeof vi.fn<(file: ExampleFile) => void>>;
+			fileService.fetchFile.mockReset();
+			logger.error.mockClear();
 
 			component.extensions = ["HTML", "TS", "CSS"];
 		});
 
 		it("should not do anything when the file doesn't exist", () => {
-			fileService.fetchFile.and.returnValue(throwError("file does not exist"));
+			fileService.fetchFile.mockReturnValue(throwError(() => "file does not exist"));
 			expect(fileService.fetchFile).not.toHaveBeenCalled();
 			component.fetchExampleFiles();
 			expect(fileService.fetchFile).toHaveBeenCalledTimes(component.extensions.length);
 			expect(logger.error).toHaveBeenCalledTimes(component.extensions.length);
-			expect(component.addExampleFile).not.toHaveBeenCalled();
+			expect(addExampleFileSpy).not.toHaveBeenCalled();
 		});
 
 		it("should call addExampleFiles() when the file exists passing the data of the file and its metadata", () => {
-			fileService.fetchFile.and.returnValue(of("dummy file content"));
+			fileService.fetchFile.mockReturnValue(of("dummy file content"));
 			component.fetchExampleFiles();
 			expect(fileService.fetchFile).toHaveBeenCalledTimes(component.extensions.length);
-			expect(component.addExampleFile).toHaveBeenCalledTimes(component.extensions.length);
+			expect(addExampleFileSpy).toHaveBeenCalledTimes(component.extensions.length);
 
 			component.extensions.forEach((extension: string, index: number) => {
-				const exampleFile: ExampleFile = (<Spy>component.addExampleFile).calls.argsFor(index)[0];
+				const exampleFile: ExampleFile = addExampleFileSpy.mock.calls[index][0] as ExampleFile;
 				expect(exampleFile.data).toBeDefined();
 				expect(exampleFile.extension).toBe(extension);
 				expect(exampleFile.format).toBeDefined();
@@ -180,24 +200,25 @@ describe("ExampleViewerComponent", () => {
 		});
 
 		it("should call the FileService passing the right url of the file including the base URL if any", () => {
-			fileService.fetchFile.and.returnValue(of("dummy file content"));
+			fileService.fetchFile.mockReturnValue(of("dummy file content"));
 			component.filesPath = "dummy-example-file";
 			component.appBaseHref = "";
 			component.fetchExampleFiles();
 			expect(fileService.fetchFile).toHaveBeenCalledTimes(component.extensions.length);
 
 			component.extensions.forEach((extension: string, index: number) => {
-				const filePath: string = fileService.fetchFile.calls.argsFor(index)[0];
+				const filePath: string = fileService.fetchFile.mock.calls[index][0] as string;
 				expect(filePath).toBe(component.examplesFolder + component.filesPath + "." + extension.toLowerCase());
 			});
 
-			fileService.fetchFile.calls.reset();
+			fileService.fetchFile.mockReset();
+			fileService.fetchFile.mockReturnValue(of("dummy file content"));
 			component.appBaseHref = "mock-bae-href/";
 			component.fetchExampleFiles();
 			expect(fileService.fetchFile).toHaveBeenCalledTimes(component.extensions.length);
 
 			component.extensions.forEach((extension: string, index: number) => {
-				const filePath: string = fileService.fetchFile.calls.argsFor(index)[0];
+				const filePath: string = fileService.fetchFile.mock.calls[index][0] as string;
 				expect(filePath).toBe(
 					component.appBaseHref + component.examplesFolder + component.filesPath + "." + extension.toLowerCase()
 				);

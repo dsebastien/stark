@@ -362,7 +362,8 @@ If you only want to build a subset of stark then you can
 Anytime you integrate or modify features, you need to make sure the relevant test suites still pass.
 You can execute the tests for all Stark parts using the following command at the root: `npm test`
 
-For more information about end-to-end testing and BrowserStack integration see [E2E_TESTING.md](./docs/E2E_TESTING.md)
+For the maintained Vitest setup and the policy for application-owned browser tests, see the
+[Stark 13 migration guide](./docs/MIGRATION_GUIDE_STARK_13.md#step-3-migrate-unit-tests-to-vitest).
 
 ## Cleaning up the project / packages
 
