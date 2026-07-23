@@ -14,12 +14,12 @@
     "url": "https://github.com/NationalBankBelgium/stark.git"
   },
   "engines": {
-    "node": ">=18.17.1",
-    "npm": ">=10.1.0"
+    "node": ">=22.22.3",
+    "npm": ">=10.9.4"
   },
   "dependencies": {
-    "@angular/material-moment-adapter": "^16.2.14",
-    "@mdi/angular-material": "^4.0.96",
+    "@angular/material-moment-adapter": "^22.0.1",
+    "@mdi/angular-material": "^7.2.96",
     "@sqltools/formatter": "^1.2.3",
     "@types/prismjs": "^1.16.3",
     "angular2-text-mask": "^9.0.0",
@@ -31,10 +31,10 @@
     "text-mask-core": "^5.1.2"
   },
   "peerDependencies": {
-    "@angular/animations": "^16.2.12",
-    "@angular/cdk": "^16.2.14",
-    "@angular/forms": "^16.2.12",
-    "@angular/material": "^16.2.14",
+    "@angular/animations": "^22.0.1",
+    "@angular/cdk": "^22.0.1",
+    "@angular/forms": "^22.0.1",
+    "@angular/material": "^22.0.1",
     "@nationalbankbelgium/stark-core": "0.0.0-PLACEHOLDER-VERSION"
   },
   "scripts": {
@@ -46,15 +46,14 @@
     "docs:serve": "npm run docs -- --watch --serve --port 4321",
     "ng": "ng",
     "ngc": "node ../../node_modules/@angular/compiler-cli/src/main.js -p ./tsconfig.json",
-    "ngcc": "ngcc",
     "lint": "npm run lint-es && npm run lint-css",
     "lint-es" : "ng lint",
     "lint-es:fix": "ng lint --fix",
     "lint-css": "node ../../node_modules/stylelint/bin/stylelint \"./(src|assets)/**/*.?(pc|sc|c|sa)ss\" --formatter \"string\" --allow-empty-input",
     "test": "npm run lint && npm run test-fast",
     "test:ci": "npm run lint && npm run test-fast:ci",
-    "test-fast": "npm run ng test",
-    "test-fast:ci": "ng test --watch=false --code-coverage",
+    "test-fast": "node ../../node_modules/@angular/cli/bin/ng.js test",
+    "test-fast:ci": "node ../../node_modules/@angular/cli/bin/ng.js test --watch=false --coverage",
     "tsc": "node ../../node_modules/typescript/bin/tsc -p ./tsconfig.json"
   }
 }

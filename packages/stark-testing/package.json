@@ -1,14 +1,15 @@
 {
   "name": "@nationalbankbelgium/stark-testing",
   "version": "0.0.0-PLACEHOLDER-VERSION",
-  "main": "karma.conf.js",
-  "types": "stark-testing.d.ts",
-  "description": "Stark - Testing",
+  "description": "Stark - shared Vitest reporting helpers",
   "author": "Stark Team",
   "contributors": [
     "PLACEHOLDER-CONTRIBUTORS"
   ],
   "license": "MIT",
+  "exports": {
+    "./vitest-reporting": "./vitest-reporting.mjs"
+  },
   "bugs": "https://github.com/nationalbankbelgium/stark/issues",
   "homepage": "https://github.com/nationalbankbelgium/stark",
   "repository": {
@@ -16,27 +17,8 @@
     "url": "https://github.com/NationalBankBelgium/stark.git"
   },
   "engines": {
-    "node": ">=18.17.1",
-    "npm": ">=10.1.0"
-  },
-  "dependencies": {
-    "@angular-devkit/build-angular": "^16.2.16",
-    "@types/jasmine": "~5.1.5",
-    "@types/karma": "^6.3.8",
-    "@types/node": "^18.19.4",
-    "ci-info": "^4.0.0",
-    "jasmine-core": "^5.3.0",
-    "karma": "^6.4.4",
-    "karma-chrome-launcher": "^3.2.0",
-    "karma-coverage": "^2.2.1",
-    "karma-edge-launcher": "^0.4.2",
-    "karma-firefox-launcher": "^2.1.2",
-    "karma-jasmine": "^5.1.0",
-    "karma-jasmine-html-reporter": "^2.1.0",
-    "karma-mocha-reporter": "^2.2.5",
-    "karma-sourcemap-loader": "^0.4.0",
-    "protractor": "^7.0.0",
-    "puppeteer": "^23.5.3"
+    "node": ">=22.22.3",
+    "npm": ">=10.9.4"
   },
   "scripts": {
     "clean": "npx rimraf dist",

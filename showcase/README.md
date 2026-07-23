@@ -162,7 +162,7 @@ groupings trying to match Angular concepts:
 |   README.md                           # this document
 |   tsconfig.app.json                   # typescript configuration for the application, extends tsconfig.json
 |   tsconfig.e2e.json                   # typescript configuration for the e2e tests, extends tsconfig.json
-|   tsconfig.json                       # typescript configuration, extends tsconfig.json from Stark-Build
+|   tsconfig.json                       # TypeScript configuration, extends the Angular 22 preset from code-style
 |   tsconfig.spec.json                  # typescript configuration for the Karma tests, extends tsconfig.json
 \   tslint.json                         # tslint configuration file
 ```
