@@ -2,7 +2,7 @@ import { StarkSettingsActions } from "../actions";
 import { StarkSettings } from "../entities";
 import { settingsReducer } from "./settings.reducer";
 
-const deepFreeze: Function = require("deep-freeze-strict");
+const deepFreeze: <T>(value: T) => T = require("deep-freeze-strict");
 
 describe("Reducer: SettingsReducer", () => {
 	let settings: StarkSettings;

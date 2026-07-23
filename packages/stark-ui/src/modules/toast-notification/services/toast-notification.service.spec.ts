@@ -1,19 +1,37 @@
-import createSpyObj = jasmine.createSpyObj;
-import SpyObj = jasmine.SpyObj;
 import { ApplicationRef } from "@angular/core";
-import { fakeAsync, tick, waitForAsync } from "@angular/core/testing";
-import {
-	MatLegacySnackBar as MatSnackBar,
-	MatLegacySnackBarConfig as MatSnackBarConfig,
-	MatLegacySnackBarDismiss as MatSnackBarDismiss,
-	MatLegacySnackBarRef as MatSnackBarRef
-} from "@angular/material/legacy-snack-bar";
+import { MatSnackBar, MatSnackBarConfig, MatSnackBarDismiss, MatSnackBarRef } from "@angular/material/snack-bar";
 import { StarkMessageType } from "@nationalbankbelgium/stark-ui/src/common";
+import { Observable, Observer } from "rxjs";
+import { vi } from "vitest";
 import { StarkToastMessage, StarkToastNotificationComponent } from "../components";
 import { StarkToastNotificationResult } from "./toast-notification-result.intf";
 import { StarkToastNotificationServiceImpl } from "./toast-notification.service";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { Observable, Observer } from "rxjs";
+
+type MatSnackBarRefMock = {
+	afterDismissed: ReturnType<typeof vi.fn<() => Observable<MatSnackBarDismiss>>>;
+	dismissWithAction: ReturnType<typeof vi.fn<() => void>>;
+	dismiss: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type MatSnackBarMock = {
+	openFromComponent: ReturnType<
+		typeof vi.fn<
+			(
+				component: typeof StarkToastNotificationComponent,
+				config: MatSnackBarConfig
+			) => MatSnackBarRef<StarkToastNotificationComponent>
+		>
+	>;
+	dismiss: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type ApplicationRefMock = {
+	tick: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
 
 describe("ToastNotificationService", () => {
 	const message: StarkToastMessage = {
@@ -26,39 +44,44 @@ describe("ToastNotificationService", () => {
 	};
 
 	let service: StarkToastNotificationServiceImpl;
+	let mockLogger: LoggingServiceMock;
+	let snackBarDismissObserver!: Observer<MatSnackBarDismiss>;
+	let mockApplicationRef: ApplicationRefMock;
+	let mockSnackBar: MatSnackBarMock;
+	let mockSnackBarRef: MatSnackBarRefMock;
 
-	/** This observer is used to mimic Angular Material's MatSnackBar's behavior */
-	let observer: Observer<MatSnackBarDismiss>;
+	beforeEach(() => {
+		const afterDismissedObs = new Observable<MatSnackBarDismiss>((observer: Observer<MatSnackBarDismiss>): void => {
+			snackBarDismissObserver = observer;
+		});
 
-	beforeEach(waitForAsync(() => {
-		const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
-		const afterDismissedObs: Observable<MatSnackBarDismiss> = new Observable<MatSnackBarDismiss>(
-			(o: Observer<MatSnackBarDismiss>): void => {
-				observer = o;
-			}
-		);
-		const mockSnackBar: SpyObj<MatSnackBar> = createSpyObj<MatSnackBar>("MatSnackBar", {
-			openFromComponent: <any>createSpyObj<MatSnackBarRef<StarkToastNotificationComponent>>("MatSnackBarRef", {
-				afterDismissed: afterDismissedObs,
-				dismissWithAction: <any>jasmine.createSpy("dismissWithAction"),
-				dismiss: <any>jasmine.createSpy("dismiss")
-			}),
-			dismiss: undefined
-		});
-		const mockApplicationRef: SpyObj<ApplicationRef> = createSpyObj<ApplicationRef>("ApplicationRef", {
-			tick: undefined
-		});
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		mockSnackBarRef = {
+			afterDismissed: vi.fn(() => afterDismissedObs),
+			dismissWithAction: vi.fn(),
+			dismiss: vi.fn()
+		};
+		mockSnackBar = {
+			openFromComponent: vi.fn(() => mockSnackBarRef as unknown as MatSnackBarRef<StarkToastNotificationComponent>),
+			dismiss: vi.fn()
+		};
+		mockApplicationRef = {
+			tick: vi.fn()
+		};
+
 		service = new StarkToastNotificationServiceImpl(
-			<MatSnackBar>(<unknown>mockSnackBar),
-			mockLogger,
-			<ApplicationRef>(<unknown>mockApplicationRef),
+			mockSnackBar as unknown as MatSnackBar,
+			mockLogger as any,
+			mockApplicationRef as unknown as ApplicationRef,
 			{
 				delay: 3000,
 				position: "top right",
 				actionClasses: []
 			}
 		);
-	}));
+	});
 
 	describe("on initialization", () => {
 		it("should set internal component properties", () => {
@@ -90,82 +113,78 @@ describe("ToastNotificationService", () => {
 			expect(conf.verticalPosition).not.toBeNull();
 			expect(conf.verticalPosition).toBeDefined();
 			expect(conf.verticalPosition).toBe("top");
+
+			expect(conf.panelClass).toBe("stark-toast-notification-panel");
 		});
 	});
 
 	describe("on show", () => {
-		it("should display the snack bar", fakeAsync(() => {
+		it("should display the snack bar", () => {
+			const firstResults: StarkToastNotificationResult[] = [];
+			const secondResults: StarkToastNotificationResult[] = [];
 			let showObs: Observable<StarkToastNotificationResult> = service.show(message);
 			expect(showObs).not.toBeNull();
 			expect(showObs).toBeDefined();
 
-			expect(service.snackBar.openFromComponent).toHaveBeenCalledTimes(0);
-
-			expect((<any>service).currentToastResult$).not.toBeDefined();
+			expect(mockSnackBar.openFromComponent).toHaveBeenCalledTimes(0);
+			expect((service as any).currentToastResult$).not.toBeDefined();
 
 			showObs.subscribe((ret: StarkToastNotificationResult) => {
-				expect(ret).toBe(StarkToastNotificationResult.CLOSED_BY_NEW_TOAST);
+				firstResults.push(ret);
 			});
 
-			tick();
-
-			expect(service.snackBar.openFromComponent).toHaveBeenCalledTimes(1);
-
-			expect((<any>service).currentToastResult$).not.toBeNull();
-			expect((<any>service).currentToastResult$).toBeDefined();
+			expect(mockSnackBar.openFromComponent).toHaveBeenCalledTimes(1);
+			expect((service as any).currentToastResult$).not.toBeNull();
+			expect((service as any).currentToastResult$).toBeDefined();
 
 			showObs = service.show(message);
 
-			/** Mimic MatSnackBar's behavior */
-			observer.next({ dismissedByAction: false });
-
+			expect(firstResults).toEqual([StarkToastNotificationResult.CLOSED_BY_NEW_TOAST]);
 			expect(showObs).not.toBeNull();
 			expect(showObs).toBeDefined();
-
-			expect((<any>service).currentToastResult$).not.toBeDefined();
-
-			expect(service.snackBar.openFromComponent).toHaveBeenCalledTimes(1);
+			expect((service as any).currentToastResult$).not.toBeDefined();
+			expect(mockSnackBar.openFromComponent).toHaveBeenCalledTimes(1);
 
 			showObs.subscribe((ret: StarkToastNotificationResult) => {
-				expect(ret).toBe(StarkToastNotificationResult.CLOSED_ON_DELAY_TIMEOUT);
+				secondResults.push(ret);
 			});
 
-			tick();
+			expect(mockSnackBar.openFromComponent).toHaveBeenCalledTimes(2);
+			expect((service as any).currentToastResult$).not.toBeNull();
+			expect((service as any).currentToastResult$).toBeDefined();
 
-			expect(service.snackBar.openFromComponent).toHaveBeenCalledTimes(2);
+			snackBarDismissObserver.next({ dismissedByAction: false });
 
-			expect((<any>service).currentToastResult$).not.toBeNull();
-			expect((<any>service).currentToastResult$).toBeDefined();
-
-			/** Mimic MatSnackBar's behavior */
-			observer.next({ dismissedByAction: false });
-
-			tick();
-		}));
+			expect(secondResults).toEqual([StarkToastNotificationResult.CLOSED_ON_DELAY_TIMEOUT]);
+			expect(mockApplicationRef.tick).toHaveBeenCalledTimes(1);
+			expect((service as any).currentToastResult$).not.toBeDefined();
+		});
 	});
 
 	describe("on hide", () => {
-		it("should hide the snackbar", fakeAsync(() => {
+		it("should hide the snackbar", () => {
+			const results: StarkToastNotificationResult[] = [];
+
 			service.show(message).subscribe((ret: StarkToastNotificationResult) => {
-				expect(ret).toBe(StarkToastNotificationResult.HIDDEN);
+				results.push(ret);
 			});
 
-			tick();
+			const privateObserver: Observer<StarkToastNotificationResult> = (service as any).currentToastResult$;
+			const completeSpy = vi.spyOn(privateObserver, "complete");
 
-			spyOn((<any>service).currentToastResult$, "complete");
-
-			const privateObserver: Observer<StarkToastNotificationResult> = (<any>service).currentToastResult$;
-
-			expect(privateObserver.complete).not.toHaveBeenCalled();
+			expect(completeSpy).not.toHaveBeenCalled();
 
 			service.hide();
 
-			/** Mimic MatSnackBar's behavior */
-			observer.next({ dismissedByAction: true });
+			expect(results).toEqual([StarkToastNotificationResult.HIDDEN]);
+			expect(mockSnackBarRef.dismiss).toHaveBeenCalledTimes(1);
+			expect(completeSpy).toHaveBeenCalled();
+			expect((service as any).currentToastResult$).not.toBeDefined();
 
-			tick();
+			snackBarDismissObserver.next({ dismissedByAction: true });
 
-			expect(privateObserver.complete).toHaveBeenCalled();
-		}));
+			expect(results).toEqual([StarkToastNotificationResult.HIDDEN]);
+			expect(completeSpy).toHaveBeenCalled();
+		});
 	});
 });

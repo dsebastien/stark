@@ -1,31 +1,36 @@
 /* eslint-disable @angular-eslint/no-lifecycle-call */
-import { ComponentFixture, inject, TestBed, waitForAsync } from "@angular/core/testing";
 import { Component, NgModule, ViewChild } from "@angular/core";
-import { CommonModule } from "@angular/common";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
-import { MatIconModule } from "@angular/material/icon";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyInputModule as MatInputModule } from "@angular/material/legacy-input";
-import { MatLegacyFormFieldModule as MatFormFieldModule } from "@angular/material/legacy-form-field";
-import { MatLegacyAutocompleteModule as MatAutocompleteModule } from "@angular/material/legacy-autocomplete";
-import { MatLegacySelectModule as MatSelectModule } from "@angular/material/legacy-select";
-import { MatLegacyOptionModule as MatOptionModule } from "@angular/material/legacy-core";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE, StarkLocale, StarkRoutingService } from "@nationalbankbelgium/stark-core";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { Ng2StateDeclaration, StateDeclaration } from "@uirouter/angular";
-import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE, StarkLocale } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
+import { of, throwError } from "rxjs";
+import { vi } from "vitest";
+import { mergeUiTranslations } from "@nationalbankbelgium/stark-ui/src/common";
+import { StarkMenuConfig, StarkMenuGroup } from "@nationalbankbelgium/stark-ui/src/modules/app-menu";
+import { StarkRouteSearchModule } from "../route-search.module";
 import { StarkRouteSearchComponent } from "./route-search.component";
 import { StarkRouteSearchEntry } from "../components";
-import { StarkMenuConfig, StarkMenuGroup } from "@nationalbankbelgium/stark-ui/src/modules/app-menu";
-import { of, throwError } from "rxjs";
-import { mergeUiTranslations } from "@nationalbankbelgium/stark-ui/src/common";
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn>;
+	error: ReturnType<typeof vi.fn>;
+	warn: ReturnType<typeof vi.fn>;
+};
+
+type RoutingServiceMock = {
+	navigateTo: ReturnType<typeof vi.fn>;
+	getStatesConfig: ReturnType<typeof vi.fn>;
+	getTranslationKeyFromState: ReturnType<typeof vi.fn>;
+};
 
 @Component({
-	selector: `host-component`,
-	template: ` <stark-route-search [menuConfig]="menuConfig"></stark-route-search> `
+	standalone: true,
+	selector: "host-component",
+	imports: [StarkRouteSearchModule],
+	template: `<stark-route-search [menuConfig]="menuConfig"></stark-route-search>`
 })
 class TestHostComponent {
 	@ViewChild(StarkRouteSearchComponent, { static: true })
@@ -34,7 +39,7 @@ class TestHostComponent {
 	public menuConfig?: StarkMenuConfig;
 }
 
-@NgModule()
+@NgModule({})
 class LazyLoadedModule {}
 
 describe("RouteSearchComponent", () => {
@@ -42,11 +47,10 @@ describe("RouteSearchComponent", () => {
 	let hostComponent: TestHostComponent;
 	let hostFixture: ComponentFixture<TestHostComponent>;
 	let translateService: TranslateService;
+	let mockRoutingService: RoutingServiceMock;
+	let mockLoggingService: LoggingServiceMock;
 
-	const mockRoutingService: MockStarkRoutingService = new MockStarkRoutingService();
-	const mockLoggingService: MockStarkLoggingService = new MockStarkLoggingService();
-
-	const moduleTranslationsEn: any = {
+	const moduleTranslationsEn = {
 		PATH: {
 			FIRST: "path1",
 			SECOND: "path2",
@@ -86,45 +90,28 @@ describe("RouteSearchComponent", () => {
 		]
 	};
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			imports: [
-				CommonModule,
-				FormsModule,
-				MatButtonModule,
-				MatInputModule,
-				MatFormFieldModule,
-				MatTooltipModule,
-				MatAutocompleteModule,
-				MatIconModule,
-				MatIconTestingModule,
-				MatSelectModule,
-				NoopAnimationsModule,
-				MatOptionModule,
-				ReactiveFormsModule,
-				TranslateModule.forRoot()
-			],
-			declarations: [StarkRouteSearchComponent, TestHostComponent],
+	beforeEach(async () => {
+		mockRoutingService = createRoutingServiceMock();
+		mockLoggingService = createLoggerMock();
+
+		await TestBed.configureTestingModule({
+			imports: [TestHostComponent, MatIconTestingModule, NoopAnimationsModule, TranslateModule.forRoot()],
 			providers: [
-				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService },
+				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService as unknown as StarkRoutingService },
 				{ provide: STARK_LOGGING_SERVICE, useValue: mockLoggingService }
 			]
-		}).compileComponents()));
+		}).compileComponents();
 
-	beforeEach(() => {
 		hostFixture = TestBed.createComponent(TestHostComponent);
 		hostComponent = hostFixture.componentInstance;
 		hostComponent.menuConfig = menuConfig;
 		component = hostComponent.routeSearchComponent;
 		hostFixture.detectChanges();
-	});
 
-	// Inject module dependencies
-	beforeEach(inject([TranslateService], (_translateService: TranslateService) => {
-		translateService = _translateService;
+		translateService = TestBed.inject(TranslateService);
 		translateService.addLangs(["en"]);
 		translateService.setDefaultLang("en");
-	}));
+	});
 
 	describe("on initialization", () => {
 		it("should set internal component properties", () => {
@@ -132,7 +119,6 @@ describe("RouteSearchComponent", () => {
 			expect(component).toBeDefined();
 
 			expect(component.routingService).not.toBeNull();
-			expect(component.routingService).toBeDefined();
 			expect(component.routingService).toBeDefined();
 			expect(component.translateService).toBeDefined();
 
@@ -145,22 +131,22 @@ describe("RouteSearchComponent", () => {
 		let hideButton: HTMLElement;
 
 		beforeEach(() => {
-			spyOn(component, "show").and.callThrough();
+			vi.spyOn(component, "show");
 		});
 
 		it("should display the input field when the Search button is clicked", () => {
-			hideButton = <HTMLPreElement>hostFixture.nativeElement.querySelector("button");
-			hideButton.click(); // click once to display the component
+			hideButton = hostFixture.nativeElement.querySelector("button");
+			hideButton.click();
 			expect(component.show).toHaveBeenCalledTimes(1);
 			expect(component.hide).toBe(false);
 		});
 
 		it("should hide the input field if it is already visible and the Search button is clicked", () => {
-			hideButton = <HTMLPreElement>hostFixture.nativeElement.querySelector("button");
+			hideButton = hostFixture.nativeElement.querySelector("button");
 			hideButton.click();
 			hostFixture.detectChanges();
 
-			hideButton.click(); // click a second time to hide the component
+			hideButton.click();
 			hostFixture.detectChanges();
 			expect(component.show).toHaveBeenCalledTimes(2);
 			expect(component.hide).toBe(true);
@@ -170,8 +156,8 @@ describe("RouteSearchComponent", () => {
 	describe("route entries", () => {
 		describe("initialization", () => {
 			it("should use the constructRouteEntriesFromRouterStates when menuConfig is undefined", () => {
-				spyOn(component, "constructRouteEntriesFromRouterStates").and.returnValue([]);
-				spyOn(component, "constructRouteEntriesFromMenuConfig").and.callThrough();
+				vi.spyOn(component, "constructRouteEntriesFromRouterStates").mockReturnValue([]);
+				vi.spyOn(component, "constructRouteEntriesFromMenuConfig");
 				component.routesToDisplay = [];
 				component.menuConfig = undefined;
 				component.ngOnInit();
@@ -181,8 +167,8 @@ describe("RouteSearchComponent", () => {
 			});
 
 			it("should use the constructRouteEntriesFromMenuConfig when menuConfig is defined", () => {
-				spyOn(component, "constructRouteEntriesFromRouterStates").and.callThrough();
-				spyOn(component, "constructRouteEntriesFromMenuConfig").and.callThrough();
+				vi.spyOn(component, "constructRouteEntriesFromRouterStates");
+				vi.spyOn(component, "constructRouteEntriesFromMenuConfig");
 				component.routesToDisplay = [];
 				component.menuConfig = menuConfig;
 				component.ngOnInit();
@@ -196,7 +182,7 @@ describe("RouteSearchComponent", () => {
 			it("should filter the options according to the passed value", () => {
 				component.ngOnInit();
 
-				let result: StarkRouteSearchEntry[] = component.filterRouteEntries("Test 1");
+				let result = component.filterRouteEntries("Test 1");
 				expect(result.length).toBe(1);
 				expect(result[0]).toEqual({ label: "Test 1", targetState: "test1", targetStateParams: undefined });
 
@@ -212,8 +198,7 @@ describe("RouteSearchComponent", () => {
 			});
 
 			it("should return an empty array if the input is not in the list", () => {
-				const result: StarkRouteSearchEntry[] = component.filterRouteEntries("non existing value");
-
+				const result = component.filterRouteEntries("non existing value");
 				expect(result.length).toBe(0);
 			});
 		});
@@ -221,11 +206,11 @@ describe("RouteSearchComponent", () => {
 
 	describe("redirect", () => {
 		beforeEach(() => {
-			mockRoutingService.navigateTo.calls.reset();
+			mockRoutingService.navigateTo.mockReset();
 		});
 
 		it("should redirect to the entry.targetState when the redirect method is called", () => {
-			mockRoutingService.navigateTo.and.returnValue(of("redirection succeeded"));
+			mockRoutingService.navigateTo.mockReturnValue(of("redirection succeeded"));
 			const entry: StarkRouteSearchEntry = { label: "URL 1", targetState: "url1" };
 
 			component.redirect(entry);
@@ -235,7 +220,7 @@ describe("RouteSearchComponent", () => {
 		it("should clear the input text as soon as the redirection finishes", () => {
 			const searchFieldValue = "test";
 			component.searchField.setValue(searchFieldValue);
-			mockRoutingService.navigateTo.and.returnValue(of("redirection succeeded"));
+			mockRoutingService.navigateTo.mockReturnValue(of("redirection succeeded"));
 			const entry: StarkRouteSearchEntry = { label: "URL 1", targetState: "url1" };
 			expect(component.searchField.value).toBe(searchFieldValue);
 
@@ -247,7 +232,7 @@ describe("RouteSearchComponent", () => {
 		it("should NOT clear the input text if the redirection failed", () => {
 			const searchFieldValue = "test";
 			component.searchField.setValue(searchFieldValue);
-			mockRoutingService.navigateTo.and.returnValue(throwError("redirection failed"));
+			mockRoutingService.navigateTo.mockReturnValue(throwError(() => "redirection failed"));
 			const entry: StarkRouteSearchEntry = { label: "URL 1", targetState: "url1" };
 			expect(component.searchField.value).toBe(searchFieldValue);
 
@@ -259,7 +244,7 @@ describe("RouteSearchComponent", () => {
 
 	describe("constructRouteEntriesFromMenuConfig", () => {
 		it("should retrieve the list for menuConfig", () => {
-			const routesToDisplay: StarkRouteSearchEntry[] = component.constructRouteEntriesFromMenuConfig(menuConfig);
+			const routesToDisplay = component.constructRouteEntriesFromMenuConfig(menuConfig);
 
 			expect(routesToDisplay.length).toBe(3);
 			expect(routesToDisplay).toEqual([
@@ -322,17 +307,14 @@ describe("RouteSearchComponent", () => {
 				]
 			};
 
-			const expectedRouteEntries: StarkRouteSearchEntry[] = [
+			expect(component.extractRoutesFromMenuGroup(menuGroup)).toEqual([
 				{ label: "Entry 1", targetState: "entry1", targetStateParams: undefined },
 				{ label: "Entry 1.1", targetState: "entry1.1", targetStateParams: undefined },
 				{ label: "Entry 1.1.1", targetState: "entry1.1.1", targetStateParams: undefined },
 				{ label: "Entry 1.1.1.1", targetState: "entry1.1.1.1", targetStateParams: undefined },
 				{ label: "Entry 1.1.2", targetState: "entry1.1.2", targetStateParams: undefined },
 				{ label: "Entry 1.2", targetState: "entry1.2", targetStateParams: undefined }
-			];
-
-			const result: StarkRouteSearchEntry[] = component.extractRoutesFromMenuGroup(menuGroup);
-			expect(result).toEqual(expectedRouteEntries);
+			]);
 		});
 
 		it("should extract the routes only from those menu entries that are visible, enabled and have a targetState defined", () => {
@@ -385,14 +367,11 @@ describe("RouteSearchComponent", () => {
 				]
 			};
 
-			const expectedRouteEntries: StarkRouteSearchEntry[] = [
+			expect(component.extractRoutesFromMenuGroup(menuGroup)).toEqual([
 				{ label: "Entry 1", targetState: "entry1", targetStateParams: undefined },
 				{ label: "Entry 1.1.2", targetState: "entry1.1.2", targetStateParams: undefined },
 				{ label: "Entry 1.2", targetState: "entry1.2", targetStateParams: undefined }
-			];
-
-			const result: StarkRouteSearchEntry[] = component.extractRoutesFromMenuGroup(menuGroup);
-			expect(result).toEqual(expectedRouteEntries);
+			]);
 		});
 	});
 
@@ -410,8 +389,7 @@ describe("RouteSearchComponent", () => {
 				{ label: "Label C", targetState: "label c" }
 			];
 
-			const result: StarkRouteSearchEntry[] = component.sortRoutesLabels(unsortedEntries);
-			expect(result).toEqual(sortedEntries);
+			expect(component.sortRoutesLabels(unsortedEntries)).toEqual(sortedEntries);
 		});
 	});
 
@@ -450,19 +428,16 @@ describe("RouteSearchComponent", () => {
 				}
 			];
 
-			mockRoutingService.getStatesConfig.and.returnValue(mockStates);
-			mockRoutingService.getTranslationKeyFromState.and.callFake((stateName: string) => stateName.toUpperCase());
+			mockRoutingService.getStatesConfig.mockReturnValue(mockStates);
+			mockRoutingService.getTranslationKeyFromState.mockImplementation((stateName: string) => stateName.toUpperCase());
 
-			const expectedRouteEntries: StarkRouteSearchEntry[] = [
+			component.menuConfig = undefined;
+
+			expect(component.constructRouteEntriesFromRouterStates()).toEqual([
 				{ label: "HOMEPAGE", targetState: "homepage" },
 				{ label: "PAGE-01", targetState: "page-01" },
 				{ label: "PAGE-01-01", targetState: "page-01-01" }
-			];
-			component.menuConfig = undefined;
-			const result: StarkRouteSearchEntry[] = component.constructRouteEntriesFromRouterStates();
-
-			expect(result.length).toBe(3);
-			expect(result).toEqual(expectedRouteEntries);
+			]);
 		});
 
 		it("should retrieve only valid routes (no abstract routes, no lazy loaded routes, with name and url defined)", () => {
@@ -477,9 +452,7 @@ describe("RouteSearchComponent", () => {
 					name: "page-01",
 					url: "/page-01",
 					parent: "homepage",
-					// FIXME This should be tested properly
 					loadChildren: (): any => LazyLoadedModule
-					// loadChildren: "./some.module#SomeModule" // lazy loaded module
 				},
 				{
 					name: "page-01-01",
@@ -501,20 +474,17 @@ describe("RouteSearchComponent", () => {
 				}
 			];
 
-			mockRoutingService.getStatesConfig.and.returnValue(mockStates);
-			mockRoutingService.getTranslationKeyFromState.and.callFake((stateName: string) => stateName.toUpperCase());
+			mockRoutingService.getStatesConfig.mockReturnValue(mockStates);
+			mockRoutingService.getTranslationKeyFromState.mockImplementation((stateName: string) => stateName.toUpperCase());
 
-			const expectedRouteEntries: StarkRouteSearchEntry[] = [
+			component.menuConfig = undefined;
+
+			expect(component.constructRouteEntriesFromRouterStates()).toEqual([
 				{
 					label: "PAGE-01-01-01-01-01",
 					targetState: "page-01-01-01-01-01"
 				}
-			];
-			component.menuConfig = undefined;
-			const result: StarkRouteSearchEntry[] = component.constructRouteEntriesFromRouterStates();
-
-			expect(result.length).toBe(1);
-			expect(result).toEqual(expectedRouteEntries);
+			]);
 		});
 	});
 
@@ -522,8 +492,7 @@ describe("RouteSearchComponent", () => {
 		beforeEach(() => {
 			const english: StarkLocale = { languageCode: "en", translations: moduleTranslationsEn };
 			mergeUiTranslations(translateService, english);
-
-			spyOn(component.translateService, "instant").and.callThrough();
+			vi.spyOn(component.translateService, "instant");
 		});
 
 		it("should translate the label of every RouteEntry object in the given array", () => {
@@ -534,17 +503,13 @@ describe("RouteSearchComponent", () => {
 				{ label: "PATH.FOURTH", targetState: "/path4" }
 			];
 
-			const expectedTranslatedRouteEntries: StarkRouteSearchEntry[] = [
+			expect(component.translateRoutesLabels(nonTranslatedRouteEntries)).toEqual([
 				{ label: "path1", targetState: "/path1", targetStateParams: undefined },
 				{ label: "path2", targetState: "/path2", targetStateParams: undefined },
 				{ label: "path3", targetState: "/path3", targetStateParams: undefined },
 				{ label: "path4", targetState: "/path4", targetStateParams: undefined }
-			];
-
-			const translatedRouteEntries: StarkRouteSearchEntry[] = component.translateRoutesLabels(nonTranslatedRouteEntries);
-
+			]);
 			expect(component.translateService.instant).toHaveBeenCalledTimes(nonTranslatedRouteEntries.length);
-			expect(translatedRouteEntries).toEqual(expectedTranslatedRouteEntries);
 		});
 
 		it("should translate the label of every RouteEntry object or leave the label 'as is' if the translation cannot be found", () => {
@@ -555,17 +520,29 @@ describe("RouteSearchComponent", () => {
 				{ label: "whatever", targetState: "/path4" }
 			];
 
-			const expectedTranslatedRouteEntries: StarkRouteSearchEntry[] = [
+			expect(component.translateRoutesLabels(nonTranslatedRouteEntries)).toEqual([
 				{ label: "path1", targetState: "/path1", targetStateParams: undefined },
 				{ label: "path2", targetState: "/path2", targetStateParams: undefined },
 				{ label: "NON.EXISTING.TRANSLATION", targetState: "/path3", targetStateParams: undefined },
 				{ label: "whatever", targetState: "/path4", targetStateParams: undefined }
-			];
-
-			const translatedRoutesEntries: StarkRouteSearchEntry[] = component.translateRoutesLabels(nonTranslatedRouteEntries);
-
+			]);
 			expect(component.translateService.instant).toHaveBeenCalledTimes(nonTranslatedRouteEntries.length);
-			expect(translatedRoutesEntries).toEqual(expectedTranslatedRouteEntries);
 		});
 	});
 });
+
+function createLoggerMock(): LoggingServiceMock {
+	return {
+		debug: vi.fn(),
+		error: vi.fn(),
+		warn: vi.fn()
+	};
+}
+
+function createRoutingServiceMock(): RoutingServiceMock {
+	return {
+		navigateTo: vi.fn(),
+		getStatesConfig: vi.fn(() => []),
+		getTranslationKeyFromState: vi.fn((stateName: string) => stateName)
+	};
+}

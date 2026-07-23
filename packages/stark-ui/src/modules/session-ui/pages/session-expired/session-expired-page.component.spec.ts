@@ -1,33 +1,41 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { TranslateModule } from "@ngx-translate/core";
-import { CommonModule } from "@angular/common";
-import { MatLegacyCardModule as MatCardModule } from "@angular/material/legacy-card";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
 import { STARK_APP_CONFIG, STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE, StarkApplicationConfig } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkAppLogoModule } from "@nationalbankbelgium/stark-ui/src/modules/app-logo";
-import { StarkSessionCardComponent } from "../../components/session-card/session-card.component";
 import { StarkSessionExpiredPageComponent } from "./session-expired-page.component";
+import { vi } from "vitest";
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+type RoutingServiceMock = {
+	navigateToHome: ReturnType<typeof vi.fn<(...args: unknown[]) => void>>;
+};
 
 describe("SessionExpiredPageComponent", () => {
 	let component: StarkSessionExpiredPageComponent;
 	let fixture: ComponentFixture<StarkSessionExpiredPageComponent>;
 
-	const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
+	const mockLogger: LoggingServiceMock = {
+		debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+	};
+	const mockRoutingService: RoutingServiceMock = {
+		navigateToHome: vi.fn<(...args: unknown[]) => void>()
+	};
 	const mockStarkAppConfig: Partial<StarkApplicationConfig> = {
 		baseUrl: "base-url"
 	};
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkSessionCardComponent, StarkSessionExpiredPageComponent],
-			imports: [CommonModule, MatButtonModule, MatCardModule, StarkAppLogoModule, TranslateModule.forRoot()],
+	beforeEach(async () => {
+		await TestBed.configureTestingModule({
+			imports: [TranslateModule.forRoot(), StarkSessionExpiredPageComponent],
 			providers: [
-				{ provide: STARK_ROUTING_SERVICE, useValue: new MockStarkRoutingService() }, // needed by AppLogo component
-				{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger },
+				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService as any },
+				{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger as any },
 				{ provide: STARK_APP_CONFIG, useValue: mockStarkAppConfig }
 			]
-		}).compileComponents()));
+		}).compileComponents();
+	});
 
 	beforeEach(() => {
 		fixture = TestBed.createComponent(StarkSessionExpiredPageComponent);
@@ -47,10 +55,10 @@ describe("SessionExpiredPageComponent", () => {
 
 	describe("reload", () => {
 		it("should open url", () => {
-			spyOn(window, "open");
+			const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
 			component.reload();
-			expect(window.open).toHaveBeenCalledTimes(1);
-			expect(window.open).toHaveBeenCalledWith("base-url", "_self");
+			expect(openSpy).toHaveBeenCalledTimes(1);
+			expect(openSpy).toHaveBeenCalledWith("base-url", "_self");
 		});
 	});
 });

@@ -1,36 +1,24 @@
 "use strict";
+import type {} from "vitest/globals";
 
-import "core-js/es";
-import "core-js/proposals/reflect-metadata";
-
-// IE polyfills
+/* eslint-disable import/no-unassigned-import */
+import "zone.js/plugins/vitest-patch";
+/* eslint-enable import/no-unassigned-import */
 
 // See https://developer.mozilla.org/en-US/docs/Web/API/Element/matches#Polyfill
-/* tslint:disable:no-unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method */
 if (!Element.prototype.matches) {
 	Element.prototype.matches = (<any>Element.prototype).msMatchesSelector || Element.prototype.webkitMatchesSelector;
 }
-/* tslint:enable:no-unbound-method */
 
 // See: https://developer.mozilla.org/en-US/docs/Web/API/NodeList/forEach#Polyfill
 if ((<any>window).NodeList && !NodeList.prototype.forEach) {
 	(<any>NodeList.prototype).forEach = Array.prototype.forEach;
 }
 
-/* tslint:disable:no-import-side-effect */
-import "zone.js";
-import "zone.js/testing";
-import "zone.js/plugins/long-stack-trace-zone";
-/* tslint:enable:no-import-side-effect */
+/* eslint-enable @typescript-eslint/unbound-method */
 
 // define global environment variable (used in some places in stark-core and stark-ui)
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 globalThis["ENV"] = "development";
-
-import { getTestBed } from "@angular/core/testing";
-import { BrowserDynamicTestingModule, platformBrowserDynamicTesting } from "@angular/platform-browser-dynamic/testing";
-
-getTestBed().initTestEnvironment(BrowserDynamicTestingModule, platformBrowserDynamicTesting(), {
-	teardown: { destroyAfterEach: false }
-});

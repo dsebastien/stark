@@ -2,18 +2,26 @@
 import { StarkBreadcrumbConfig } from "./breadcrumb-config.intf";
 import { StarkBreadcrumbComponent } from "./breadcrumb.component";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { Component, DebugElement, ViewChild } from "@angular/core";
-import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE, StarkRoutingTransitionHook } from "@nationalbankbelgium/stark-core";
-import { CommonModule } from "@angular/common";
+import { Component, DebugElement, ErrorHandler, ViewChild } from "@angular/core";
+import {
+	STARK_LOGGING_SERVICE,
+	STARK_ROUTING_SERVICE,
+	StarkRoutingTransitionHook,
+	type StarkLoggingService,
+	type StarkRoutingService
+} from "@nationalbankbelgium/stark-core";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { TranslateModule } from "@ngx-translate/core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
 import { By } from "@angular/platform-browser";
 import { StarkBreadcrumbPath } from "./breadcrumb-path.intf";
-import Spy = jasmine.Spy;
+import { EMPTY, throwError } from "rxjs";
+import { vi } from "vitest";
+import { StarkBreadcrumbModule } from "../breadcrumb.module";
 
 @Component({
+	standalone: true,
 	selector: `host-component`,
+	imports: [StarkBreadcrumbModule],
 	template: ` <stark-breadcrumb [breadcrumbConfig]="breadcrumbConfig"></stark-breadcrumb> `
 })
 class TestHostComponent {
@@ -74,31 +82,74 @@ describe("BreadcrumbComponent", () => {
 	mockStateTreeData.set(grandParentConst, { translationKey: "GRANDPARENT" });
 	mockStateTreeData.set(rootAncestorConst, { translationKey: "ROOT_ANCESTOR" });
 
-	const mockDeregisterTransitionHookFn: Spy<() => void> = jasmine.createSpy("deregistersTransitionHook");
+	const loggingServiceMock: StarkLoggingService = {
+		correlationId: "dummyCorrelationId",
+		correlationIdHttpHeaderName: "Correlation-Id-HttpHeaderName",
+		generateNewCorrelationId: vi.fn(),
+		debug: vi.fn(),
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn()
+	} as unknown as StarkLoggingService;
+
+	const routingServiceMock = {
+		addTransitionHook: vi.fn(),
+		getStateTreeParams: vi.fn(),
+		getTranslationKeyFromState: vi.fn(),
+		navigateTo: vi.fn()
+	};
+
+	const errorHandlerMock = {
+		handleError: vi.fn()
+	};
+
+	const mockDeregisterTransitionHookFn = vi.fn();
+	type BreadcrumbTransitionHookCallback = () => void;
+
+	function isBreadcrumbTransitionHookCallback(callback: unknown): callback is BreadcrumbTransitionHookCallback {
+		return typeof callback === "function";
+	}
+
+	function getTransitionHookCallback(): BreadcrumbTransitionHookCallback {
+		const callback = routingServiceMock.addTransitionHook.mock.calls.at(-1)?.[2];
+
+		if (!isBreadcrumbTransitionHookCallback(callback)) {
+			throw new Error("Expected addTransitionHook to register a callable onSuccess hook");
+		}
+
+		return callback;
+	}
 
 	beforeEach(waitForAsync(() =>
 		TestBed.configureTestingModule({
-			imports: [CommonModule, NoopAnimationsModule, TranslateModule.forRoot()],
-			declarations: [StarkBreadcrumbComponent, TestHostComponent],
+			imports: [NoopAnimationsModule, TestHostComponent, TranslateModule.forRoot()],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_ROUTING_SERVICE, useClass: MockStarkRoutingService }
+				{ provide: ErrorHandler, useValue: errorHandlerMock },
+				{ provide: STARK_LOGGING_SERVICE, useValue: loggingServiceMock },
+				{ provide: STARK_ROUTING_SERVICE, useValue: routingServiceMock as unknown as StarkRoutingService }
 			]
 		}).compileComponents()));
 
 	// Inject module dependencies
 	beforeEach(() => {
+		routingServiceMock.addTransitionHook.mockReset();
+		routingServiceMock.addTransitionHook.mockReturnValue(mockDeregisterTransitionHookFn);
+		routingServiceMock.getStateTreeParams.mockReset();
+		routingServiceMock.getStateTreeParams.mockReturnValue(mockStateTreeParams);
+		routingServiceMock.getTranslationKeyFromState.mockReset();
+		routingServiceMock.getTranslationKeyFromState.mockImplementation(
+			(stateName: string) => mockStateTreeData.get(stateName).translationKey
+		);
+		routingServiceMock.navigateTo.mockReset();
+		routingServiceMock.navigateTo.mockReturnValue(EMPTY);
+		errorHandlerMock.handleError.mockReset();
+		mockDeregisterTransitionHookFn.mockReset();
+
 		hostFixture = TestBed.createComponent(TestHostComponent);
 		hostComponent = hostFixture.componentInstance;
 		component = hostComponent.breadcrumbComponent;
 
 		hostComponent.breadcrumbConfig = breadcrumbConfig;
-
-		(<Spy>component.routingService.addTransitionHook).and.returnValue(mockDeregisterTransitionHookFn);
-		(<Spy>component.routingService.getStateTreeParams).and.returnValue(mockStateTreeParams);
-		(<Spy>component.routingService.getTranslationKeyFromState).and.callFake(
-			(stateName: string) => mockStateTreeData.get(stateName).translationKey
-		);
 	});
 
 	describe("on initialization", () => {
@@ -156,40 +207,38 @@ describe("BreadcrumbComponent", () => {
 
 	describe("ngOnInit", () => {
 		it("should call getPathsFromStateTree() and add a route transition hook if breadcrumbConfig is not provided", () => {
-			spyOn(component, "getPathsFromStateTree");
+			const getPathsSpy = vi.spyOn(component, "getPathsFromStateTree");
 			component.breadcrumbConfig = undefined;
 
 			component.ngOnInit();
 
 			expect(component.breadcrumbConfig).toBeDefined();
-			expect(component.getPathsFromStateTree).toHaveBeenCalledTimes(1);
-			expect(component.routingService.addTransitionHook).toHaveBeenCalledTimes(1);
-			expect((<Spy>component.routingService.addTransitionHook).calls.mostRecent().args[0]).toBe(
-				StarkRoutingTransitionHook.ON_SUCCESS
-			);
-			expect((<Spy>component.routingService.addTransitionHook).calls.mostRecent().args[1]).toEqual({});
-			expect(typeof (<Spy>component.routingService.addTransitionHook).calls.mostRecent().args[2]).toBe("function");
+			expect(getPathsSpy).toHaveBeenCalledTimes(1);
+			expect(routingServiceMock.addTransitionHook).toHaveBeenCalledTimes(1);
+			expect(routingServiceMock.addTransitionHook.mock.calls.at(-1)?.[0]).toBe(StarkRoutingTransitionHook.ON_SUCCESS);
+			expect(routingServiceMock.addTransitionHook.mock.calls.at(-1)?.[1]).toEqual({});
+			expect(typeof routingServiceMock.addTransitionHook.mock.calls.at(-1)?.[2]).toBe("function");
 		});
 
 		it("should call getPathsFromStateTree() to refresh the breadcrumbConfig whenever the transition hook is triggered", () => {
-			spyOn(component, "getPathsFromStateTree");
+			const getPathsSpy = vi.spyOn(component, "getPathsFromStateTree");
 
 			component.ngOnInit();
 
 			expect(component.breadcrumbConfig).toBeDefined();
-			expect(component.routingService.addTransitionHook).toHaveBeenCalledTimes(1);
-			const transitionHookFn: Function = (<Spy>component.routingService.addTransitionHook).calls.mostRecent().args[2];
-			(<Spy>component.getPathsFromStateTree).calls.reset();
+			expect(routingServiceMock.addTransitionHook).toHaveBeenCalledTimes(1);
+			const transitionHookFn = getTransitionHookCallback();
+			getPathsSpy.mockClear();
 
 			transitionHookFn();
-			expect(component.getPathsFromStateTree).toHaveBeenCalledTimes(1);
+			expect(getPathsSpy).toHaveBeenCalledTimes(1);
 			expect(component.breadcrumbConfig).toBeDefined();
 		});
 	});
 
 	describe("ngOnDestroy", () => {
 		beforeEach(() => {
-			mockDeregisterTransitionHookFn.calls.reset();
+			mockDeregisterTransitionHookFn.mockReset();
 		});
 
 		it("should call the transition hook deregistration function when no config is set", () => {
@@ -213,14 +262,14 @@ describe("BreadcrumbComponent", () => {
 		it("should call the routing service to fetch the params, resolves and data from the state tree", () => {
 			component.getPathsFromStateTree();
 
-			expect(component.routingService.getStateTreeParams).toHaveBeenCalledTimes(1);
-			expect(component.routingService.getTranslationKeyFromState).toHaveBeenCalledTimes(4);
+			expect(routingServiceMock.getStateTreeParams).toHaveBeenCalledTimes(1);
+			expect(routingServiceMock.getTranslationKeyFromState).toHaveBeenCalledTimes(4);
 		});
 
 		it("should call getTranslationKeyFromState to get the translation key for every state contained in the state tree params map", () => {
 			component.getPathsFromStateTree();
 
-			expect(component.routingService.getTranslationKeyFromState).toHaveBeenCalledTimes(mockStateTreeParams.size);
+			expect(routingServiceMock.getTranslationKeyFromState).toHaveBeenCalledTimes(mockStateTreeParams.size);
 		});
 
 		it("should get an ordered array (from child to root ancestor) containing the breadcrumb paths", () => {
@@ -243,8 +292,20 @@ describe("BreadcrumbComponent", () => {
 
 			component.breadcrumbClickHandler(breadcrumbPath);
 
-			expect(component.routingService.navigateTo).toHaveBeenCalledTimes(1);
-			expect(component.routingService.navigateTo).toHaveBeenCalledWith(breadcrumbPath.state, breadcrumbPath.stateParams);
+			expect(routingServiceMock.navigateTo).toHaveBeenCalledTimes(1);
+			expect(routingServiceMock.navigateTo).toHaveBeenCalledWith(breadcrumbPath.state, breadcrumbPath.stateParams);
+			expect(errorHandlerMock.handleError).not.toHaveBeenCalled();
+		});
+
+		it("should forward navigation errors to the Angular ErrorHandler", () => {
+			const breadcrumbPath: StarkBreadcrumbPath = breadcrumbConfig.breadcrumbPaths[0];
+			const navigationError = new Error("navigation failed");
+			routingServiceMock.navigateTo.mockReturnValueOnce(throwError(() => navigationError));
+
+			component.breadcrumbClickHandler(breadcrumbPath);
+
+			expect(errorHandlerMock.handleError).toHaveBeenCalledTimes(1);
+			expect(errorHandlerMock.handleError).toHaveBeenCalledWith(navigationError);
 		});
 	});
 });

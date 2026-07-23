@@ -1,18 +1,28 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkProgressIndicatorComponent } from "./progress-indicator.component";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
+import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
+import { vi } from "vitest";
+import { StarkProgressIndicatorComponent } from "./progress-indicator.component";
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
 
 describe("ProgressIndicatorComponent", () => {
 	let component: StarkProgressIndicatorComponent;
 	let hostFixture: ComponentFixture<StarkProgressIndicatorComponent>;
+	let mockLogger: LoggingServiceMock;
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkProgressIndicatorComponent],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
-		}).compileComponents()));
+	beforeEach(async () => {
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+
+		await TestBed.configureTestingModule({
+			imports: [StarkProgressIndicatorComponent],
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }]
+		}).compileComponents();
+	});
 
 	beforeEach(() => {
 		hostFixture = TestBed.createComponent(StarkProgressIndicatorComponent);
@@ -24,7 +34,6 @@ describe("ProgressIndicatorComponent", () => {
 		it("should set internal component properties", () => {
 			expect(hostFixture).toBeDefined();
 			expect(component).toBeDefined();
-
 			expect(component.logger).not.toBeNull();
 			expect(component.logger).toBeDefined();
 		});

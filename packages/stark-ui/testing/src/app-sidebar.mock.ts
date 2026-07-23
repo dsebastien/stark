@@ -1,13 +1,11 @@
 import { StarkAppSidebarOpenEvent, StarkAppSidebarService } from "@nationalbankbelgium/stark-ui";
 import { Subject } from "rxjs";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkAppSidebarService} interface.
  */
-export class MockStarkAppSidebarService implements SpyObj<StarkAppSidebarService> {
+export class MockStarkAppSidebarService {
 	/**
 	 * See [StarkAppSidebarService closeSidebar$]{@link StarkAppSidebarService#closeSidebar$} property
 	 */
@@ -26,25 +24,25 @@ export class MockStarkAppSidebarService implements SpyObj<StarkAppSidebarService
 	/**
 	 * See [StarkAppSidebarService close()]{@link StarkAppSidebarService#close} method
 	 */
-	public close: Spy<StarkAppSidebarService["close"]> = createSpy("close");
+	public close = vi.fn<StarkAppSidebarService["close"]>();
 
 	/**
 	 * See [StarkAppSidebarService openMenu()]{@link StarkAppSidebarService#openMenu} method
 	 */
-	public openMenu: Spy<StarkAppSidebarService["openMenu"]> = createSpy("openMenu");
+	public openMenu = vi.fn<StarkAppSidebarService["openMenu"]>();
 
 	/**
 	 * See [StarkAppSidebarService openLeft()]{@link StarkAppSidebarService#openLeft} method
 	 */
-	public openLeft: Spy<StarkAppSidebarService["openLeft"]> = createSpy("openLeft");
+	public openLeft = vi.fn<StarkAppSidebarService["openLeft"]>();
 
 	/**
 	 * See [StarkAppSidebarService openRight()]{@link StarkAppSidebarService#openRight} method
 	 */
-	public openRight: Spy<StarkAppSidebarService["openRight"]> = createSpy("openRight");
+	public openRight = vi.fn<StarkAppSidebarService["openRight"]>();
 
 	/**
 	 * See [StarkAppSidebarService toggleMenu()]{@link StarkAppSidebarService#toggleMenu} method
 	 */
-	public toggleMenu: Spy<StarkAppSidebarService["toggleMenu"]> = createSpy("toggleMenu");
+	public toggleMenu = vi.fn<StarkAppSidebarService["toggleMenu"]>();
 }

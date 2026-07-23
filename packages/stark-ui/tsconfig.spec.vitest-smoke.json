@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec-vitest-smoke"
+  },
+  "include": ["base.vitest.spec.ts", "src/**/*.d.ts", "testing/**/*.d.ts", "src/util/dom/dom.util.spec.ts"]
+}

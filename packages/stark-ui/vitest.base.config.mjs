@@ -1,0 +1,15 @@
+import { defineConfig } from "vitest/config";
+import { createVitestReportingConfig } from "../stark-testing/vitest-reporting.mjs";
+
+const reporting = createVitestReportingConfig("packages/stark-ui");
+
+export default defineConfig({
+	test: {
+		coverage: reporting.coverage,
+		hookTimeout: 10000,
+		maxWorkers: 4,
+		pool: "forks",
+		reporters: reporting.reporters,
+		testTimeout: 10000
+	}
+});

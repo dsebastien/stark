@@ -1,34 +1,24 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { MatExpansionModule } from "@angular/material/expansion";
-import { MatIconModule } from "@angular/material/icon";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
+import { TranslateModule } from "@ngx-translate/core";
+import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import { vi } from "vitest";
 import { StarkCollapsibleComponent } from "./collapsible.component";
 
 describe("CollapsibleComponent", () => {
 	let component: StarkCollapsibleComponent;
 	let fixture: ComponentFixture<StarkCollapsibleComponent>;
+	const mockLogger = {
+		debug: vi.fn<(message: string) => void>()
+	} as unknown as StarkLoggingService;
 
-	/**
-	 * async beforeEach
-	 */
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			imports: [MatExpansionModule, MatIconModule, MatIconTestingModule, NoopAnimationsModule],
-			declarations: [StarkCollapsibleComponent],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
-		})
-			/**
-			 * Compile template and css
-			 */
-			.compileComponents()));
-
-	/**
-	 * Synchronous beforeEach
-	 */
 	beforeEach(() => {
+		TestBed.configureTestingModule({
+			imports: [StarkCollapsibleComponent, MatIconTestingModule, NoopAnimationsModule, TranslateModule.forRoot()],
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }]
+		});
+
 		fixture = TestBed.createComponent(StarkCollapsibleComponent);
 		component = fixture.componentInstance;
 

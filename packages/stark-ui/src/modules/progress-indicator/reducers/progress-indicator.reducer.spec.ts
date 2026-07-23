@@ -1,8 +1,7 @@
 import { progressIndicatorReducer } from "./progress-indicator.reducer";
 import { StarkProgressIndicatorFullConfig, StarkProgressIndicatorFullConfigImpl, StarkProgressIndicatorType } from "../entities";
 import { StarkProgressIndicatorActions } from "../actions";
-
-const deepFreeze: Function = require("deep-freeze-strict");
+import deepFreeze from "deep-freeze-strict";
 
 describe("Reducer: ProgressIndicatorReducer", () => {
 	let initialState: Map<string, StarkProgressIndicatorFullConfig>;

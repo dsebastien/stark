@@ -1,18 +1,41 @@
-import { ComponentFixture, fakeAsync, TestBed } from "@angular/core/testing";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { STARK_DEFAULT_VIEW_BOX_SIZE, StarkSvgViewBoxDirective } from "./svg-view-box.directive";
 import { Component, DebugElement } from "@angular/core";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
+import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import { vi } from "vitest";
+import { StarkSvgViewBoxModule } from "../svg-view-box.module";
+import { STARK_DEFAULT_VIEW_BOX_SIZE, StarkSvgViewBoxDirective } from "./svg-view-box.directive";
 
 describe("SvgViewBoxDirective", () => {
 	@Component({
-		selector: "test-component",
-		template: getTemplate("starkSvgViewBox")
+		standalone: true,
+		selector: "stark-svg-view-box-default-host",
+		imports: [StarkSvgViewBoxModule],
+		template: getTemplate("[starkSvgViewBox]='$any(viewBoxSize)'")
 	})
-	class TestComponent {}
+	class DefaultHostComponent {
+		public viewBoxSize: unknown = "";
+	}
 
-	let fixture: ComponentFixture<TestComponent>;
+	@Component({
+		standalone: true,
+		selector: "stark-svg-view-box-custom-host",
+		imports: [StarkSvgViewBoxModule],
+		template: getTemplate("[starkSvgViewBox]='$any(viewBoxSize)'")
+	})
+	class CustomHostComponent {
+		public viewBoxSize: unknown = "48";
+	}
+
+	@Component({
+		standalone: true,
+		selector: "stark-svg-view-box-existing-host",
+		imports: [StarkSvgViewBoxModule],
+		template: getTemplate("[starkSvgViewBox]='$any(viewBoxSize)'", "viewBox='0 0 12 12'")
+	})
+	class ExistingViewBoxHostComponent {
+		public viewBoxSize: unknown = "";
+	}
 
 	function getTemplate(svgViewBoxDirective: string, viewBoxAttribute?: string): string {
 		return `
@@ -24,26 +47,21 @@ describe("SvgViewBoxDirective", () => {
 `;
 	}
 
-	function initializeComponentFixture(): void {
-		fixture = TestBed.createComponent(TestComponent);
-		// trigger initial data binding
-		fixture.detectChanges();
-	}
-
-	beforeEach(() => {
-		TestBed.configureTestingModule({
-			declarations: [StarkSvgViewBoxDirective, TestComponent],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
-		});
-	});
+	const mockLogger = {
+		debug: vi.fn<(message: string) => void>()
+	} as unknown as StarkLoggingService;
 
 	describe("when viewBox value is not defined", () => {
-		beforeEach(fakeAsync(() =>
-			// compile template and css
-			TestBed.compileComponents()));
+		let fixture: ComponentFixture<DefaultHostComponent>;
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [DefaultHostComponent],
+				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }]
+			});
+
+			fixture = TestBed.createComponent(DefaultHostComponent);
+			fixture.detectChanges();
 		});
 
 		it("should add the default values to the viewBox attribute of the svg element", () => {
@@ -59,19 +77,16 @@ describe("SvgViewBoxDirective", () => {
 
 	describe("when viewBox value is given", () => {
 		const viewBoxValue = 48;
-
-		// overriding the components's template
-		beforeEach(fakeAsync(() => {
-			const newTemplate: string = getTemplate(`starkSvgViewBox='${viewBoxValue}'`);
-
-			TestBed.overrideTemplate(TestComponent, newTemplate);
-
-			// compile template and css
-			return TestBed.compileComponents();
-		}));
+		let fixture: ComponentFixture<CustomHostComponent>;
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [CustomHostComponent],
+				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }]
+			});
+
+			fixture = TestBed.createComponent(CustomHostComponent);
+			fixture.detectChanges();
 		});
 
 		it("should add the provided value as the width and height of the viewBox attribute of the svg element", () => {
@@ -86,20 +101,16 @@ describe("SvgViewBoxDirective", () => {
 	});
 
 	describe("when SVG has already the viewBox attribute", () => {
-		const viewBoxAttribute = "0 0 12 12";
-
-		// overriding the components's template
-		beforeEach(fakeAsync(() => {
-			const newTemplate: string = getTemplate("starkSvgViewBox", "viewBox='" + viewBoxAttribute + "'");
-
-			TestBed.overrideTemplate(TestComponent, newTemplate);
-
-			// compile template and css
-			return TestBed.compileComponents();
-		}));
+		let fixture: ComponentFixture<ExistingViewBoxHostComponent>;
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [ExistingViewBoxHostComponent],
+				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }]
+			});
+
+			fixture = TestBed.createComponent(ExistingViewBoxHostComponent);
+			fixture.detectChanges();
 		});
 
 		it("should overwrite the viewBox attribute", () => {

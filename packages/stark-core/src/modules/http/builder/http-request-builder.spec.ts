@@ -24,7 +24,7 @@ import { StarkHttpRequestParams } from "./http-request-parameters.intf";
 import { StarkHttpBaseRequestBuilder } from "./http-abstract-base-request-builder.intf";
 import { StarkQueryParam } from "../entities/http-request.entity.intf";
 
-const deepFreeze: Function = require("deep-freeze-strict");
+const deepFreeze: <T>(value: T) => T = require("deep-freeze-strict");
 
 const resourcePath = "/something/:somethingId/else/:elseId/next";
 const resourceUuid = "dummyUUID";

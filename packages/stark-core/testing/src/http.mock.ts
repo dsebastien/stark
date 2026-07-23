@@ -1,28 +1,32 @@
 import { StarkHttpService, StarkResource } from "@nationalbankbelgium/stark-core";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
-import createSpyObj = jasmine.createSpyObj;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkHttpService} interface.
  */
-export class MockStarkHttpService<T extends StarkResource> implements SpyObj<StarkHttpService<T>> {
+export class MockStarkHttpService<T extends StarkResource> {
 	/**
 	 * See [StarkHttpService rawHttpClient]{@link StarkHttpService#rawHttpClient} property
 	 */
-	public readonly rawHttpClient: SpyObj<StarkHttpService<T>["rawHttpClient"]> = createSpyObj<StarkHttpService<T>["rawHttpClient"]>(
-		"rawHttpClient",
-		["request", "delete", "get", "head", "jsonp", "options", "patch", "post", "put"]
-	);
+	public readonly rawHttpClient = {
+		request: vi.fn(),
+		delete: vi.fn(),
+		get: vi.fn(),
+		head: vi.fn(),
+		jsonp: vi.fn(),
+		options: vi.fn(),
+		patch: vi.fn(),
+		post: vi.fn(),
+		put: vi.fn()
+	} as unknown as StarkHttpService<T>["rawHttpClient"];
 
 	/**
 	 * See [StarkHttpService executeSingleItemRequest()]{@link StarkHttpService#executeSingleItemRequest} method
 	 */
-	public executeSingleItemRequest: Spy<StarkHttpService<T>["executeSingleItemRequest"]> = createSpy("executeSingleItemRequest");
+	public executeSingleItemRequest = vi.fn<StarkHttpService<T>["executeSingleItemRequest"]>();
 
 	/**
 	 * See [StarkHttpService executeCollectionRequest()]{@link StarkHttpService#executeCollectionRequest} method
 	 */
-	public executeCollectionRequest: Spy<StarkHttpService<T>["executeCollectionRequest"]> = createSpy("executeCollectionRequest");
+	public executeCollectionRequest = vi.fn<StarkHttpService<T>["executeCollectionRequest"]>();
 }

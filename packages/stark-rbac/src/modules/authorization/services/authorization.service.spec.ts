@@ -1,19 +1,39 @@
-import { of, throwError } from "rxjs";
+import { config, of, throwError } from "rxjs";
 import { Store } from "@ngrx/store";
-import { fakeAsync, tick } from "@angular/core/testing";
 import { HookMatchCriteria, Predicate, RawParams, StateDeclaration, StateOrName, TargetState, Transition } from "@uirouter/core";
 import { StarkRoutingTransitionHook, StarkUser } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService, MockStarkSessionService } from "@nationalbankbelgium/stark-core/testing";
+import {
+	MockStarkLoggingService,
+	MockStarkRoutingService,
+	MockStarkSessionService,
+	createMockFn,
+	createMockObject,
+	type VitestMockObject
+} from "@nationalbankbelgium/stark-core/testing";
+import { vi } from "vitest";
 
 import { StarkRBACStatePermissions, StarkStateRedirection, StarkStateRedirectionFn } from "../entities";
 import { StarkRBACAuthorizationServiceImpl, starkUnauthorizedUserError } from "./authorization.service";
 import { StarkRBACAuthorizationActions } from "../actions";
-import createSpyObj = jasmine.createSpyObj;
-import createSpy = jasmine.createSpy;
-import Spy = jasmine.Spy;
+
+type AuthorizationOnStartHookCallback = (transition: Transition) => boolean | TargetState;
+
+function isAuthorizationOnStartHookCallback(callback: unknown): callback is AuthorizationOnStartHookCallback {
+	return typeof callback === "function";
+}
+
+function getOnStartHookCallback(routingService: MockStarkRoutingService): AuthorizationOnStartHookCallback {
+	const callback = routingService.addTransitionHook.mock.calls[0]?.[2];
+
+	if (!isAuthorizationOnStartHookCallback(callback)) {
+		throw new Error("Expected addTransitionHook to register a callable onStart hook");
+	}
+
+	return callback;
+}
 
 describe("StarkRBACAuthorizationService", () => {
-	let mockStore: Store<any>;
+	let mockStore: VitestMockObject<Store<any>>;
 	let mockLogger: MockStarkLoggingService;
 	let mockSessionService: MockStarkSessionService;
 	let mockRoutingService: MockStarkRoutingService;
@@ -30,17 +50,22 @@ describe("StarkRBACAuthorizationService", () => {
 	}
 
 	beforeEach(() => {
-		mockStore = createSpyObj("store", ["dispatch", "select"]);
+		mockStore = createMockObject<Store<any>>(["dispatch", "select"]);
 		mockLogger = new MockStarkLoggingService();
 		mockSessionService = new MockStarkSessionService();
 		mockRoutingService = new MockStarkRoutingService();
-		authorizationService = new AuthorizationServiceHelper(mockLogger, mockSessionService, mockRoutingService, mockStore);
+		authorizationService = new AuthorizationServiceHelper(
+			mockLogger,
+			mockSessionService,
+			mockRoutingService,
+			mockStore as unknown as Store<any>
+		);
 	});
 
 	describe("initializeService", () => {
 		it("should subscribe to the getCurrentUser$ observable to get the current user from the Stark User service", () => {
 			const mockUser: Partial<StarkUser> = { roles: [] };
-			mockSessionService.getCurrentUser.and.returnValue(of(<StarkUser>mockUser));
+			mockSessionService.getCurrentUser.mockReturnValue(of(<StarkUser>mockUser));
 			expect(authorizationService.user).toBeUndefined();
 
 			authorizationService.initializeService();
@@ -48,22 +73,34 @@ describe("StarkRBACAuthorizationService", () => {
 			expect(authorizationService.user).toBe(<StarkUser>mockUser);
 		});
 
-		it("should throw an error if the getCurrentUser$ observable emits an error", fakeAsync(() => {
-			mockSessionService.getCurrentUser.and.returnValue(throwError("dummy error"));
-			expect(authorizationService.user).toBeUndefined();
+		it("should throw an error if the getCurrentUser$ observable emits an error", async () => {
+			const previousUnhandledErrorHandler = config.onUnhandledError;
+			let capturedUnhandledError: unknown;
 
-			expect(() => {
+			try {
+				config.onUnhandledError = (error: unknown): void => {
+					capturedUnhandledError = error;
+				};
+				mockSessionService.getCurrentUser.mockReturnValue(throwError(() => new Error("dummy error")));
+				expect(authorizationService.user).toBeUndefined();
+
 				authorizationService.initializeService();
-				tick(); // to force async error to be thrown
-			}).toThrowError(/error while getting the user profile/);
+				await new Promise<void>((resolve) => {
+					setTimeout(resolve, 0);
+				});
 
-			expect(authorizationService.user).toBeUndefined();
-		}));
+				expect(capturedUnhandledError).toBeInstanceOf(Error);
+				expect((<Error>capturedUnhandledError).message).toBe("StarkRBACAuthorizationService: error while getting the user profile");
+				expect(authorizationService.user).toBeUndefined();
+			} finally {
+				config.onUnhandledError = previousUnhandledErrorHandler;
+			}
+		});
 
 		it("should call registerTransitionHook function", () => {
 			const mockUser: Partial<StarkUser> = { roles: [] };
-			mockSessionService.getCurrentUser.and.returnValue(of(<StarkUser>mockUser));
-			spyOn(authorizationService, "registerTransitionHook");
+			mockSessionService.getCurrentUser.mockReturnValue(of(<StarkUser>mockUser));
+			vi.spyOn(authorizationService, "registerTransitionHook");
 
 			authorizationService.initializeService();
 
@@ -76,9 +113,9 @@ describe("StarkRBACAuthorizationService", () => {
 			authorizationService.registerTransitionHook();
 
 			expect(mockRoutingService.addTransitionHook).toHaveBeenCalledTimes(1);
-			expect(mockRoutingService.addTransitionHook.calls.argsFor(0)[0]).toBe(StarkRoutingTransitionHook.ON_START);
+			expect(mockRoutingService.addTransitionHook.mock.calls[0][0]).toBe(StarkRoutingTransitionHook.ON_START);
 
-			const hookMatchCriteria: HookMatchCriteria = mockRoutingService.addTransitionHook.calls.argsFor(0)[1];
+			const hookMatchCriteria: HookMatchCriteria = mockRoutingService.addTransitionHook.mock.calls[0][1];
 
 			expect(hookMatchCriteria.entering).toBeDefined();
 
@@ -106,28 +143,28 @@ describe("StarkRBACAuthorizationService", () => {
 				expect(matchingFn(state)).toBe(false);
 			}
 
-			expect(mockRoutingService.addTransitionHook.calls.argsFor(0)[2]).toBeDefined();
-			expect(mockRoutingService.addTransitionHook.calls.argsFor(0)[3]).toEqual({ priority: 900 });
+			expect(mockRoutingService.addTransitionHook.mock.calls[0][2]).toBeDefined();
+			expect(mockRoutingService.addTransitionHook.mock.calls[0][3]).toEqual({ priority: 900 });
 		});
 
 		it("should resolve the promise when the onStart hook is triggered and the current user IS authorized", () => {
 			authorizationService.registerTransitionHook();
 
-			expect(mockRoutingService.addTransitionHook.calls.argsFor(0)[0]).toBe(StarkRoutingTransitionHook.ON_START);
-			const onStartHookCallback: Function = mockRoutingService.addTransitionHook.calls.argsFor(0)[2];
+			expect(mockRoutingService.addTransitionHook.mock.calls[0][0]).toBe(StarkRoutingTransitionHook.ON_START);
+			const onStartHookCallback = getOnStartHookCallback(mockRoutingService);
 
-			spyOn(authorizationService, "isNavigationAuthorized").and.returnValue(true);
-			spyOn(authorizationService, "handleUnauthorizedNavigation");
+			vi.spyOn(authorizationService, "isNavigationAuthorized").mockReturnValue(true);
+			vi.spyOn(authorizationService, "handleUnauthorizedNavigation");
 
 			const mockPermissions: StarkRBACStatePermissions = {
 				only: [""]
 			};
-			const mockTransition: Partial<Transition> = {
+			const mockTransition: Transition = <Transition>(<unknown>{
 				to: (): StateDeclaration => getMockTransitionTargetStateWithPermissions(mockPermissions)
-			};
+			});
 
 			// trigger the onStart hook callback
-			const hookResult: boolean = onStartHookCallback(mockTransition);
+			const hookResult: boolean | TargetState = onStartHookCallback(mockTransition);
 			expect(hookResult).toBe(true);
 
 			expect(authorizationService.isNavigationAuthorized).toHaveBeenCalledTimes(1);
@@ -138,27 +175,28 @@ describe("StarkRBACAuthorizationService", () => {
 		it("should reject the promise with the value returned by handleUnauthorizedNavigation() when the user is NOT authorized", () => {
 			authorizationService.registerTransitionHook();
 
-			expect(mockRoutingService.addTransitionHook.calls.argsFor(0)[0]).toBe(StarkRoutingTransitionHook.ON_START);
-			const onStartHookCallback: Function = mockRoutingService.addTransitionHook.calls.argsFor(0)[2];
+			expect(mockRoutingService.addTransitionHook.mock.calls[0][0]).toBe(StarkRoutingTransitionHook.ON_START);
+			const onStartHookCallback = getOnStartHookCallback(mockRoutingService);
 
-			spyOn(authorizationService, "isNavigationAuthorized").and.returnValue(false);
-			spyOn(authorizationService, "handleUnauthorizedNavigation").and.returnValue(<any>"dummy rejection value");
+			vi.spyOn(authorizationService, "isNavigationAuthorized").mockReturnValue(false);
+			const mockRejectedTargetState: TargetState = <TargetState>(<unknown>{ name: (): StateOrName => "dummy.rejection.state" });
+			vi.spyOn(authorizationService, "handleUnauthorizedNavigation").mockReturnValue(mockRejectedTargetState);
 
 			const mockPermissions: StarkRBACStatePermissions = {
 				only: [""]
 			};
-			const mockTransition: Partial<Transition> = {
+			const mockTransition: Transition = <Transition>(<unknown>{
 				to: (): StateDeclaration => getMockTransitionTargetStateWithPermissions(mockPermissions)
-			};
+			});
 
 			// trigger the onStart hook callback
-			const hookResult: string = onStartHookCallback(mockTransition);
-			expect(hookResult).toBe("dummy rejection value");
+			const hookResult: boolean | TargetState = onStartHookCallback(mockTransition);
+			expect(hookResult).toBe(mockRejectedTargetState);
 
 			expect(authorizationService.isNavigationAuthorized).toHaveBeenCalledTimes(1);
 			expect(authorizationService.isNavigationAuthorized).toHaveBeenCalledWith(mockPermissions);
 			expect(authorizationService.handleUnauthorizedNavigation).toHaveBeenCalledTimes(1);
-			expect(authorizationService.handleUnauthorizedNavigation).toHaveBeenCalledWith(mockPermissions, <Transition>mockTransition);
+			expect(authorizationService.handleUnauthorizedNavigation).toHaveBeenCalledWith(mockPermissions, mockTransition);
 		});
 	});
 
@@ -280,7 +318,7 @@ describe("StarkRBACAuthorizationService", () => {
 			const mockPermissions: StarkRBACStatePermissions = {
 				only: ["dummyRole", "superRole"]
 			};
-			spyOn(authorizationService, "hasAnyRole").and.returnValues(true, false);
+			const hasAnyRoleSpy = vi.spyOn(authorizationService, "hasAnyRole").mockReturnValueOnce(true).mockReturnValueOnce(false);
 
 			let result: boolean = authorizationService.isNavigationAuthorized(mockPermissions);
 
@@ -288,7 +326,8 @@ describe("StarkRBACAuthorizationService", () => {
 			expect(authorizationService.hasAnyRole).toHaveBeenCalledTimes(1);
 			expect(authorizationService.hasAnyRole).toHaveBeenCalledWith(<string[]>mockPermissions.only);
 
-			(<Spy>authorizationService.hasAnyRole).calls.reset();
+			hasAnyRoleSpy.mockReset();
+			hasAnyRoleSpy.mockReturnValue(false);
 			result = authorizationService.isNavigationAuthorized(mockPermissions);
 
 			expect(result).toBe(false);
@@ -300,7 +339,7 @@ describe("StarkRBACAuthorizationService", () => {
 			const mockPermissions: StarkRBACStatePermissions = {
 				except: ["dummyRole", "superRole"]
 			};
-			spyOn(authorizationService, "hasAnyRole").and.returnValues(true, false);
+			const hasAnyRoleSpy = vi.spyOn(authorizationService, "hasAnyRole").mockReturnValueOnce(true).mockReturnValueOnce(false);
 
 			let result: boolean = authorizationService.isNavigationAuthorized(mockPermissions);
 
@@ -308,7 +347,8 @@ describe("StarkRBACAuthorizationService", () => {
 			expect(authorizationService.hasAnyRole).toHaveBeenCalledTimes(1);
 			expect(authorizationService.hasAnyRole).toHaveBeenCalledWith(<string[]>mockPermissions.except);
 
-			(<Spy>authorizationService.hasAnyRole).calls.reset();
+			hasAnyRoleSpy.mockReset();
+			hasAnyRoleSpy.mockReturnValue(false);
 			result = authorizationService.isNavigationAuthorized(mockPermissions);
 
 			expect(result).toBe(true); // inverted value of what hasAnyRole returns => 'except'
@@ -321,7 +361,7 @@ describe("StarkRBACAuthorizationService", () => {
 				only: ["dummyRole", "superRole"],
 				except: ["don't care"]
 			};
-			spyOn(authorizationService, "hasAnyRole").and.returnValues(true, false);
+			const hasAnyRoleSpy = vi.spyOn(authorizationService, "hasAnyRole").mockReturnValueOnce(true).mockReturnValueOnce(false);
 
 			let result: boolean = authorizationService.isNavigationAuthorized(mockPermissions);
 
@@ -329,7 +369,8 @@ describe("StarkRBACAuthorizationService", () => {
 			expect(authorizationService.hasAnyRole).toHaveBeenCalledTimes(1);
 			expect(authorizationService.hasAnyRole).toHaveBeenCalledWith(<string[]>mockPermissions.only);
 
-			(<Spy>authorizationService.hasAnyRole).calls.reset();
+			hasAnyRoleSpy.mockReset();
+			hasAnyRoleSpy.mockReturnValue(false);
 			result = authorizationService.isNavigationAuthorized(mockPermissions);
 
 			expect(result).toBe(false);
@@ -340,7 +381,7 @@ describe("StarkRBACAuthorizationService", () => {
 		it("should return true without calling hasAnyRole() when the permissions object has invalid 'only' nor 'except' or is undefined", () => {
 			const undefinedStatePermissionsStr = "could not find 'only' or 'except'";
 
-			spyOn(authorizationService, "hasAnyRole");
+			vi.spyOn(authorizationService, "hasAnyRole");
 
 			const mockPermissionsArray: StarkRBACStatePermissions[] = [
 				{},
@@ -351,7 +392,7 @@ describe("StarkRBACAuthorizationService", () => {
 			];
 
 			for (const mockPermissions of mockPermissionsArray) {
-				mockLogger.warn.calls.reset();
+				mockLogger.warn.mockReset();
 
 				const result: boolean = authorizationService.isNavigationAuthorized(mockPermissions);
 
@@ -360,7 +401,7 @@ describe("StarkRBACAuthorizationService", () => {
 
 				if (typeof mockPermissions !== "undefined") {
 					expect(mockLogger.warn).toHaveBeenCalledTimes(1);
-					expect(mockLogger.warn.calls.argsFor(0)[0]).toContain(undefinedStatePermissionsStr);
+					expect(mockLogger.warn.mock.calls[0][0]).toContain(undefinedStatePermissionsStr);
 				} else {
 					// if the permissions object is undefined, no warning is logged
 					expect(mockLogger.warn).not.toHaveBeenCalled();
@@ -378,7 +419,7 @@ describe("StarkRBACAuthorizationService", () => {
 				}
 			};
 			const mockTransition: Partial<Transition> = {};
-			spyOn(authorizationService, "redirectNavigation").and.returnValue(<any>"dummy redirection return value");
+			vi.spyOn(authorizationService, "redirectNavigation").mockReturnValue(<any>"dummy redirection return value");
 
 			const result: any = authorizationService.handleUnauthorizedNavigation(mockPermissions, <Transition>mockTransition);
 
@@ -396,12 +437,12 @@ describe("StarkRBACAuthorizationService", () => {
 		it("should dispatch a FAILURE action and throw an error when permissions object is undefined ot it has no 'redirectTo' defined", () => {
 			let mockPermissions: StarkRBACStatePermissions = {};
 			const targetStateObj: any = {
-				name: createSpy("spyNameFn").and.returnValue(dummyUnauthorizedStateName)
+				name: createMockFn<() => StateOrName>().mockReturnValue(dummyUnauthorizedStateName)
 			};
 			const mockTransition: Partial<Transition> = {
-				targetState: createSpy("spyTargetStateFn").and.returnValue(targetStateObj)
+				targetState: createMockFn<() => TargetState>().mockReturnValue(targetStateObj)
 			};
-			spyOn(authorizationService, "redirectNavigation");
+			vi.spyOn(authorizationService, "redirectNavigation");
 
 			expect(() => {
 				authorizationService.handleUnauthorizedNavigation(mockPermissions, <Transition>mockTransition);
@@ -416,7 +457,7 @@ describe("StarkRBACAuthorizationService", () => {
 			);
 
 			mockPermissions = <any>undefined;
-			mockLogger.warn.calls.reset();
+			mockLogger.warn.mockReset();
 
 			expect(() => {
 				authorizationService.handleUnauthorizedNavigation(mockPermissions, <Transition>mockTransition);
@@ -429,12 +470,19 @@ describe("StarkRBACAuthorizationService", () => {
 	});
 
 	describe("redirectNavigation", () => {
+		type MockRedirectTargetStateMetadata = {
+			redirectionStateName?: StateOrName;
+			redirectionStateParams?: RawParams;
+			redirectionStateParamsReplaced?: boolean;
+		};
+
 		// mock target state
 		let targetStateObj: any;
 		let mockTransition: Partial<Transition>;
+		const mockRedirectToParams: RawParams = { someParam: "whatever" };
 		const mockRedirectToObj: StarkStateRedirection = {
 			stateName: "dummy redirection state",
-			params: { someParam: "whatever" }
+			params: mockRedirectToParams
 		};
 
 		beforeEach(() => {
@@ -443,39 +491,43 @@ describe("StarkRBACAuthorizationService", () => {
 				redirectionStateParams: undefined, // custom prop
 				redirectionStateParamsReplaced: undefined, // custom prop
 				// name() function as defined in the Ui-Router API
-				name: createSpy("spyNameFn").and.returnValue(dummyUnauthorizedStateName),
+				name: createMockFn<() => StateOrName>().mockReturnValue(dummyUnauthorizedStateName),
 				// withState() function as defined in the Ui-Router API
-				withState: createSpy("spyWithStateFn").and.callFake((state: StateOrName): TargetState => {
+				withState: createMockFn<(state: StateOrName) => TargetState>().mockImplementation((state: StateOrName): TargetState => {
 					targetStateObj.redirectionStateName = state;
 					return targetStateObj;
 				}),
 				// withParams() function as defined in the Ui-Router API
-				withParams: createSpy("spyWithParamsFn").and.callFake((params: RawParams, replace: boolean): TargetState => {
-					targetStateObj.redirectionStateParams = params;
-					targetStateObj.redirectionStateParamsReplaced = replace;
-					return targetStateObj;
-				})
+				withParams: createMockFn<(params: RawParams, replace: boolean) => TargetState>().mockImplementation(
+					(params: RawParams, replace: boolean): TargetState => {
+						targetStateObj.redirectionStateParams = params;
+						targetStateObj.redirectionStateParamsReplaced = replace;
+						return targetStateObj;
+					}
+				)
 			};
 
 			mockTransition = {
-				targetState: createSpy("spyTargetStateFn").and.returnValue(targetStateObj)
+				targetState: createMockFn<() => TargetState>().mockReturnValue(targetStateObj)
 			};
 		});
 
 		it("should log a warning, dispatch REDIRECTED action and return a redirection state based on permissions 'redirectTo' object", () => {
-			const result: TargetState = authorizationService.redirectNavigation(mockRedirectToObj, <Transition>mockTransition);
+			const result: TargetState & MockRedirectTargetStateMetadata = <TargetState & MockRedirectTargetStateMetadata>(
+				authorizationService.redirectNavigation(mockRedirectToObj, <Transition>mockTransition)
+			);
 
 			expect(result).toBe(targetStateObj);
-			expect(result["redirectionStateName"]).toBe(mockRedirectToObj.stateName);
-			expect(result["redirectionStateParams"]).toBe(mockRedirectToObj.params);
-			expect(result["redirectionStateParamsReplaced"]).toBe(true);
+			expect(result.redirectionStateName).toBe(mockRedirectToObj.stateName);
+			expect(result.redirectionStateParams).toBe(mockRedirectToObj.params);
+			expect(result.redirectionStateParamsReplaced).toBe(true);
 			expect(mockTransition.targetState).toHaveBeenCalledTimes(1);
 			expect(targetStateObj.withState).toHaveBeenCalledTimes(1);
 			expect(targetStateObj.withState).toHaveBeenCalledWith(mockRedirectToObj.stateName);
 			expect(targetStateObj.withParams).toHaveBeenCalledTimes(1);
-			expect(targetStateObj.withParams).toHaveBeenCalledWith(mockRedirectToObj.params, true);
+			expect(targetStateObj.withParams).toHaveBeenCalledWith(mockRedirectToParams, true);
 			expect(mockLogger.warn).toHaveBeenCalledTimes(1);
-			expect(mockLogger.warn.calls.argsFor(0)[0]).toContain("redirecting");
+			expect(mockLogger.warn.mock.calls[0][0]).toContain("redirecting");
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 			expect(mockStore.dispatch).toHaveBeenCalledWith(
 				StarkRBACAuthorizationActions.userNavigationUnauthorizedRedirected({
@@ -486,22 +538,24 @@ describe("StarkRBACAuthorizationService", () => {
 		});
 
 		it("should log a warning, dispatch REDIRECTED action and return a redirection state based on permissions 'redirectTo' function", () => {
-			const mockRedirectToFn: StarkStateRedirectionFn = createSpy("spyTargetStateFn").and.returnValue(mockRedirectToObj);
+			const mockRedirectToFn: StarkStateRedirectionFn = createMockFn<StarkStateRedirectionFn>().mockReturnValue(mockRedirectToObj);
 
-			const result: TargetState = authorizationService.redirectNavigation(mockRedirectToFn, <Transition>mockTransition);
+			const result: TargetState & MockRedirectTargetStateMetadata = <TargetState & MockRedirectTargetStateMetadata>(
+				authorizationService.redirectNavigation(mockRedirectToFn, <Transition>mockTransition)
+			);
 			expect(result).toBe(targetStateObj);
-			expect(result["redirectionStateName"]).toBe(mockRedirectToObj.stateName);
-			expect(result["redirectionStateParams"]).toBe(mockRedirectToObj.params);
-			expect(result["redirectionStateParamsReplaced"]).toBe(true);
+			expect(result.redirectionStateName).toBe(mockRedirectToObj.stateName);
+			expect(result.redirectionStateParams).toBe(mockRedirectToObj.params);
+			expect(result.redirectionStateParamsReplaced).toBe(true);
 			expect(mockRedirectToFn).toHaveBeenCalledTimes(1);
 			expect(mockRedirectToFn).toHaveBeenCalledWith(<Transition>mockTransition);
 			expect(mockTransition.targetState).toHaveBeenCalledTimes(1);
 			expect(targetStateObj.withState).toHaveBeenCalledTimes(1);
 			expect(targetStateObj.withState).toHaveBeenCalledWith(mockRedirectToObj.stateName);
 			expect(targetStateObj.withParams).toHaveBeenCalledTimes(1);
-			expect(targetStateObj.withParams).toHaveBeenCalledWith(mockRedirectToObj.params, true);
+			expect(targetStateObj.withParams).toHaveBeenCalledWith(mockRedirectToParams, true);
 			expect(mockLogger.warn).toHaveBeenCalledTimes(1);
-			expect(mockLogger.warn.calls.argsFor(0)[0]).toContain("redirecting");
+			expect(mockLogger.warn.mock.calls[0][0]).toContain("redirecting");
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 			expect(mockStore.dispatch).toHaveBeenCalledWith(
 				StarkRBACAuthorizationActions.userNavigationUnauthorizedRedirected({

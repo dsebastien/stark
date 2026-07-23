@@ -1,12 +1,10 @@
 import { StarkLoggingService } from "@nationalbankbelgium/stark-core";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkLoggingService} interface.
  */
-export class MockStarkLoggingService implements SpyObj<StarkLoggingService> {
+export class MockStarkLoggingService {
 	/**
 	 * See [StarkLoggingService correlationId]{@link StarkLoggingService#correlationId} property
 	 */
@@ -20,27 +18,27 @@ export class MockStarkLoggingService implements SpyObj<StarkLoggingService> {
 	/**
 	 * See [StarkLoggingService generateNewCorrelationId()]{@link StarkLoggingService#generateNewCorrelationId} method
 	 */
-	public generateNewCorrelationId: Spy<StarkLoggingService["generateNewCorrelationId"]> = createSpy("generateNewCorrelationId");
+	public generateNewCorrelationId = vi.fn<StarkLoggingService["generateNewCorrelationId"]>();
 
 	/**
 	 * See [StarkLoggingService debug()]{@link StarkLoggingService#debug} method
 	 */
-	public debug: Spy<StarkLoggingService["debug"]> = createSpy("debug");
+	public debug = vi.fn<StarkLoggingService["debug"]>();
 
 	/**
 	 * See [StarkLoggingService info()]{@link StarkLoggingService#info} method
 	 */
-	public info: Spy<StarkLoggingService["info"]> = createSpy("info");
+	public info = vi.fn<StarkLoggingService["info"]>();
 
 	/**
 	 * See [StarkLoggingService warn()]{@link StarkLoggingService#warn} method
 	 */
-	public warn: Spy<StarkLoggingService["warn"]> = createSpy("warn");
+	public warn = vi.fn<StarkLoggingService["warn"]>();
 
 	/**
 	 * See [StarkLoggingService error()]{@link StarkLoggingService#error} method
 	 */
-	public error: Spy<StarkLoggingService["error"]> = createSpy("error");
+	public error = vi.fn<StarkLoggingService["error"]>();
 
 	/**
 	 * Creates a new mock instance.

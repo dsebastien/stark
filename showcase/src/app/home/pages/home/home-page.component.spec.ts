@@ -1,5 +1,5 @@
 /* eslint-disable @angular-eslint/no-lifecycle-call */
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { provideMockStore } from "@ngrx/store/testing";
@@ -10,43 +10,56 @@ import {
 	StarkApplicationConfig,
 	StarkBackend,
 	StarkBackendAuthenticationTypes,
-	StarkLoggingService
+	type StarkLoggingService
 } from "@nationalbankbelgium/stark-core";
-import { MockStarkHttpService, MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
+import { MockStarkHttpService } from "@nationalbankbelgium/stark-core/testing";
 import { TranslateModule } from "@ngx-translate/core";
 import { HomePageComponent } from "./home-page.component";
-import SpyObj = jasmine.SpyObj;
+import { vi } from "vitest";
+
+type LoggingServiceMock = Pick<StarkLoggingService, "debug"> & {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+@NgModule({
+	declarations: [HomePageComponent],
+	imports: [TranslateModule],
+	schemas: [NO_ERRORS_SCHEMA]
+})
+class HomePageTestModule {}
 
 describe(`Home`, () => {
 	let comp: HomePageComponent;
 	let fixture: ComponentFixture<HomePageComponent>;
-	let logger: SpyObj<StarkLoggingService>;
+	let logger: LoggingServiceMock;
 
-	const mockBackend: Partial<StarkBackend> = {
+	const mockBackend = {
 		authenticationType: StarkBackendAuthenticationTypes.PUBLIC,
 		name: "logging",
 		url: "dummy/url"
-	};
+	} as StarkBackend;
 
 	const mockStarkAppConfig: Partial<StarkApplicationConfig> = {
 		angularDebugInfoEnabled: true,
 		debugLoggingEnabled: true,
-		getBackend: jasmine.createSpy("getBackendSpy").and.returnValue(mockBackend)
+		getBackend: vi.fn<StarkApplicationConfig["getBackend"]>(() => mockBackend)
 	};
 
 	/**
 	 * async beforeEach.
 	 */
 	beforeEach(waitForAsync(() => {
+		logger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+
 		return (
 			TestBed.configureTestingModule({
-				declarations: [HomePageComponent],
-				schemas: [NO_ERRORS_SCHEMA],
-				imports: [HttpClientTestingModule, TranslateModule.forRoot()],
+				imports: [HttpClientTestingModule, TranslateModule.forRoot(), HomePageTestModule],
 				providers: [
 					{ provide: STARK_APP_CONFIG, useValue: mockStarkAppConfig },
 					{ provide: STARK_HTTP_SERVICE, useValue: MockStarkHttpService },
-					{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
+					{ provide: STARK_LOGGING_SERVICE, useValue: logger },
 					provideMockStore()
 				]
 			})
@@ -62,8 +75,6 @@ describe(`Home`, () => {
 	 * Synchronous beforeEach.
 	 */
 	beforeEach(() => {
-		logger = TestBed.get(STARK_LOGGING_SERVICE);
-
 		fixture = TestBed.createComponent(HomePageComponent);
 		comp = fixture.componentInstance;
 
@@ -71,7 +82,7 @@ describe(`Home`, () => {
 		 * Trigger initial data binding.
 		 */
 		fixture.detectChanges();
-		logger.debug.calls.reset();
+		logger.debug.mockClear();
 	});
 
 	it("should log ngOnInit", () => {

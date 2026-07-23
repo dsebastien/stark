@@ -1,15 +1,12 @@
 import { Subject } from "rxjs";
-import { CommonModule } from "@angular/common";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { fakeAsync, tick, ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { BreakpointObserver, BreakpointState } from "@angular/cdk/layout";
-import { MatSidenavModule } from "@angular/material/sidenav";
 import { HookMatchCriteria, TransitionHookFn, TransitionStateHookFn } from "@uirouter/core";
 import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE, StarkRoutingTransitionHook } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
 import { StarkAppSidebarComponent } from "./app-sidebar.component";
-import { STARK_APP_SIDEBAR_SERVICE } from "../services";
-import { MockStarkAppSidebarService } from "@nationalbankbelgium/stark-ui/testing";
+import { STARK_APP_SIDEBAR_SERVICE, StarkAppSidebarOpenEvent } from "../services";
+import { vi } from "vitest";
 
 // Definitions
 /**
@@ -36,56 +33,96 @@ let mockNavigationTrigger: () => void;
 let fixture: ComponentFixture<StarkAppSidebarComponent>;
 let component: StarkAppSidebarComponent;
 
-// Mocked services
-let mockStarkLoggingService: MockStarkLoggingService;
-let mockStarkAppSideBarService: MockStarkAppSidebarService;
-let mockStarkRoutingService: MockStarkRoutingService;
-let mockBreakPointObserver: jasmine.SpyObj<BreakpointObserver>;
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+	warn: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+type AppSidebarServiceMock = {
+	openSidebar$: Subject<StarkAppSidebarOpenEvent>;
+	closeSidebar$: Subject<void>;
+	toggleSidebar$: Subject<StarkAppSidebarOpenEvent>;
+	close: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type RoutingServiceMock = {
+	addTransitionHook: ReturnType<
+		typeof vi.fn<
+			(lifecycleHook: string, matchCriteria: HookMatchCriteria, callback: TransitionHookFn | TransitionStateHookFn) => VoidFunction
+		>
+	>;
+};
+
+type BreakpointObserverMock = {
+	isMatched: ReturnType<typeof vi.fn<(value: string | string[]) => boolean>>;
+	observe: ReturnType<typeof vi.fn<(value: string | string[]) => Subject<BreakpointState>>>;
+	ngOnDestroy: ReturnType<typeof vi.fn<() => void>>;
+};
+
+let mockStarkLoggingService: LoggingServiceMock;
+let mockStarkAppSideBarService: AppSidebarServiceMock;
+let mockStarkRoutingService: RoutingServiceMock;
+let mockBreakPointObserver: BreakpointObserverMock;
 
 describe("AppSidebarComponent", () => {
 	beforeEach(() => {
-		mockStarkLoggingService = new MockStarkLoggingService();
-		mockStarkAppSideBarService = new MockStarkAppSidebarService();
-		mockStarkRoutingService = new MockStarkRoutingService();
-		// add functionality to the `addTransitionHook` Spy
-		mockStarkRoutingService.addTransitionHook.and.callFake(
-			(lifecycleHook: string, matchCriteria: HookMatchCriteria, callback: TransitionHookFn | TransitionStateHookFn): (() => void) => {
-				expect(lifecycleHook).toBe(StarkRoutingTransitionHook.ON_SUCCESS);
-				expect(matchCriteria).toEqual({});
-				mockNavigationTrigger = <() => void>callback;
-				return (): void => {
-					/* Do Nothing*/
-				};
-			}
-		);
-
-		mockBreakPointObserver = jasmine.createSpyObj("BreakPointObserver", ["isMatched", "observe", "ngOnDestroy"]);
-		// add functionality to the `observe` Spy
-		mockBreakPointObserver.observe.and.callFake((value: string | string[]) => {
-			if ((typeof value === "string" && value === BREAKPOINT_STRING) || (Array.isArray(value) && value[0] === BREAKPOINT_STRING)) {
-				// allow to trigger change for the width of the screen.
-				return _fakeBreakPointObservable;
-			}
-			return new Subject<BreakpointState>();
-		});
+		_fakeBreakPointObservable = new Subject<BreakpointState>();
+		mockStarkLoggingService = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>(),
+			warn: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		mockStarkAppSideBarService = {
+			openSidebar$: new Subject<StarkAppSidebarOpenEvent>(),
+			closeSidebar$: new Subject<void>(),
+			toggleSidebar$: new Subject<StarkAppSidebarOpenEvent>(),
+			close: vi.fn<() => void>()
+		};
+		mockStarkRoutingService = {
+			addTransitionHook: vi.fn(
+				(
+					lifecycleHook: string,
+					matchCriteria: HookMatchCriteria,
+					callback: TransitionHookFn | TransitionStateHookFn
+				): VoidFunction => {
+					expect(lifecycleHook).toBe(StarkRoutingTransitionHook.ON_SUCCESS);
+					expect(matchCriteria).toEqual({});
+					mockNavigationTrigger = callback as () => void;
+					return (): void => {
+						/* Do Nothing*/
+					};
+				}
+			)
+		};
+		mockBreakPointObserver = {
+			isMatched: vi.fn<(value: string | string[]) => boolean>(() => false),
+			observe: vi.fn<(value: string | string[]) => Subject<BreakpointState>>((value: string | string[]) => {
+				if (
+					(typeof value === "string" && value === BREAKPOINT_STRING) ||
+					(Array.isArray(value) && value[0] === BREAKPOINT_STRING)
+				) {
+					return _fakeBreakPointObservable;
+				}
+				return new Subject<BreakpointState>();
+			}),
+			ngOnDestroy: vi.fn<() => void>()
+		};
 	});
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkAppSidebarComponent],
-			imports: [CommonModule, MatSidenavModule, NoopAnimationsModule],
+	beforeEach(async () => {
+		await TestBed.configureTestingModule({
+			imports: [NoopAnimationsModule, StarkAppSidebarComponent],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: mockStarkLoggingService },
-				{ provide: STARK_APP_SIDEBAR_SERVICE, useValue: mockStarkAppSideBarService },
-				{ provide: STARK_ROUTING_SERVICE, useValue: mockStarkRoutingService },
-				{ provide: BreakpointObserver, useValue: mockBreakPointObserver }
+				{ provide: STARK_LOGGING_SERVICE, useValue: mockStarkLoggingService as any },
+				{ provide: STARK_APP_SIDEBAR_SERVICE, useValue: mockStarkAppSideBarService as any },
+				{ provide: STARK_ROUTING_SERVICE, useValue: mockStarkRoutingService as any },
+				{ provide: BreakpointObserver, useValue: mockBreakPointObserver as unknown as BreakpointObserver }
 			]
-		}).compileComponents()));
+		}).compileComponents();
+	});
 
 	beforeEach(() => {
 		fixture = TestBed.createComponent(StarkAppSidebarComponent);
 		component = fixture.componentInstance;
-		_fakeBreakPointObservable = new Subject<BreakpointState>();
 		fixture.detectChanges();
 	});
 
@@ -109,39 +146,39 @@ function sidebarEventsHandlingTests(): void {
 
 	describe("onOpenSidenav should work as expected", () => {
 		it("sidenavs should not open when already opened", () => {
-			spyOn(component, "openSidenav");
+			const openSidenavSpy = vi.spyOn(component, "openSidenav");
 			component.appSidenavLeft.opened = true;
 			fixture.detectChanges();
 			component.onOpenSidenav({
 				sidebar: "left",
 				type: "regular"
 			});
-			expect(component.openSidenav).toHaveBeenCalledTimes(0);
+			expect(openSidenavSpy).toHaveBeenCalledTimes(0);
 
 			component.appSidenavRight.opened = true;
 			fixture.detectChanges();
 			component.onOpenSidenav({
 				sidebar: "right"
 			});
-			expect(component.openSidenav).toHaveBeenCalledTimes(0);
+			expect(openSidenavSpy).toHaveBeenCalledTimes(0);
 		});
 
 		it("sidenavs should open when closed", () => {
-			spyOn(component, "openSidenav");
+			const openSidenavSpy = vi.spyOn(component, "openSidenav");
 			component.appSidenavLeft.opened = false;
 			fixture.detectChanges();
 			component.onOpenSidenav({
 				sidebar: "left",
 				type: "regular"
 			});
-			expect(component.openSidenav).toHaveBeenCalledTimes(1);
+			expect(openSidenavSpy).toHaveBeenCalledTimes(1);
 
 			component.appSidenavRight.opened = false;
 			fixture.detectChanges();
 			component.onOpenSidenav({
 				sidebar: "right"
 			});
-			expect(component.openSidenav).toHaveBeenCalledTimes(2);
+			expect(openSidenavSpy).toHaveBeenCalledTimes(2);
 		});
 
 		it("left sidebar should display the menu correctly", () => {
@@ -155,9 +192,13 @@ function sidebarEventsHandlingTests(): void {
 			expect(sidenav).toBeDefined();
 		});
 
-		it("left sidebar should close and then open when left sidebar is opened and sidenavLeftType is changed", fakeAsync(() => {
-			spyOn(component, "shiftLeftSidenavCallback").and.callThrough();
-			spyOn(component, "closeSidenav").and.callThrough();
+		it("left sidebar should close and then open when left sidebar is opened and sidenavLeftType is changed", () => {
+			const shiftLeftSidenavCallbackSpy = vi.spyOn(component, "shiftLeftSidenavCallback");
+			const closeSidenavSpy = vi
+				.spyOn(component, "closeSidenav")
+				.mockImplementation((_sidenav, successHandler: (value: "open" | "close") => void): void => {
+					successHandler("close");
+				});
 			component.sidenavLeftType = "menu";
 			component.appSidenavLeft.opened = true;
 			fixture.detectChanges();
@@ -165,30 +206,29 @@ function sidebarEventsHandlingTests(): void {
 				sidebar: "left",
 				type: "regular"
 			});
-			tick();
-			expect(component.closeSidenav).toHaveBeenCalledTimes(1);
-			expect(component.shiftLeftSidenavCallback).toHaveBeenCalledTimes(1);
+			expect(closeSidenavSpy).toHaveBeenCalledTimes(1);
+			expect(shiftLeftSidenavCallbackSpy).toHaveBeenCalledTimes(1);
 			expect(component.sidenavLeftType).toBe("regular");
-		}));
+		});
 	});
 
 	describe("onToggleSidenav should work as expected", () => {
 		it("left sidenav should toggle", () => {
-			spyOn(component, "closeSidenav");
+			const closeSidenavSpy = vi.spyOn(component, "closeSidenav");
 			component.appSidenavLeft.opened = true;
 			fixture.detectChanges();
 			component.onToggleSidenav({
 				sidebar: "left"
 			});
-			expect(component.closeSidenav).toHaveBeenCalledTimes(1);
+			expect(closeSidenavSpy).toHaveBeenCalledTimes(1);
 
-			spyOn(component, "openSidenav");
+			const openSidenavSpy = vi.spyOn(component, "openSidenav");
 			component.appSidenavLeft.opened = false;
 			fixture.detectChanges();
 			component.onToggleSidenav({
 				sidebar: "left"
 			});
-			expect(component.openSidenav).toHaveBeenCalledTimes(1);
+			expect(openSidenavSpy).toHaveBeenCalledTimes(1);
 		});
 	});
 }
@@ -209,21 +249,21 @@ function screenSizeChangeHandlingTests(): void {
 		});
 
 		it("left sidebar should close when open with type 'menu'", () => {
-			spyOn(component, "closeSidenav");
+			const closeSidenavSpy = vi.spyOn(component, "closeSidenav");
 			component.appSidenavLeft.opened = true;
 			component.sidenavLeftType = "menu";
 			fixture.detectChanges();
 			simulateBreakPointStateChange(state);
-			expect(component.closeSidenav).toHaveBeenCalledTimes(1);
+			expect(closeSidenavSpy).toHaveBeenCalledTimes(1);
 		});
 
 		it("left sidebar should not close when open with type 'regular'", () => {
-			spyOn(component, "closeSidenav");
+			const closeSidenavSpy = vi.spyOn(component, "closeSidenav");
 			component.appSidenavLeft.opened = true;
 			component.sidenavLeftType = "regular";
 			fixture.detectChanges();
 			simulateBreakPointStateChange(state);
-			expect(component.closeSidenav).toHaveBeenCalledTimes(0);
+			expect(closeSidenavSpy).toHaveBeenCalledTimes(0);
 		});
 	});
 
@@ -241,12 +281,12 @@ function screenSizeChangeHandlingTests(): void {
 		});
 
 		it("left sidebar should open with type menu when it is closed", () => {
-			spyOn(component, "openSidenav");
+			const openSidenavSpy = vi.spyOn(component, "openSidenav");
 			component.appSidenavLeft.opened = false;
 			component.sidenavLeftType = "menu";
 			fixture.detectChanges();
 			simulateBreakPointStateChange(state);
-			expect(component.openSidenav).toHaveBeenCalledTimes(1);
+			expect(openSidenavSpy).toHaveBeenCalledTimes(1);
 		});
 
 		it("left sidebar should be displayed in side mode when already opened with type menu", () => {
@@ -263,12 +303,12 @@ function screenSizeChangeHandlingTests(): void {
 function navigationHandlingTests(): void {
 	describe("behaviour when automatic closing is enabled (/ default behaviour).", () => {
 		beforeEach(() => {
-			mockStarkAppSideBarService.close.calls.reset();
+			mockStarkAppSideBarService.close.mockClear();
 			fixture.detectChanges();
 		});
 
 		it("left sidebar should stay open on larger screen", () => {
-			mockBreakPointObserver.isMatched.and.callFake((value: string | string[]) => {
+			mockBreakPointObserver.isMatched.mockImplementation((value: string | string[]) => {
 				expect([[BREAKPOINT_STRING], BREAKPOINT_STRING]).toContain(value);
 				return true; // screen is >= 1280px
 			});
@@ -278,7 +318,7 @@ function navigationHandlingTests(): void {
 		});
 
 		it("left sidebar should close on smaller screen", () => {
-			mockBreakPointObserver.isMatched.and.callFake((value: string | string[]) => {
+			mockBreakPointObserver.isMatched.mockImplementation((value: string | string[]) => {
 				expect([[BREAKPOINT_STRING], BREAKPOINT_STRING]).toContain(value);
 				return false; // screen is >= 1280px
 			});
@@ -291,14 +331,14 @@ function navigationHandlingTests(): void {
 
 	describe("behaviour when automatic closing is disabled", () => {
 		beforeEach(() => {
-			mockStarkAppSideBarService.close.calls.reset();
+			mockStarkAppSideBarService.close.mockClear();
 			component.closeOnNavigate = false;
 			fixture.detectChanges();
 		});
 
 		// Function is duplicate, but in a different context (component.closeOnNavigate = false;)
 		it("left sidebar should stay open on larger screen", () => {
-			mockBreakPointObserver.isMatched.and.callFake((value: string | string[]) => {
+			mockBreakPointObserver.isMatched.mockImplementation((value: string | string[]) => {
 				expect([[BREAKPOINT_STRING], BREAKPOINT_STRING]).toContain(value);
 				return true; // screen is >= 1280px
 			});
@@ -308,7 +348,7 @@ function navigationHandlingTests(): void {
 		});
 
 		it("left sidebar should close on smaller screen", () => {
-			mockBreakPointObserver.isMatched.and.callFake((value: string | string[]) => {
+			mockBreakPointObserver.isMatched.mockImplementation((value: string | string[]) => {
 				expect([[BREAKPOINT_STRING], BREAKPOINT_STRING]).toContain(value);
 				return false; // screen is >= 1280px
 			});

@@ -1,21 +1,20 @@
 /* eslint-disable @angular-eslint/component-max-inline-declarations, @angular-eslint/no-lifecycle-call */
 import { StarkAppDataComponent, StarkAppDataComponentMode } from "./app-data.component";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { fakeAsync, inject, tick, ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
-import { MatIconModule } from "@angular/material/icon";
+import { STARK_LOGGING_SERVICE, type StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyMenuModule as MatMenuModule } from "@angular/material/legacy-menu";
-import { CommonModule } from "@angular/common";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { ViewChild, Component } from "@angular/core";
+import { ChangeDetectionStrategy, ViewChild, Component } from "@angular/core";
 import { OverlayContainer } from "@angular/cdk/overlay";
+import { vi } from "vitest";
+import { StarkAppDataModule } from "../app-data.module";
 
 @Component({
+	standalone: true,
 	selector: `host-component`,
+	changeDetection: ChangeDetectionStrategy.Default,
+	imports: [StarkAppDataModule],
 	template: `
 		<stark-app-data [mode]="mode">
 			<div class="summary-slot">This is the summary</div>
@@ -41,39 +40,72 @@ describe("AppDataComponent", () => {
 	const detailSlotContent = "This is the detail";
 	const summarySlotContent = "This is the summary";
 
-	const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
+	const loggingServiceMock: StarkLoggingService = {
+		correlationId: "dummyCorrelationId",
+		correlationIdHttpHeaderName: "Correlation-Id-HttpHeaderName",
+		generateNewCorrelationId: vi.fn(),
+		debug: vi.fn(),
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn()
+	} as unknown as StarkLoggingService;
+
+	const getRenderedOverlayText = (): string => {
+		return (overlayContainerElement.textContent || "").trim();
+	};
+
+	const getMenuPanel = (): HTMLElement => {
+		const matPanelElement: HTMLElement | null = overlayContainerElement.querySelector(".mat-mdc-menu-panel");
+		expect(matPanelElement).toBeTruthy();
+
+		return <HTMLElement>matPanelElement;
+	};
+
+	const getDetailButton = (selector: string): HTMLButtonElement => {
+		const button: HTMLButtonElement | null = hostFixture.nativeElement.querySelector(selector);
+		expect(button).toBeTruthy();
+
+		return <HTMLButtonElement>button;
+	};
+
+	const settleOverlayInteraction = async (): Promise<void> => {
+		await hostFixture.whenStable();
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		hostFixture.detectChanges();
+		await hostFixture.whenStable();
+		hostFixture.detectChanges();
+	};
+
+	const renderComponent = (mode?: StarkAppDataComponentMode): void => {
+		hostComponent.mode = mode;
+		hostFixture.detectChanges();
+		component = hostComponent.appDataComponent;
+	};
 
 	beforeEach(waitForAsync(() =>
 		TestBed.configureTestingModule({
-			declarations: [StarkAppDataComponent, TestHostComponent],
-			imports: [
-				CommonModule,
-				MatButtonModule,
-				MatIconModule,
-				MatIconTestingModule,
-				MatMenuModule,
-				MatTooltipModule,
-				NoopAnimationsModule,
-				TranslateModule.forRoot()
-			],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }, TranslateService]
+			imports: [MatIconTestingModule, NoopAnimationsModule, TestHostComponent, TranslateModule.forRoot()],
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: loggingServiceMock }, TranslateService]
 		}).compileComponents()));
 
 	beforeEach(() => {
 		// OverlayContainer needs to be injected to get the context for the rendered menu dropdown
-		inject([OverlayContainer], (oc: OverlayContainer) => {
-			overlayContainer = oc;
-			overlayContainerElement = overlayContainer.getContainerElement();
-		})();
+		overlayContainer = TestBed.inject(OverlayContainer);
+		overlayContainerElement = overlayContainer.getContainerElement();
 
 		hostFixture = TestBed.createComponent(TestHostComponent);
 		hostComponent = hostFixture.componentInstance;
-		hostFixture.detectChanges();
+	});
 
-		component = hostComponent.appDataComponent;
+	afterEach(() => {
+		overlayContainer.ngOnDestroy();
 	});
 
 	describe("on initialization", () => {
+		beforeEach(() => {
+			renderComponent();
+		});
+
 		it("should set internal component properties", () => {
 			expect(hostFixture).toBeDefined();
 			expect(hostComponent).toBeDefined();
@@ -87,56 +119,55 @@ describe("AppDataComponent", () => {
 	describe("using 'dropdown' mode", () => {
 		// Prepare hostComponent
 		beforeEach(() => {
-			hostComponent.mode = "dropdown";
-			hostFixture.detectChanges();
+			renderComponent("dropdown");
 		});
 
 		describe("summary", () => {
 			it("should display the summary content", () => {
-				const summary: HTMLElement = hostFixture.nativeElement.querySelector(".stark-app-data-summary");
-				expect(summary).toBeDefined();
-				expect(summary.innerText).toContain(summarySlotContent);
+				const summary: HTMLElement | null = hostFixture.nativeElement.querySelector(".stark-app-data-summary");
+				expect(summary).toBeTruthy();
+				expect((summary && summary.textContent) || "").toContain(summarySlotContent);
 			});
 		});
 
 		describe("detail", () => {
 			it("detail information should NOT be displayed on init", () => {
-				expect(overlayContainerElement.textContent).toBe("");
+				expect(getRenderedOverlayText()).toBe("");
 			});
 
 			describe("open detail", () => {
 				beforeEach(() => {
 					// Open Detail
-					const button: HTMLButtonElement = hostFixture.nativeElement.querySelector(".stark-app-data.dropdown button");
+					const button = getDetailButton(".stark-app-data.dropdown button");
 					button.click();
 					hostFixture.detectChanges();
 				});
 
 				it("clicking button should display detail information", () => {
-					expect(overlayContainerElement.textContent).toBe(detailSlotContent);
-					const matPanelElement = <HTMLElement>overlayContainerElement.querySelector(".mat-menu-panel");
+					expect(getRenderedOverlayText()).toBe(detailSlotContent);
+					const matPanelElement = getMenuPanel();
 					expect(matPanelElement.classList).toContain("stark-app-data");
 					expect(matPanelElement.classList).toContain("dropdown-detail");
 				});
 
-				it("clicking outside the mat-menu-panel should close the detail", fakeAsync(() => {
+				it("clicking outside the mat-menu-panel should close the detail", async () => {
 					const backdrop = <HTMLElement>overlayContainerElement.querySelector(".cdk-overlay-backdrop");
 					backdrop.click();
 					hostFixture.detectChanges();
-					tick(500);
+					await settleOverlayInteraction();
 
-					expect(overlayContainerElement.textContent).toBe("");
-				}));
+					expect(getRenderedOverlayText()).toBe("");
+				});
 
-				it("clicking inside the mat-menu-panel should NOT close the detail", fakeAsync(() => {
+				it("clicking inside the mat-menu-panel should NOT close the detail", async () => {
 					const detail = <HTMLElement>overlayContainerElement.querySelector(".stark-app-data-detail");
 					expect(detail).not.toBeNull();
 					detail.click();
 					hostFixture.detectChanges();
-					tick(500);
+					await settleOverlayInteraction();
 
-					expect(overlayContainerElement.textContent).toBe(detailSlotContent);
-				}));
+					expect(getRenderedOverlayText()).toBe(detailSlotContent);
+				});
 			});
 		});
 	});
@@ -144,8 +175,7 @@ describe("AppDataComponent", () => {
 	describe("using 'menu' mode", () => {
 		// Prepare hostComponent
 		beforeEach(() => {
-			hostComponent.mode = "menu";
-			hostFixture.detectChanges();
+			renderComponent("menu");
 		});
 
 		describe("summary", () => {
@@ -157,44 +187,44 @@ describe("AppDataComponent", () => {
 
 		describe("detail", () => {
 			it("detail information should NOT be displayed on init", () => {
-				expect(overlayContainerElement.textContent).toBe("");
+				expect(getRenderedOverlayText()).toBe("");
 			});
 
 			describe("open detail", () => {
 				beforeEach(() => {
 					// Open Detail
-					const button: HTMLButtonElement = hostFixture.nativeElement.querySelector(".stark-app-data.menu button");
+					const button = getDetailButton(".stark-app-data.menu button");
 					button.click();
 					hostFixture.detectChanges();
 				});
 
 				it("clicking button should display detail information", () => {
-					expect(overlayContainerElement.textContent).toBe(detailSlotContent);
-					const matPanelElement = <HTMLElement>overlayContainerElement.querySelector(".mat-menu-panel");
+					expect(getRenderedOverlayText()).toBe(detailSlotContent);
+					const matPanelElement = getMenuPanel();
 					expect(matPanelElement.classList).toContain("stark-app-data");
 					expect(matPanelElement.classList).toContain("menu-detail");
 				});
 
-				it("clicking outside the mat-menu-panel should close the detail", fakeAsync(() => {
+				it("clicking outside the mat-menu-panel should close the detail", async () => {
 					const backdrop = <HTMLElement>overlayContainerElement.querySelector(".cdk-overlay-backdrop");
 					backdrop.click();
 					hostFixture.detectChanges();
-					tick(500);
+					await settleOverlayInteraction();
 
-					expect(overlayContainerElement.textContent).toBe("");
-				}));
+					expect(getRenderedOverlayText()).toBe("");
+				});
 
-				it("clicking inside the mat-menu-panel should NOT close the detail", fakeAsync(() => {
-					expect(overlayContainerElement.textContent).toBe(detailSlotContent);
+				it("clicking inside the mat-menu-panel should NOT close the detail", async () => {
+					expect(getRenderedOverlayText()).toBe(detailSlotContent);
 
 					const detail = <HTMLElement>overlayContainerElement.querySelector(".stark-app-data-detail");
 					expect(detail).not.toBeNull();
 					detail.click();
 					hostFixture.detectChanges();
-					tick(500);
+					await settleOverlayInteraction();
 
-					expect(overlayContainerElement.textContent).toBe(detailSlotContent);
-				}));
+					expect(getRenderedOverlayText()).toBe(detailSlotContent);
+				});
 			});
 		});
 	});

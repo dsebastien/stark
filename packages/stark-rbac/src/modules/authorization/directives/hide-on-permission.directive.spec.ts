@@ -9,12 +9,12 @@ import { MockStarkRBACAuthorizationService } from "@nationalbankbelgium/stark-rb
 
 describe("StarkHideOnPermissionDirective", () => {
 	let fixture: ComponentFixture<TestComponent>;
-	let hostComponent: TestComponent;
 	const hideOnPermission: StarkRBACDirectivePermission = {
 		roles: ["admin", "manager"]
 	};
 
 	@Component({
+		standalone: false,
 		selector: "test-component",
 		template: getTemplate("*starkHideOnPermission='hideOnPermission'")
 	})
@@ -27,8 +27,11 @@ describe("StarkHideOnPermissionDirective", () => {
 	}
 
 	function initializeComponentFixture(): void {
+		if (fixture) {
+			fixture.destroy();
+		}
+
 		fixture = TestBed.createComponent(TestComponent);
-		hostComponent = fixture.componentInstance;
 		// trigger initial data binding
 		fixture.detectChanges();
 	}
@@ -37,6 +40,8 @@ describe("StarkHideOnPermissionDirective", () => {
 
 	// Inject module dependencies
 	beforeEach(() => {
+		mockAuthorizationService.hasAnyRole.mockReset();
+
 		TestBed.configureTestingModule({
 			declarations: [StarkHideOnPermissionDirective, TestComponent],
 			imports: [],
@@ -54,7 +59,9 @@ describe("StarkHideOnPermissionDirective", () => {
 			TestBed.overrideTemplate(TestComponent, newTemplate);
 
 			// compile template and css
-			TestBed.compileComponents().catch(() => fail("Component compilation failed"));
+			TestBed.compileComponents().catch(() => {
+				throw new Error("Component compilation failed");
+			});
 
 			expect(() => initializeComponentFixture()).toThrowError(/must contain 'roles'/);
 		});
@@ -65,28 +72,24 @@ describe("StarkHideOnPermissionDirective", () => {
 			TestBed.overrideTemplate(TestComponent, newTemplate);
 
 			// compile template and css
-			TestBed.compileComponents().catch(() => fail("Component compilation failed"));
+			TestBed.compileComponents().catch(() => {
+				throw new Error("Component compilation failed");
+			});
 
 			expect(() => initializeComponentFixture()).toThrowError(/must contain 'roles'/);
 		});
 	});
 
 	describe("authorization", () => {
-		beforeEach(() => {
-			initializeComponentFixture();
-		});
-
 		it("should NOT render the protected content ONLY in case the user HAS any of the specified roles", () => {
-			mockAuthorizationService.hasAnyRole.and.returnValue(true);
-			hostComponent.hideOnPermission = { ...hideOnPermission }; // set a new instance to trigger change detection in the directive
-			fixture.detectChanges();
+			mockAuthorizationService.hasAnyRole.mockReturnValue(true);
+			initializeComponentFixture();
 
 			let spanElement: NodeListOf<HTMLElement> = fixture.debugElement.nativeElement.querySelectorAll("span");
 			expect(spanElement.length).toBe(0);
 
-			mockAuthorizationService.hasAnyRole.and.returnValue(false);
-			hostComponent.hideOnPermission = { ...hideOnPermission }; // set a new instance to trigger change detection in the directive
-			fixture.detectChanges();
+			mockAuthorizationService.hasAnyRole.mockReturnValue(false);
+			initializeComponentFixture();
 
 			spanElement = fixture.debugElement.nativeElement.querySelectorAll("span");
 			expect(spanElement.length).toBe(1);

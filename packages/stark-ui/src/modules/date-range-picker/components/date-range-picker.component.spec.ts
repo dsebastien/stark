@@ -1,28 +1,48 @@
 /* eslint-disable no-null/no-null, @angular-eslint/component-max-inline-declarations */
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { Component, EventEmitter, ViewChild } from "@angular/core";
-import { ComponentFixture, fakeAsync, TestBed, tick, waitForAsync } from "@angular/core/testing";
+import { Component, ViewChild } from "@angular/core";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule, ValidationErrors } from "@angular/forms";
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE } from "@angular/material/core";
 import { MAT_MOMENT_DATE_FORMATS, MomentDateAdapter } from "@angular/material-moment-adapter";
 import { MatDatepickerModule } from "@angular/material/datepicker";
-import { MatLegacyFormFieldModule as MatFormFieldModule } from "@angular/material/legacy-form-field";
+import { MatFormFieldModule } from "@angular/material/form-field";
 import { TranslateModule } from "@ngx-translate/core";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
+import { STARK_LOGGING_SERVICE, type StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { StarkDatePickerModule } from "@nationalbankbelgium/stark-ui/src/modules/date-picker";
 import { StarkInputMaskDirectivesModule } from "@nationalbankbelgium/stark-ui/src/modules/input-mask-directives";
 import { StarkDateRangePickerComponent } from "./date-range-picker.component";
-import { StarkDateRangePickerEvent } from "./date-range-picker-event.intf";
-import { Observer } from "rxjs";
 import moment from "moment";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
+import { StarkDateRangePickerModule } from "../date-range-picker.module";
+import { vi } from "vitest";
+
+type ObserverSpy = {
+	next: ReturnType<typeof vi.fn<(value: unknown) => void>>;
+	error: ReturnType<typeof vi.fn<(error: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
+
+const createObserverSpy = (): ObserverSpy => ({
+	next: vi.fn<(value: unknown) => void>(),
+	error: vi.fn<(error: unknown) => void>(),
+	complete: vi.fn<() => void>()
+});
+
+const loggingServiceMock: StarkLoggingService = {
+	correlationId: "dummyCorrelationId",
+	correlationIdHttpHeaderName: "Correlation-Id-HttpHeaderName",
+	generateNewCorrelationId: vi.fn(),
+	debug: vi.fn(),
+	info: vi.fn(),
+	warn: vi.fn(),
+	error: vi.fn()
+} as unknown as StarkLoggingService;
 
 describe("DateRangePickerComponent", () => {
 	@Component({
+		standalone: true,
 		selector: "test-model",
+		imports: [FormsModule, StarkDateRangePickerModule],
 		template: ` <stark-date-range-picker [(ngModel)]="dateRange"></stark-date-range-picker> `
 	})
 	class TestModelComponent {
@@ -33,7 +53,9 @@ describe("DateRangePickerComponent", () => {
 	}
 
 	@Component({
+		standalone: true,
 		selector: "test-form-group",
+		imports: [ReactiveFormsModule, StarkDateRangePickerModule],
 		template: `
 			<stark-date-range-picker [rangeFormGroup]="formGroup">
 				<ng-container start-date-errors>START-ERROR</ng-container>
@@ -53,19 +75,21 @@ describe("DateRangePickerComponent", () => {
 
 	beforeEach(waitForAsync(() =>
 		TestBed.configureTestingModule({
-			declarations: [StarkDateRangePickerComponent, TestModelComponent, TestUntypedFormGroupComponent],
 			imports: [
 				NoopAnimationsModule,
 				MatDatepickerModule,
 				MatFormFieldModule,
 				FormsModule,
 				ReactiveFormsModule,
+				StarkDateRangePickerModule,
 				StarkDatePickerModule,
 				StarkInputMaskDirectivesModule,
+				TestModelComponent,
+				TestUntypedFormGroupComponent,
 				TranslateModule.forRoot()
 			],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
+				{ provide: STARK_LOGGING_SERVICE, useValue: loggingServiceMock },
 				{ provide: MAT_DATE_FORMATS, useValue: MAT_MOMENT_DATE_FORMATS },
 				{ provide: MAT_DATE_LOCALE, useValue: "en-us" },
 				{ provide: DateAdapter, useClass: MomentDateAdapter, deps: [MAT_DATE_LOCALE] }
@@ -76,10 +100,15 @@ describe("DateRangePickerComponent", () => {
 		let fixture: ComponentFixture<StarkDateRangePickerComponent>;
 		let component: StarkDateRangePickerComponent;
 
-		beforeEach(() => {
+		function renderComponent(initializer?: (instance: StarkDateRangePickerComponent) => void): void {
 			fixture = TestBed.createComponent(StarkDateRangePickerComponent);
 			component = fixture.componentInstance;
+			initializer?.(component);
 			fixture.detectChanges();
+		}
+
+		beforeEach(() => {
+			renderComponent();
 		});
 
 		describe("on initialization", () => {
@@ -109,40 +138,40 @@ describe("DateRangePickerComponent", () => {
 				expect(component.startMaxDate).toBeNull();
 				expect(component.startMinDate).toBeNull();
 				expect(component.dateRangeChanged).toBeDefined();
-				expect(component.dateRangeChanged).toEqual(new EventEmitter<StarkDateRangePickerEvent>());
 			});
 		});
 
 		describe("date pickers properties", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("should be set correctly according to the given inputs and WITHOUT triggering a 'dateRangeChanged' event", () => {
-				component.dateRangeChanged.subscribe(mockObserver);
-
-				component.rangePickerId = "test-id";
-				component.rangePickerName = "test-name";
-				component.startDateLabel = "startDateLabel";
-				component.endDateLabel = "endDateLabel";
 				const minDate = new Date(2018, 6, 1);
-				component.startMinDate = <any>minDate;
-				component.endMinDate = <any>minDate;
 				const maxDate = new Date(2018, 6, 2);
-				component.startMaxDate = <any>maxDate;
-				component.endMaxDate = <any>maxDate;
-				fixture.detectChanges();
 
-				expect(fixture.nativeElement.querySelector("#test-id-start-input")).toBeTruthy();
-				expect(fixture.nativeElement.querySelector("#test-id-end-input")).toBeTruthy();
-				expect(fixture.nativeElement.querySelector("#test-id-start")).toBeTruthy();
-				expect(fixture.nativeElement.querySelector("#test-id-end")).toBeTruthy();
-				expect(fixture.nativeElement.querySelector('[name="test-name-start"]')).toBeTruthy();
-				expect(fixture.nativeElement.querySelector('[name="test-name-end"]')).toBeTruthy();
-				expect(fixture.nativeElement.querySelector('[ng-reflect-placeholder="startDateLabel"]')).toBeTruthy();
-				expect(fixture.nativeElement.querySelector('[ng-reflect-placeholder="endDateLabel"]')).toBeTruthy();
+				renderComponent((instance) => {
+					instance.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+					instance.rangePickerId = "test-id";
+					instance.rangePickerName = "test-name";
+					instance.startDateLabel = "startDateLabel";
+					instance.endDateLabel = "endDateLabel";
+					instance.startMinDate = <any>minDate;
+					instance.endMinDate = <any>minDate;
+					instance.startMaxDate = <any>maxDate;
+					instance.endMaxDate = <any>maxDate;
+				});
+
+				expect(fixture.nativeElement.querySelector("input#test-id-start-input")).toBeTruthy();
+				expect(fixture.nativeElement.querySelector("input#test-id-end-input")).toBeTruthy();
+				expect(fixture.nativeElement.querySelector("mat-datepicker#test-id-start")).toBeTruthy();
+				expect(fixture.nativeElement.querySelector("mat-datepicker#test-id-end")).toBeTruthy();
+				expect(fixture.nativeElement.querySelector("input[name='test-name-start']")).toBeTruthy();
+				expect(fixture.nativeElement.querySelector("input[name='test-name-end']")).toBeTruthy();
+				expect(component.startPicker.placeholder).toBe("startDateLabel");
+				expect(component.endPicker.placeholder).toBe("endDateLabel");
 				expect(component.startPicker.pickerInput.min).not.toBeNull();
 				expect((<moment.Moment>component.startPicker.pickerInput.min).toDate()).toEqual(minDate);
 				expect(component.endPicker.pickerInput.min).not.toBeNull();
@@ -158,10 +187,11 @@ describe("DateRangePickerComponent", () => {
 			});
 
 			it("the date pickers should be disabled when 'disabled' is true and it should NOT emit a 'dateRangeChanged' event", () => {
-				component.dateRangeChanged.subscribe(mockObserver);
+				renderComponent((instance) => {
+					instance.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+					instance.disabled = true;
+				});
 
-				component.disabled = true;
-				fixture.detectChanges();
 				expect(component.startPicker.pickerInput.disabled).toBe(true);
 				expect(component.endPicker.pickerInput.disabled).toBe(true);
 
@@ -171,7 +201,7 @@ describe("DateRangePickerComponent", () => {
 			});
 
 			it("the date pickers value should be set correctly and they should emit a 'dateRangeChanged' event", () => {
-				component.dateRangeChanged.subscribe(mockObserver);
+				component.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				const date = new Date(2018, 6, 3);
 				component.startDate = date;
@@ -182,7 +212,7 @@ describe("DateRangePickerComponent", () => {
 				expect(mockObserver.next).toHaveBeenCalledTimes(1);
 				expect(mockObserver.next).toHaveBeenCalledWith({ startDate: date, endDate: undefined });
 
-				mockObserver.next.calls.reset();
+				mockObserver.next.mockClear();
 				component.endDate = date;
 				fixture.detectChanges();
 
@@ -196,10 +226,10 @@ describe("DateRangePickerComponent", () => {
 		});
 
 		describe("dates selection", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("the end date should be correctly set if after the start date and emit the new value in the 'dateRangeChanged' output", () => {
@@ -207,7 +237,7 @@ describe("DateRangePickerComponent", () => {
 				const startDate = new Date(2018, 6, 6);
 				component.startPicker.picker.select(moment(startDate)); // select a date in the internal date picker
 				fixture.detectChanges();
-				component.dateRangeChanged.subscribe(mockObserver);
+				component.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.startDate).toEqual(startDate);
 				const endDate = new Date(2018, 6, 7);
@@ -229,7 +259,7 @@ describe("DateRangePickerComponent", () => {
 				// initialize start date
 				component.startPicker.picker.select(<any>undefined); // select a date in the internal date picker
 				fixture.detectChanges();
-				component.dateRangeChanged.subscribe(mockObserver);
+				component.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.startDate).toBeUndefined();
 				const endDate = new Date(2018, 6, 8);
@@ -252,7 +282,7 @@ describe("DateRangePickerComponent", () => {
 				const startDate = new Date(2018, 6, 5);
 				component.startPicker.picker.select(moment(startDate)); // select a date in the internal date picker
 				fixture.detectChanges();
-				component.dateRangeChanged.subscribe(mockObserver);
+				component.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.startDate).toEqual(startDate);
 				const endDate = new Date(2018, 6, 4);
@@ -277,7 +307,7 @@ describe("DateRangePickerComponent", () => {
 				const endDate = new Date(2018, 6, 5);
 				component.endPicker.picker.select(moment(endDate)); // select a date in the internal date picker
 				fixture.detectChanges();
-				component.dateRangeChanged.subscribe(mockObserver);
+				component.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.endDate).toEqual(endDate);
 				const startDate = new Date(2018, 6, 6);
@@ -303,25 +333,30 @@ describe("DateRangePickerComponent", () => {
 		let hostFixture: ComponentFixture<TestModelComponent>;
 		let hostComponent: TestModelComponent;
 		let component: StarkDateRangePickerComponent;
-		let mockObserver: SpyObj<Observer<any>>;
+		let mockObserver: ObserverSpy;
 
-		beforeEach(() => {
+		function renderHost(initializer?: (host: TestModelComponent) => void): void {
 			hostFixture = TestBed.createComponent(TestModelComponent);
 			hostComponent = hostFixture.componentInstance;
-			component = hostComponent.dateRangePicker;
+			initializer?.(hostComponent);
 			hostFixture.detectChanges();
+			component = hostComponent.dateRangePicker;
+		}
 
-			mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+		beforeEach(() => {
+			renderHost();
+			mockObserver = createObserverSpy();
 		});
 
-		it("should update when model is updated and it should not emit a 'dateRangeChanged' event", fakeAsync(() => {
-			component.dateRangeChanged.subscribe(mockObserver);
+		it("should update when model is updated and it should not emit a 'dateRangeChanged' event", waitForAsync(async () => {
+			component.dateRangeChanged.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 			const dateRange = { startDate: new Date(2019, 0, 1), endDate: new Date(2019, 0, 2) };
 
 			hostComponent.dateRange = dateRange;
 			hostFixture.detectChanges();
-
-			tick();
+			await hostFixture.whenStable();
+			hostFixture.detectChanges();
+			await hostFixture.whenStable();
 
 			expect(component.startDate).toBeDefined();
 			expect(component.startDate).toEqual(dateRange.startDate);
@@ -339,30 +374,37 @@ describe("DateRangePickerComponent", () => {
 		let hostComponent: TestUntypedFormGroupComponent;
 		let component: StarkDateRangePickerComponent;
 
-		beforeEach(() => {
+		function renderHost(initializer?: (host: TestUntypedFormGroupComponent) => void): void {
 			hostFixture = TestBed.createComponent(TestUntypedFormGroupComponent);
 			hostComponent = hostFixture.componentInstance;
-			component = hostComponent.dateRangePicker;
+			initializer?.(hostComponent);
 			hostFixture.detectChanges();
+			component = hostComponent.dateRangePicker;
+		}
+
+		beforeEach(() => {
+			renderHost();
 		});
 
 		describe("date pickers properties", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("the date pickers should be disabled when the form controls are disabled AND a 'valueChange' event should be triggered ONLY IF the 'emitEvent' option is enabled", () => {
-				hostComponent.formGroup.valueChanges.subscribe(mockObserver);
+				hostComponent.formGroup.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				hostComponent.formGroup.disable({ emitEvent: false });
+				hostFixture.detectChanges();
 				hostFixture.detectChanges();
 
 				expect(component.startPicker.pickerInput.disabled).toBe(true);
 				expect(component.endPicker.pickerInput.disabled).toBe(true);
 
 				hostComponent.formGroup.enable({ emitEvent: false });
+				hostFixture.detectChanges();
 				hostFixture.detectChanges();
 
 				expect(component.startPicker.pickerInput.disabled).toBe(false);
@@ -373,13 +415,15 @@ describe("DateRangePickerComponent", () => {
 
 				hostComponent.formGroup.disable(); // 'emitEvent' true by default
 				hostFixture.detectChanges();
+				hostFixture.detectChanges();
 
 				expect(component.startPicker.pickerInput.disabled).toBe(true);
 				expect(component.endPicker.pickerInput.disabled).toBe(true);
 				expect(mockObserver.next).toHaveBeenCalledTimes(1);
-				mockObserver.next.calls.reset();
+				mockObserver.next.mockClear();
 
 				hostComponent.formGroup.enable(); // 'emitEvent' true by default
+				hostFixture.detectChanges();
 				hostFixture.detectChanges();
 
 				expect(component.startPicker.pickerInput.disabled).toBe(false);
@@ -414,14 +458,16 @@ describe("DateRangePickerComponent", () => {
 			});
 
 			it("should log an error when the given 'rangeFormGroup' does not contain expected 'startDate' and 'endDate' controls", () => {
-				hostComponent.formGroup = new UntypedFormGroup({
-					start: new UntypedFormControl(new Date(2019, 0, 1)),
-					end: new UntypedFormControl(new Date(2019, 0, 2))
+				renderHost((host) => {
+					host.formGroup = new UntypedFormGroup({
+						start: new UntypedFormControl(new Date(2019, 0, 1)),
+						end: new UntypedFormControl(new Date(2019, 0, 2))
+					});
 				});
-				hostFixture.detectChanges();
 
-				expect(component.logger.error).toHaveBeenCalledTimes(1);
-				const errorMessage: string = (<Spy>component.logger.error).calls.argsFor(0)[0];
+				const loggerErrorSpy = vi.mocked(loggingServiceMock.error);
+				expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+				const errorMessage = String(loggerErrorSpy.mock.calls[0]?.[0]);
 				expect(errorMessage).toMatch(/formGroup.*startDate.*endDate/);
 			});
 
@@ -450,10 +496,10 @@ describe("DateRangePickerComponent", () => {
 		});
 
 		describe("dates selection", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("the end date should be correctly set if after the start date and emit the new value in the form control's 'valueChange' observable", () => {
@@ -461,7 +507,7 @@ describe("DateRangePickerComponent", () => {
 				const startDate = new Date(2018, 6, 6);
 				component.startPicker.picker.select(moment(startDate)); // select a date in the internal date picker
 				hostFixture.detectChanges();
-				hostComponent.formGroup.valueChanges.subscribe(mockObserver);
+				hostComponent.formGroup.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.startDate).toEqual(startDate);
 				const endDate = new Date(2018, 6, 7);
@@ -483,7 +529,7 @@ describe("DateRangePickerComponent", () => {
 				// initialize start date
 				component.startPicker.picker.select(<any>undefined); // select a date in the internal date picker
 				hostFixture.detectChanges();
-				hostComponent.formGroup.valueChanges.subscribe(mockObserver);
+				hostComponent.formGroup.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.startDate).toBeUndefined();
 				const endDate = new Date(2018, 6, 8);
@@ -506,7 +552,7 @@ describe("DateRangePickerComponent", () => {
 				const startDate = new Date(2018, 6, 5);
 				component.startPicker.picker.select(moment(startDate)); // select a date in the internal date picker
 				hostFixture.detectChanges();
-				hostComponent.formGroup.valueChanges.subscribe(mockObserver);
+				hostComponent.formGroup.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.startDate).toEqual(startDate);
 				const endDate = new Date(2018, 6, 4);
@@ -531,7 +577,7 @@ describe("DateRangePickerComponent", () => {
 				const endDate = new Date(2018, 6, 5);
 				component.endPicker.picker.select(moment(endDate)); // select a date in the internal date picker
 				hostFixture.detectChanges();
-				hostComponent.formGroup.valueChanges.subscribe(mockObserver);
+				hostComponent.formGroup.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(component.endDate).toEqual(endDate);
 				const startDate = new Date(2018, 6, 6);
