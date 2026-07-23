@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import {
 	AfterViewInit,
 	ChangeDetectionStrategy,
@@ -12,7 +13,13 @@ import {
 	ViewChild,
 	ViewEncapsulation
 } from "@angular/core";
-import { MatLegacyMenuTrigger as MatMenuTrigger } from "@angular/material/legacy-menu";
+import { FormsModule } from "@angular/forms";
+import { MatButtonModule } from "@angular/material/button";
+import { MatCheckboxModule } from "@angular/material/checkbox";
+import { MatIconModule } from "@angular/material/icon";
+import { MatMenuModule, MatMenuTrigger } from "@angular/material/menu";
+import { MatTooltipModule } from "@angular/material/tooltip";
+import { TranslateModule } from "@ngx-translate/core";
 import { Subscription } from "rxjs";
 import { StarkMinimapItemProperties } from "./item-properties.intf";
 import { AbstractStarkUiComponent } from "@nationalbankbelgium/stark-ui/src/internal-common";
@@ -29,10 +36,21 @@ const componentName = "stark-minimap";
  * The minimap shows the label of the elements to display with a checkbox to enable/disable the visibility
  */
 @Component({
+	standalone: true,
 	selector: "stark-minimap",
 	templateUrl: "./minimap.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [
+		CommonModule,
+		FormsModule,
+		MatButtonModule,
+		MatCheckboxModule,
+		MatIconModule,
+		MatTooltipModule,
+		MatMenuModule,
+		TranslateModule
+	],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName

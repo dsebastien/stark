@@ -5,7 +5,8 @@
 
 @use "sass:map";
 @use "@angular/material" as mat;
-@use "@angular/material/core/theming/palette" as mat-palette;
+@use "@angular/material/core/m2" as mat-m2;
+@use "@angular/material/core/m2/palette" as mat-palette;
 @use "../../../../styles/components/button-theme" as stark-button-theme;
 @use "../../../../styles/media-queries" as *;
 
@@ -14,31 +15,31 @@
     .stark-action-bar {
       .action-label {
         &.primary {
-          color: mat.get-color-from-palette(map.get($material-theme-config, primary));
+          color: mat.m2-get-color-from-palette(map.get($material-theme-config, primary));
         }
 
         &.warn {
-          color: mat.get-color-from-palette(map.get($material-theme-config, warn));
+          color: mat.m2-get-color-from-palette(map.get($material-theme-config, warn));
         }
 
         &.accent {
-          color: mat.get-color-from-palette(map.get($material-theme-config, accent), 500);
+          color: mat.m2-get-color-from-palette(map.get($material-theme-config, accent), 500);
         }
 
         &.success {
-          color: mat.get-color-from-palette(map.get($stark-theme-config, success-palette), 500);
+          color: mat.m2-get-color-from-palette(map.get($stark-theme-config, success-palette), 500);
         }
 
         &.alert {
-          color: mat.get-color-from-palette(map.get($stark-theme-config, alert-palette), 500);
+          color: mat.m2-get-color-from-palette(map.get($stark-theme-config, alert-palette), 500);
         }
 
         &.alt {
-          color: mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), 900);
+          color: mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), 900);
         }
 
         &.neutral {
-          color: mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), 400);
+          color: mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), 400);
         }
 
         &.white {
@@ -46,7 +47,7 @@
         }
 
         &.disabled {
-          color: map.get(mat.$light-theme-foreground-palette, disabled-text);
+          color: map.get(mat-m2.$light-theme-foreground-palette, disabled-text);
         }
       }
     }
@@ -56,7 +57,7 @@
     .stark-action-bar-full {
       background-color: rgba(0, 0, 0, 0.85);
 
-      .mat-icon-button {
+      .mat-mdc-icon-button {
         @include stark-button-theme.stark-button-color(rgba($color: #fff, $alpha: 0.8), mat-palette.$light-primary-text);
       }
 

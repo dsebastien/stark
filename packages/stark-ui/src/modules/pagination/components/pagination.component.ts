@@ -15,11 +15,7 @@ import {
 	SimpleChanges,
 	ViewEncapsulation
 } from "@angular/core";
-import {
-	MatLegacyPaginator as MatPaginator,
-	MatLegacyPaginatorIntl as MatPaginatorIntl,
-	LegacyPageEvent as PageEvent
-} from "@angular/material/legacy-paginator";
+import { MatPaginator, PageEvent } from "@angular/material/paginator";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { StarkPaginationConfig } from "./pagination-config.intf";
 import { StarkPaginateEvent } from "./paginate-event.intf";
@@ -36,14 +32,15 @@ const componentName = "stark-pagination";
 export type StarkPaginationComponentMode = "compact";
 
 // FIXME: refactor the template of this component function to reduce its cyclomatic complexity
-/* eslint-disable @angular-eslint/template/cyclomatic-complexity */
+
 /**
  * Component to display pagination bar to be used with a collection of items.
  *
- * It extends the {@link https://v7.material.angular.io/components/paginator/api#MatPaginator|Angular Material's MatPaginator class}
- * so it can be integrated as well with the {@link https://v7.material.angular.io/components/table/examples|Angular Material's MatTable}.
+ * It extends the {@link https://material.angular.dev/components/paginator/api#MatPaginator|Angular Material's MatPaginator class}
+ * so it can be integrated as well with the {@link https://material.angular.dev/components/table/examples|Angular Material's MatTable}.
  */
 @Component({
+	standalone: false,
 	selector: "stark-pagination",
 	templateUrl: "./pagination.component.html",
 	encapsulation: ViewEncapsulation.None,
@@ -92,6 +89,9 @@ export class StarkPaginationComponent extends MatPaginator implements OnInit, On
 		return this._paginationInput;
 	}
 
+	/**
+	 * Stores the manually entered page number and keeps the DOM input synchronized.
+	 */
 	public set paginationInput(newValue: number) {
 		// store the previous pagination input value in case the new one is not valid
 		// so it can be reverted to the previous value when that happens
@@ -99,6 +99,7 @@ export class StarkPaginationComponent extends MatPaginator implements OnInit, On
 			this.previousPaginationInput = this._paginationInput;
 		}
 		this._paginationInput = newValue;
+		this.syncPaginationInputElementValue();
 	}
 
 	/**
@@ -135,8 +136,8 @@ export class StarkPaginationComponent extends MatPaginator implements OnInit, On
 		public cdRef: ChangeDetectorRef
 	) {
 		// we don't use the MatPaginatorIntl service to translate the labels but it is needed for the MatPaginator base class
-		// see https://v7.material.angular.io/components/paginator/api#services
-		super(new MatPaginatorIntl(), cdRef);
+		// see https://material.angular.dev/components/paginator/api#services
+		super();
 	}
 
 	/**
@@ -224,7 +225,7 @@ export class StarkPaginationComponent extends MatPaginator implements OnInit, On
 	}
 
 	/**
-	 * Set the properties needed for the {@link https://v7.material.angular.io/components/paginator/api#MatPaginator|MatPaginator} base class
+	 * Set the properties needed for the {@link https://material.angular.dev/components/paginator/api#MatPaginator|MatPaginator} base class
 	 * based on the given pagination configuration.
 	 *
 	 * @param config - The config object which be used to set the `MatPaginator` properties
@@ -446,7 +447,20 @@ export class StarkPaginationComponent extends MatPaginator implements OnInit, On
 		} else {
 			this.logger.warn(componentName + ": the page ", newPage, " does not exist");
 			this.paginationInput = this.previousPaginationInput; // revert the pagination input value
+			this.cdRef.markForCheck();
 		}
+	}
+
+	private syncPaginationInputElementValue(): void {
+		const paginationInputElement = this.element.nativeElement.querySelector(".pagination-enter-page input");
+
+		if (!paginationInputElement) {
+			return;
+		}
+
+		const normalizedValue = String(this._paginationInput);
+
+		this.renderer.setProperty(paginationInputElement, "value", normalizedValue);
 	}
 
 	/**
@@ -465,7 +479,7 @@ export class StarkPaginationComponent extends MatPaginator implements OnInit, On
 
 	/**
 	 * Emit the `PageEvent` according to the MatPaginator API.
-	 * See {@link https://v7.material.angular.io/components/paginator/api#PageEvent|MatPaginator PageEvent}
+	 * See {@link https://material.angular.dev/components/paginator/api#PageEvent|MatPaginator PageEvent}
 	 */
 	public emitMatPaginationEvent(): void {
 		const pageEvent: PageEvent = {

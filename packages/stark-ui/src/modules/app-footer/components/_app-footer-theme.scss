@@ -22,7 +22,7 @@
   $grey-palette: map.get($stark-theme-config, grey-palette);
 
   .stark-app-footer {
-    @include stark-app-footer-color(mat.get-color-from-palette($grey-palette, A100), mat.get-color-from-palette($grey-palette, 800));
+    @include stark-app-footer-color(mat.m2-get-color-from-palette($grey-palette, A100), mat.m2-get-color-from-palette($grey-palette, 800));
   }
 }
 

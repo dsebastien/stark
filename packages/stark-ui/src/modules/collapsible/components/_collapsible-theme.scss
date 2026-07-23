@@ -41,18 +41,18 @@
   $grey-palette: map.get($stark-theme-config, grey-palette);
 
   .stark-collapsible {
-    @include stark-collapsible-color(mat.get-color-from-palette($grey-palette, A100), mat.get-color-from-palette($grey-palette, 900));
+    @include stark-collapsible-color(mat.m2-get-color-from-palette($grey-palette, A100), mat.m2-get-color-from-palette($grey-palette, 900));
 
     .mat-expansion-panel-header-description {
-      color: mat.get-color-from-palette($primary-palette, 900);
+      color: mat.m2-get-color-from-palette($primary-palette, 900);
     }
 
     .mat-expansion-panel-header-title {
-      color: mat.get-color-from-palette($primary-palette, 500);
+      color: mat.m2-get-color-from-palette($primary-palette, 500);
     }
 
     .stark-collapsible-icon {
-      color: mat.get-color-from-palette($primary-palette, 500);
+      color: mat.m2-get-color-from-palette($primary-palette, 500);
     }
   }
 }

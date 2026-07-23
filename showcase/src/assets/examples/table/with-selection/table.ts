@@ -10,6 +10,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-selection",
 	templateUrl: "./table-with-selection.component.html"
 })

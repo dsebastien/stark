@@ -1,6 +1,6 @@
-<form fxLayout="row wrap" [formGroup]="searchForm">
+<form class="showcase-layout-form-grid" [formGroup]="searchForm">
 	<!-- Year -->
-	<div fxFlex>
+	<div>
 		<mat-form-field>
 			<input type="text" placeholder="Year" matInput formControlName="year" [matAutocomplete]="yearAutocomplete" />
 		</mat-form-field>
@@ -9,7 +9,7 @@
 		</mat-autocomplete>
 	</div>
 	<!-- Hero -->
-	<div fxFlex>
+	<div>
 		<mat-form-field>
 			<input type="text" placeholder="Hero" matInput formControlName="hero" [matAutocomplete]="heroAutocomplete" />
 		</mat-form-field>
@@ -19,7 +19,7 @@
 	</div>
 
 	<!-- Hero -->
-	<div fxFlex>
+	<div>
 		<mat-form-field>
 			<input type="text" placeholder="Movie" matInput formControlName="movie" [matAutocomplete]="movieAutocomplete" />
 		</mat-form-field>

@@ -1,5 +1,9 @@
+import { CommonModule } from "@angular/common";
 import { ChangeDetectionStrategy, Component, Inject, Input, OnInit, ViewEncapsulation } from "@angular/core";
+import { MatButtonModule } from "@angular/material/button";
+import { TranslateModule } from "@ngx-translate/core";
 import { RawParams } from "@uirouter/core";
+import { Observable } from "rxjs";
 import { delay, take } from "rxjs/operators";
 
 import {
@@ -13,6 +17,7 @@ import {
 	StarkUser,
 	StarkUserService
 } from "@nationalbankbelgium/stark-core";
+import { StarkSessionCardComponent } from "../../components/session-card/session-card.component";
 
 /**
  * @ignore
@@ -26,10 +31,12 @@ const componentName = "stark-preloading-page";
  * It will redirect to the target page (via the {@link StarkRoutingService}) as soon as the user profile is loaded and logged in.
  */
 @Component({
+	standalone: true,
 	selector: "stark-preloading-page",
 	templateUrl: "./preloading-page.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatButtonModule, TranslateModule, StarkSessionCardComponent],
 	host: {
 		class: componentName
 	}
@@ -80,10 +87,18 @@ export class StarkPreloadingPageComponent implements OnInit {
 	 * Component lifecycle hook
 	 */
 	public ngOnInit(): void {
+		const fetchedUserProfile$: Observable<StarkUser> | undefined = this.userService.fetchUserProfile();
+
+		if (!fetchedUserProfile$) {
+			this.logger.error(componentName + ": fetchUserProfile() did not return an observable");
+			this.correlationId = this.logger.correlationId;
+			this.userFetchingFailed = true;
+			return;
+		}
+
 		// the result is delayed for some milliseconds,
 		// otherwise the page will show an ugly flickering (if the profile is fetched immediately)
-		this.userService
-			.fetchUserProfile()
+		fetchedUserProfile$
 			.pipe(
 				take(1), // this ensures that the observable will be automatically unsubscribed after emitting the value
 				delay(this.loginDelay)

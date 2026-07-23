@@ -1,3 +1,13 @@
+.menu-demo-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.menu-demo-menu {
+  flex: 0 0 250px;
+  max-width: 250px;
+}
+
 .stark-app-menu {
   border: 1px solid #ddd;
 }

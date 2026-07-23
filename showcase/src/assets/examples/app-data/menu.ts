@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from "@angular/core";
+import { ChangeDetectorRef, Component, Inject, NgZone, OnInit } from "@angular/core";
 import {
 	STARK_APP_METADATA,
 	STARK_USER_SERVICE,
@@ -10,6 +10,7 @@ import * as moment from "moment";
 import { filter } from "rxjs/operators";
 
 @Component({
+	standalone: false,
 	selector: "demo-app-data",
 	templateUrl: "./demo-app-data.component.html"
 })
@@ -19,7 +20,9 @@ export class DemoAppDataComponent implements OnInit {
 
 	public constructor(
 		@Inject(STARK_USER_SERVICE) public userService: StarkUserService,
-		@Inject(STARK_APP_METADATA) public appMetadata: StarkApplicationMetadata
+		@Inject(STARK_APP_METADATA) public appMetadata: StarkApplicationMetadata,
+		private cdRef: ChangeDetectorRef,
+		private ngZone: NgZone
 	) {}
 
 	public ngOnInit(): void {
@@ -27,7 +30,10 @@ export class DemoAppDataComponent implements OnInit {
 			.fetchUserProfile()
 			.pipe(filter<StarkUser | undefined, StarkUser>((user?: StarkUser): user is StarkUser => typeof user !== "undefined"))
 			.subscribe((user: StarkUser) => {
-				this.user = user;
+				this.ngZone.run(() => {
+					this.user = user;
+					this.cdRef.markForCheck();
+				});
 			});
 	}
 }

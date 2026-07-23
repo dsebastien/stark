@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/filename-case */
+/// <reference path="./src/custom-typings.d.ts" />
 /**
  * Entry point for all public APIs of this package.
  */

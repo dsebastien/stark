@@ -10,7 +10,7 @@ import { STARK_APP_SIDEBAR_SERVICE, StarkAppSidebarService, StarkMenuConfig } fr
  * Top Level Component
  */
 @Component({
-	// eslint-disable-next-line @angular-eslint/component-selector
+	standalone: false,
 	selector: "app",
 	templateUrl: "./app.component.html"
 })

@@ -29,11 +29,11 @@
     }
 
     .search-field {
-      .mat-form-field-label {
+      .mat-mdc-floating-label {
         font-size: 15px;
       }
 
-      .mat-form-field-wrapper {
+      .mat-mdc-text-field-wrapper {
         margin-left: 5px;
         margin-right: 5px;
         width: 210px;
@@ -41,22 +41,27 @@
         height: 40px;
         padding-bottom: 0;
 
-        .mat-form-field-label {
+        .mat-mdc-floating-label {
           line-height: 19px;
         }
       }
 
-      .mat-input-element {
+      .mat-mdc-input-element {
         width: 200px;
       }
 
-      .mat-form-field-infix {
+      .mat-mdc-form-field-infix {
         border: 0;
+        min-height: 40px;
         text-indent: 5px;
         margin-top: 4px;
       }
 
-      .mat-form-field-underline {
+      .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      .mdc-line-ripple {
         display: none;
       }
     }
@@ -64,7 +69,7 @@
 
   @media #{$mobile-only-query} {
     .search-field {
-      .mat-form-field-wrapper {
+      .mat-mdc-text-field-wrapper {
         margin-left: 5px;
         margin-right: 5px;
         width: 140px;
@@ -73,21 +78,26 @@
         padding-bottom: 0;
       }
 
-      .mat-form-field-label {
+      .mat-mdc-floating-label {
         font-size: 15px;
       }
 
-      .mat-input-element {
+      .mat-mdc-input-element {
         width: 130px;
       }
 
-      .mat-form-field-infix {
+      .mat-mdc-form-field-infix {
         border: 0;
+        min-height: 40px;
         text-indent: 5px;
         margin-top: 4px;
       }
 
-      .mat-form-field-underline {
+      .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      .mdc-line-ripple {
         display: none;
       }
     }

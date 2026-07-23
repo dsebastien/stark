@@ -1,6 +1,7 @@
 import { Component } from "@angular/core";
 
 @Component({
+	standalone: false,
 	selector: "demo-collapsible",
 	templateUrl: "./demo-collapsible.component.html"
 })

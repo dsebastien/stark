@@ -1,7 +1,7 @@
 import { NgModule } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
+import { MatTooltipModule } from "@angular/material/tooltip";
+import { MatButtonModule } from "@angular/material/button";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { StarkLocale } from "@nationalbankbelgium/stark-core";
 import { StarkAppLogoutComponent } from "./components";
@@ -11,9 +11,9 @@ import { translationsNl } from "./assets/translations/nl";
 import { mergeUiTranslations } from "@nationalbankbelgium/stark-ui/src/common";
 
 @NgModule({
-	declarations: [StarkAppLogoutComponent],
+	declarations: [],
 	exports: [StarkAppLogoutComponent],
-	imports: [MatIconModule, TranslateModule, MatTooltipModule, MatButtonModule]
+	imports: [MatIconModule, TranslateModule, MatTooltipModule, MatButtonModule, StarkAppLogoutComponent]
 })
 export class StarkAppLogoutModule {
 	/**

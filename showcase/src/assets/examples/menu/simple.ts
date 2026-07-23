@@ -2,6 +2,7 @@ import { Component, OnInit } from "@angular/core";
 import { StarkMenuConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-menu",
 	templateUrl: "./demo-menu.component.html"
 })

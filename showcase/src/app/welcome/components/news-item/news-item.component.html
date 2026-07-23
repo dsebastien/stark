@@ -1,7 +1,7 @@
 <div class="section-border">
 	<ng-content class="image" select=".news-image"></ng-content>
 	<div class="news-item-container">
-		<ng-content class="mat-display-2" select=".news-item-title"></ng-content>
+		<ng-content select=".news-item-title"></ng-content>
 		<div class="mat-body-2 information">Release: {{ release }} ({{ newsDate }})</div>
 		<ng-content select=".news-item-content"></ng-content>
 	</div>

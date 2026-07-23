@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-table",
 	templateUrl: "./demo-table-page.component.html"
 })

@@ -5,6 +5,7 @@ import { ReferenceLink } from "../../../shared/components";
 type PaginationConfigType = "simple" | "extended" | "advanced" | "compact";
 
 @Component({
+	standalone: false,
 	selector: "demo-pagination",
 	templateUrl: "./demo-pagination-page.component.html"
 })

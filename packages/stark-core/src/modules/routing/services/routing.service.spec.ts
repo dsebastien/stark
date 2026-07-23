@@ -18,7 +18,7 @@ import {
 } from "@uirouter/angular";
 // FIXME Adapt switchMap code --> See: https://github.com/ReactiveX/rxjs/blob/6.x/docs_app/content/guide/v6/migration.md#howto-result-selector-migration
 import { catchError, defaultIfEmpty, switchMap, tap } from "rxjs/operators";
-import { Observable, of, throwError } from "rxjs";
+import { firstValueFrom, Observable, of, throwError } from "rxjs";
 import { Store } from "@ngrx/store";
 import {
 	MockStarkLoggingService,
@@ -892,7 +892,7 @@ describe("Service: StarkRoutingService", () => {
 		});
 
 		itWithDone("should navigate to a non-existing page", (done: DoneFn) => {
-			vi.spyOn($state, "go").mockReturnValue(<TransitionPromise>(<unknown>throwError(() => "uh-oh").toPromise()));
+			vi.spyOn($state, "go").mockReturnValue(<TransitionPromise>(<unknown>firstValueFrom(throwError(() => "uh-oh"))));
 
 			routingService
 				.navigateTo("whatever")
@@ -1111,7 +1111,7 @@ describe("Service: StarkRoutingService", () => {
 		});
 
 		itWithDone("should reload the current page", (done: DoneFn) => {
-			vi.spyOn($state, "reload").mockReturnValue(<any>throwError(() => "Reload has failed").toPromise());
+			vi.spyOn($state, "reload").mockReturnValue(<TransitionPromise>(<unknown>firstValueFrom(throwError(() => "Reload has failed"))));
 
 			const statesConfig: StateDeclaration[] = $state.get();
 			expect(statesConfig.length).toBe(numberOfMockStates);

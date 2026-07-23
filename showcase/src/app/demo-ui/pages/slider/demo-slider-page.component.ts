@@ -8,6 +8,7 @@ export enum SLIDER_HANDLES {
 }
 
 @Component({
+	standalone: false,
 	selector: "demo-slider",
 	templateUrl: "./demo-slider-page.component.html",
 	styleUrls: ["./demo-slider-page.component.scss"]

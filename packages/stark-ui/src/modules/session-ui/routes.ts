@@ -29,9 +29,9 @@ export function destroyOverlaysOnEnterFn(transition: Transition): HookResult {
 		const overlayContainer = transition.injector().getNative<OverlayContainer>(OverlayContainer);
 		// destroy the container by calling its own "ngOnDestroy" method
 		// see https://github.com/angular/components/pull/5378/files
-		/* eslint-disable-next-line @angular-eslint/no-lifecycle-call */
+
 		overlayContainer.ngOnDestroy();
-	} catch (err) {
+	} catch {
 		// the OverlayContainer could not be injected, do nothing
 	}
 

@@ -21,7 +21,6 @@ import { StarkPrettyPrintFormat } from "../types";
  */
 const componentName = "stark-pretty-print";
 
-/* eslint-disable jsdoc/check-alignment,jsdoc/check-indentation */
 /**
  * Component to format and highlight code like HTML, CSS, Typescript...
  * Can be used to display code examples
@@ -38,8 +37,8 @@ const componentName = "stark-pretty-print";
  *   - {@link https://github.com/PrismJS/prism/tree/master/themes|PrismJS theme files}
  */
 
-/* eslint-enable jsdoc/check-alignment, jsdoc/check-indentation */
 @Component({
+	standalone: false,
 	selector: "stark-pretty-print",
 	templateUrl: "./pretty-print.component.html",
 	encapsulation: ViewEncapsulation.None,

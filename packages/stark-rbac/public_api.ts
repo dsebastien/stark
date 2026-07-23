@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/filename-case */
 /**
  * Entry point for all public APIs of this package.
  */

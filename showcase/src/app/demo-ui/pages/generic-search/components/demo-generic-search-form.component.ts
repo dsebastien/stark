@@ -10,6 +10,7 @@ import isEqual from "lodash-es/isEqual";
 const componentName = "demo-generic-search-form";
 
 @Component({
+	standalone: false,
 	selector: "demo-generic-search-form",
 	templateUrl: "./demo-generic-search-form.component.html"
 })

@@ -9,6 +9,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-transcluded-action-bar",
 	templateUrl: "./table-with-transcluded-action-bar.component.html",
 	styleUrls: ["./table-with-transcluded-action-bar.scss"]

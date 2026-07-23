@@ -20,7 +20,7 @@
       .page-numbers {
         &.active {
           a {
-            color: mat.get-color-from-palette(map.get($material-theme-config, primary));
+            color: mat.m2-get-color-from-palette(map.get($material-theme-config, primary));
             opacity: 1;
           }
         }

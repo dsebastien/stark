@@ -7,60 +7,61 @@
 @use "@angular/material" as mat;
 
 @mixin stark-dropdown-color($color) {
-  .mat-form-field-label {
+  .mat-mdc-floating-label,
+  &.mat-mdc-form-field.mat-focused .mat-mdc-floating-label {
     color: rgba($color: $color, $alpha: 0.87);
   }
 
   // arrow color change
-  .mat-select-arrow,
-  .mat-form-field.mat-focused .mat-select-arrow {
+  .mat-mdc-select-arrow,
+  &.mat-mdc-form-field.mat-focused .mat-mdc-select-arrow {
     color: rgba($color: $color, $alpha: 0.87);
   }
 
-  // arrow color change
-  .mat-select-value {
+  // selected value color change
+  .mat-mdc-select-value {
     color: rgba($color: $color, $alpha: 0.87);
   }
 
   // underline color change (normal and focus)
-  .mat-form-field-underline,
-  .mat-form-field.mat-focused .mat-form-field-ripple {
-    background-color: rgba($color: $color, $alpha: 0.87);
+  .mdc-line-ripple::before,
+  &.mat-mdc-form-field.mat-focused .mdc-line-ripple::after {
+    border-bottom-color: rgba($color: $color, $alpha: 0.87);
   }
 }
 
 @mixin stark-dropdown-theme($material-theme-config, $stark-theme-config) {
   .stark-dropdown-mat-form-field {
     &.stark-primary {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($material-theme-config, primary), 900));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($material-theme-config, primary), 900));
     }
 
     &.stark-accent {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($material-theme-config, accent), 900));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($material-theme-config, accent), 900));
     }
 
     &.stark-warn {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($material-theme-config, warn), 900));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($material-theme-config, warn), 900));
     }
 
     &.stark-white {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), A100));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), A100));
     }
 
     &.stark-success {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($stark-theme-config, success-palette), 900));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($stark-theme-config, success-palette), 900));
     }
 
     &.stark-alert {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($stark-theme-config, alert-palette), 900));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($stark-theme-config, alert-palette), 900));
     }
 
     &.stark-alt {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), 900));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), 900));
     }
 
     &.stark-neutral {
-      @include stark-dropdown-color(mat.get-color-from-palette(map.get($stark-theme-config, success-palette), 400));
+      @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($stark-theme-config, success-palette), 400));
     }
   }
 }

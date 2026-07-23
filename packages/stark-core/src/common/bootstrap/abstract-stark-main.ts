@@ -127,7 +127,7 @@ We need great software developers like you! https://jobs.nbb.be
 		} else {
 			console.log("Customizing configuration for development!");
 
-			// Ensure that we get detailed stack tracks during development (useful with node & Webpack)
+			// Ensure that development errors retain detailed stack traces.
 			// Reference: https://stackoverflow.com/questions/7697038/more-than-10-lines-in-a-node-js-stack-error
 			Error.stackTraceLimit = Infinity;
 			// Keep the dev-only zone plugin compatible with the ESM browser build.

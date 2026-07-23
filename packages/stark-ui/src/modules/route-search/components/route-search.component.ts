@@ -44,6 +44,7 @@ export type StarkRouteSearchDirection = "left" | "right";
  * - **STARK.ROUTE_SEARCH.PLACEHOLDER:** label shown in the placeholder of the search field
  */
 @Component({
+	standalone: false,
 	selector: "stark-route-search",
 	templateUrl: "./route-search.component.html",
 	encapsulation: ViewEncapsulation.None,
@@ -251,7 +252,7 @@ export class StarkRouteSearchComponent extends AbstractStarkUiComponent implemen
 		const routesToDisplay: StarkRouteSearchEntry[] = [];
 		for (const state of this.routingService.getStatesConfig()) {
 			const ng2State: Ng2StateDeclaration = state;
-			// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
+
 			const regexInitExitStateName = new RegExp("(" + starkAppInitStateName + "|" + starkAppExitStateName + ")");
 			if (
 				ng2State.name !== undefined &&

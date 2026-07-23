@@ -33,11 +33,11 @@ export class StarkHttpDiscriminatorSerializer<T extends StarkResource> extends S
 	 * @param rawOrResource - the string or object which type we want to retrieve
 	 */
 	public override getType(rawOrResource: T | object | string): StarkSerializable | undefined {
-		let obj: object;
+		let obj: Record<string, unknown>;
 		if (typeof rawOrResource === "string") {
-			obj = JSON.parse(rawOrResource);
+			obj = <Record<string, unknown>>JSON.parse(rawOrResource);
 		} else {
-			obj = rawOrResource;
+			obj = <Record<string, unknown>>rawOrResource;
 		}
 
 		const discriminator: any = obj[this.discriminatorProperty];

@@ -1,2 +1,3 @@
-export { selectStarkLogging, starkLoggingReducers, StarkLoggingState } from "./reducers/index";
+export { selectStarkLogging, starkLoggingReducers } from "./reducers/index";
+export type { StarkLoggingState } from "./reducers/index";
 export { loggingReducer } from "./reducers/logging.reducer";

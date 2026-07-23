@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import {
 	ChangeDetectionStrategy,
 	ChangeDetectorRef,
@@ -10,6 +11,10 @@ import {
 	Renderer2,
 	SimpleChanges
 } from "@angular/core";
+import { MatButtonModule } from "@angular/material/button";
+import { MatIconModule } from "@angular/material/icon";
+import { MatTooltipModule } from "@angular/material/tooltip";
+import { TranslateModule } from "@ngx-translate/core";
 import { Observable, of, Subject } from "rxjs";
 import { delay, distinctUntilChanged, map, switchMap, take, tap } from "rxjs/operators";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
@@ -44,14 +49,16 @@ const DEFAULT_ALIGN: AlignTypes = "right";
 const componentName = "stark-message-pane";
 
 // FIXME: refactor the template of this component function to reduce its cyclomatic complexity
-/* eslint-disable @angular-eslint/template/cyclomatic-complexity */
+
 /**
  * Component to display messages in a single pane grouped by level: info, errors and warnings.
  */
 @Component({
+	standalone: true,
 	selector: "stark-message-pane",
 	templateUrl: "./message-pane.component.html",
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule, TranslateModule],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName

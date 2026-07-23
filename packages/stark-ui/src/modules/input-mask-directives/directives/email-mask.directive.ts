@@ -1,9 +1,8 @@
 import { Directive, ElementRef, forwardRef, Inject, Input, OnChanges, Optional, Provider, Renderer2, SimpleChanges } from "@angular/core";
 import { COMPOSITION_BUFFER_MODE, NG_VALUE_ACCESSOR } from "@angular/forms";
-import { CombinedPipeMask } from "text-mask-core";
-import { emailMask } from "text-mask-addons";
-import { MaskedInputDirective, TextMaskConfig as Ng2TextMaskConfig } from "angular2-text-mask";
 import { BooleanInput } from "@angular/cdk/coercion";
+import { AbstractStarkTextMaskDirective, StarkTextMaskRuntimeConfig } from "./abstract-text-mask.directive";
+import { starkEmailMask } from "./standard-mask-patterns";
 
 /**
  * @ignore
@@ -15,14 +14,13 @@ const directiveName = "[starkEmailMask]";
  */
 export const STARK_EMAIL_MASK_VALUE_ACCESSOR: Provider = {
 	provide: NG_VALUE_ACCESSOR,
-	// eslint-disable-next-line @angular-eslint/no-forward-ref
+
 	useExisting: forwardRef(() => StarkEmailMaskDirective),
 	multi: true
 };
 
 /**
- * Directive to display an email mask in input elements. This directive internally uses the {@link https://github.com/text-mask/text-mask/tree/master/core|text-mask-core} library
- * to provide the input mask functionality.
+ * Directive to display an email mask in input elements.
  *
  * **`IMPORTANT:`** Currently the Email Mask supports only input of type text, tel, url, password, and search.
  * Due to a limitation in browser API, other input types, such as email or number, cannot be supported.
@@ -45,17 +43,18 @@ export const STARK_EMAIL_MASK_VALUE_ACCESSOR: Provider = {
  *
  */
 @Directive({
+	standalone: false,
 	host: {
-		"(input)": "_handleInput($event.target.value)",
+		"(input)": "_handleInput($any($event.target).value)",
 		"(blur)": "onTouched()",
 		"(compositionstart)": "_compositionStart()",
-		"(compositionend)": "_compositionEnd($event.target.value)"
+		"(compositionend)": "_compositionEnd($any($event.target).value)"
 	},
 	selector: directiveName,
 	exportAs: "starkEmailMask",
 	providers: [STARK_EMAIL_MASK_VALUE_ACCESSOR]
 })
-export class StarkEmailMaskDirective extends MaskedInputDirective implements OnChanges {
+export class StarkEmailMaskDirective extends AbstractStarkTextMaskDirective implements OnChanges {
 	/**
 	 * Whether to display the email mask in the input field.
 	 */
@@ -63,6 +62,14 @@ export class StarkEmailMaskDirective extends MaskedInputDirective implements OnC
 	@Input("starkEmailMask")
 	public maskConfig = true; // enabled by default
 
+	/**
+	 * Latest user-entered value before masking is applied.
+	 */
+	private lastUnmaskedValue = "";
+
+	/**
+	 * Accepts template-side boolean coercion for the `starkEmailMask` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_maskConfig: BooleanInput;
 
@@ -85,16 +92,81 @@ export class StarkEmailMaskDirective extends MaskedInputDirective implements OnC
 	 * @param changes - Contains the changed properties
 	 */
 	public override ngOnChanges(changes: SimpleChanges): void {
+		const inputElement = this.getInputElement();
+		const previousDisplayedValue = inputElement?.value || "";
+		const currentUnmaskedValue = this.getCurrentUnmaskedValue(inputElement);
+
 		this.textMaskConfig = this.normalizeMaskConfig(this.maskConfig);
 
+		if (this.textMaskConfig.mask === false) {
+			this.clearMask();
+			if (inputElement) {
+				inputElement.value = currentUnmaskedValue;
+			}
+			this.lastUnmaskedValue = currentUnmaskedValue;
+			return;
+		}
+
 		super.ngOnChanges(changes);
+
+		if (changes["maskConfig"] && !changes["maskConfig"].isFirstChange()) {
+			const textMaskInputElement = this.textMaskInputElement;
+			if (textMaskInputElement) {
+				textMaskInputElement.update(currentUnmaskedValue);
+			}
+
+			const nextDisplayedValue = inputElement?.value || "";
+			if (inputElement && nextDisplayedValue !== previousDisplayedValue) {
+				this.onChange(nextDisplayedValue);
+			}
+		}
+
+		this.lastUnmaskedValue = currentUnmaskedValue;
 	}
 
 	/**
-	 * Create a valid configuration to be passed to the MaskedInputDirective
+	 * Writes the model value to the host input while preserving unmasked state when the directive is disabled.
+	 * @param value - The incoming Angular forms value.
+	 */
+	public override writeValue(value: any): void {
+		const normalizedValue = String(value ?? "");
+		this.lastUnmaskedValue = normalizedValue;
+
+		if (this.textMaskConfig.mask === false) {
+			const inputElement = this.getInputElement();
+			if (inputElement) {
+				inputElement.value = normalizedValue;
+			}
+			return;
+		}
+
+		super.writeValue(value);
+	}
+
+	/**
+	 * Tracks the latest typed value and forwards it through the mask pipeline when enabled.
+	 * @param value - The raw value emitted by the host input.
+	 */
+	public override _handleInput(value: string): void {
+		if (this.shouldBufferInput()) {
+			return;
+		}
+
+		if (this.textMaskConfig.mask === false) {
+			this.lastUnmaskedValue = value || "";
+			this.onChange(this.lastUnmaskedValue);
+			return;
+		}
+
+		this.lastUnmaskedValue = value || "";
+		super._handleInput(value);
+	}
+
+	/**
+	 * Create a normalized configuration for the Stark mask runtime.
 	 * @param maskConfig - The provided configuration via the directive's input
 	 */
-	public normalizeMaskConfig(maskConfig: boolean = true): Ng2TextMaskConfig {
+	public normalizeMaskConfig(maskConfig: boolean = true): StarkTextMaskRuntimeConfig {
 		// in case the directive is used without inputs: "<input type='text' starkEmailMask>" the maskConfig becomes an empty string ''
 		// therefore "undefined" or string values will also enable the mask
 		maskConfig = typeof maskConfig !== "boolean" ? true : maskConfig;
@@ -103,10 +175,16 @@ export class StarkEmailMaskDirective extends MaskedInputDirective implements OnC
 			return { mask: false }; // remove the mask
 		}
 
-		// TODO: Ng2TextMaskConfig is not the same as Core TextMaskConfig
-		// even though emailMask is passed as a mask, it is actually made of both a mask and a pipe bundled together for convenience
-		// https://github.com/text-mask/text-mask/tree/master/addons
-		const { mask, pipe }: CombinedPipeMask = emailMask;
-		return { mask: <any>mask, pipe: <any>pipe };
+		// Email validation needs both a dynamic mask and a pipe that rejects invalid domain transitions.
+		const { mask, pipe } = starkEmailMask;
+		return { mask: mask, pipe: pipe };
+	}
+
+	private getCurrentUnmaskedValue(inputElement?: HTMLInputElement): string {
+		if (this.textMaskConfig.mask === false) {
+			return inputElement?.value || this.lastUnmaskedValue;
+		}
+
+		return this.lastUnmaskedValue || inputElement?.value || "";
 	}
 }

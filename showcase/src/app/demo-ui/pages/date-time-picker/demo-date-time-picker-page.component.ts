@@ -9,6 +9,7 @@ const HOUR_IN_MILLISECONDS = 3600000;
 const DAY_IN_MILLISECONDS = 86400000;
 
 @Component({
+	standalone: false,
 	selector: "demo-date-time-picker",
 	templateUrl: "./demo-date-time-picker-page.html",
 	styleUrls: ["./demo-date-time-picker-page.component.scss"]

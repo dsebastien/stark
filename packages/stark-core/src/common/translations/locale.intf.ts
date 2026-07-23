@@ -1,3 +1,5 @@
+import { type TranslationObject } from "@ngx-translate/core";
+
 /**
  * Contains the translation for a specific language
  */
@@ -10,5 +12,5 @@ export interface StarkLocale {
 	/**
 	 * The actual translation of the text
 	 */
-	translations: Object;
+	translations: TranslationObject;
 }

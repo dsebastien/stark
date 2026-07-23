@@ -1,6 +1,7 @@
 import { Component } from "@angular/core";
 
 @Component({
+	standalone: false,
 	selector: "demo-header",
 	templateUrl: "./styleguide-header-page.component.html"
 })

@@ -4,6 +4,7 @@ import { ReferenceLink } from "../../../shared/components/reference-block";
 import { APP_MENU_CONFIG } from "../../../app-menu.config";
 
 @Component({
+	standalone: false,
 	selector: "demo-route-search-page",
 	templateUrl: "./demo-route-search-page.component.html"
 })

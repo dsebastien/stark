@@ -22,7 +22,7 @@ export function mergeUiTranslations(translateService: TranslateService, ...local
 	for (const locale of localesToMerge) {
 		allLocalesToMerge.push({
 			languageCode: locale.languageCode,
-			translations: merge({}, commonUiTranslations[locale.languageCode], locale.translations)
+			translations: merge({}, commonUiTranslations[locale.languageCode] ?? {}, locale.translations)
 		});
 	}
 

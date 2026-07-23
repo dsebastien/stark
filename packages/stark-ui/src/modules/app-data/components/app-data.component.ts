@@ -19,6 +19,7 @@ export type StarkAppDataComponentMode = "dropdown" | "menu";
  * - App version + Environment (PROD, DEV, etc...).
  */
 @Component({
+	standalone: false,
 	selector: "stark-app-data",
 	templateUrl: "./app-data.component.html",
 	encapsulation: ViewEncapsulation.None,

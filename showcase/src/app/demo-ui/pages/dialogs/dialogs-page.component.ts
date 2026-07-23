@@ -1,5 +1,5 @@
 import { Component, Inject } from "@angular/core";
-import { MatLegacyDialog as MatDialog } from "@angular/material/legacy-dialog";
+import { MatDialog } from "@angular/material/dialog";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import {
 	StarkAlertDialogComponent,
@@ -15,6 +15,7 @@ import {
 import { ReferenceLink } from "../../../shared/components/reference-block";
 
 @Component({
+	standalone: false,
 	selector: "demo-dialogs",
 	templateUrl: "./dialogs-page.component.html",
 	styleUrls: ["./dialogs-page.component.scss"]

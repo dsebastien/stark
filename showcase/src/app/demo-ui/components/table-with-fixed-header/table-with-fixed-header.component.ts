@@ -17,6 +17,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-fixed-header",
 	templateUrl: "./table-with-fixed-header.component.html"
 })

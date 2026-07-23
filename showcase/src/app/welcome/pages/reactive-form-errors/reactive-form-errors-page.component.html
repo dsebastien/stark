@@ -1,5 +1,5 @@
 <div class="container">
-	<h1 class="mat-display-1" translate>SHOWCASE.NGX_FORM_ERRORS.TITLE</h1>
+	<h1 class="mat-headline-4" translate>SHOWCASE.NGX_FORM_ERRORS.TITLE</h1>
 	<h1 translate>SHOWCASE.DEMO.SHARED.EXAMPLE_VIEWER_LIST</h1>
 	<section class="stark-section">
 		<example-viewer
@@ -9,8 +9,8 @@
 			[exampleTitle]="'SHOWCASE.NGX_FORM_ERRORS.EXAMPLE' | translate"
 		>
 			<form [formGroup]="formGroup" (ngSubmit)="onSubmitUserDetails(formGroup)">
-				<div fxLayout="column" fxLayoutAlign="space-between" fxLayoutGap="10px">
-					<app-card fxFlex="1 1 auto" class="form-card">
+				<div class="showcase-layout-stack showcase-layout-gap-10">
+					<app-card class="form-card">
 						<mat-card-content>
 							<mat-form-field class="full-width" [ngClass]="getErrorClass('username')">
 								<input
@@ -83,15 +83,8 @@
 						</mat-card-actions>
 					</app-card>
 
-					<div
-						*ngIf="showValidationDetails"
-						fxFlex="1 1 auto"
-						fxLayout="row"
-						fxLayoutAlign="space-between"
-						fxLayout.lt-md="column"
-						fxLayoutGap="10px"
-					>
-						<app-card class="form-field-info" color="accent" fxFlex="1 1 auto">
+					<div *ngIf="showValidationDetails" class="showcase-layout-details">
+						<app-card class="form-field-info" color="accent">
 							<mat-card-title translate>SHOWCASE.NGX_FORM_ERRORS.FIELDS.USER_NAME</mat-card-title>
 							<mat-card-content>
 								<div>
@@ -123,7 +116,7 @@
 							</mat-card-content>
 						</app-card>
 
-						<app-card class="form-field-info" color="accent" fxFlex="1 1 auto">
+						<app-card class="form-field-info" color="accent">
 							<mat-card-title translate>SHOWCASE.NGX_FORM_ERRORS.FIELDS.PASSWORD</mat-card-title>
 							<mat-card-content>
 								<div>
@@ -155,7 +148,7 @@
 							</mat-card-content>
 						</app-card>
 
-						<app-card class="form-field-info" color="accent" fxFlex="1 1 auto">
+						<app-card class="form-field-info" color="accent">
 							<mat-card-title translate>SHOWCASE.NGX_FORM_ERRORS.FIELDS.CONFIRM_PASSWORD</mat-card-title>
 							<mat-card-content>
 								<div>
@@ -190,7 +183,6 @@
 
 					<app-card
 						*ngIf="showValidationSummary"
-						fxFlex="1 1 auto"
 						class="validation-summary"
 						[color]="
 							!usernameField.hasErrors && !passwordField.hasErrors && !confirmPasswordField.hasErrors ? 'success' : 'warning'

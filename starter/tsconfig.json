@@ -3,6 +3,7 @@
   "compilerOptions": {
     "baseUrl": "./src",
     "outDir": "./dist",
+    "types": ["environment"],
     "typeRoots": [
       "./node_modules/@types",
       "./node_modules/@nationalbankbelgium/stark-build/typings",

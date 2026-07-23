@@ -3,6 +3,7 @@ import { STARK_APP_SIDEBAR_SERVICE, StarkAppSidebarService } from "@nationalbank
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-sidebar",
 	styleUrls: ["./demo-sidebar-page.component.scss"],
 	templateUrl: "./demo-sidebar-page.component.html"

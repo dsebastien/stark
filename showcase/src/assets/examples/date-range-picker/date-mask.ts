@@ -3,6 +3,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { StarkDateRangePickerEvent } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-date-range-picker",
 	templateUrl: "./demo-date-range-picker.component.html"
 })

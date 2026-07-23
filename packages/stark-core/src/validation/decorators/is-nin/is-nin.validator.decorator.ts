@@ -25,8 +25,9 @@ class StarkIsNINConstraint implements ValidatorConstraintInterface {
 	public validate(nin: string, validationArguments?: ValidationArguments): boolean {
 		const validator: StarkValidator = getFromContainer<StarkValidatorImpl>(StarkValidatorImpl);
 		const constraint: string = validationArguments && validationArguments.constraints[0] ? validationArguments.constraints[0] : "";
+		const validationTarget = <Record<string, string> | undefined>validationArguments?.object;
 
-		return validator.starkIsNIN(nin, validationArguments ? validationArguments.object[constraint] : "");
+		return validator.starkIsNIN(nin, validationTarget ? (validationTarget[constraint] ?? "") : "");
 	}
 
 	/**
@@ -42,11 +43,11 @@ class StarkIsNINConstraint implements ValidatorConstraintInterface {
  * @param property - The property to validate
  * @param validationOptions - The options that will define if the nin is valid
  */
-export function StarkIsNIN(property: string, validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkIsNIN(property: string, validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [property],
 			validator: StarkIsNINConstraint

@@ -1,14 +1,14 @@
 @use "sass:map";
 @use "@angular/material" as mat;
-@use "@angular/material/core/theming/palette" as mat-palette;
+@use "@angular/material/core/m2/palette" as mat-palette;
 
 @mixin stark-button-color($color, $contrast) {
-  &.mat-button,
-  &.mat-icon-button,
-  &.mat-stroked-button {
+  &.mat-mdc-button,
+  &.mat-mdc-icon-button,
+  &.mat-mdc-outlined-button {
     color: $color;
 
-    .mat-button-focus-overlay {
+    .mat-mdc-button-persistent-ripple::before {
       background-color: rgba($color: $color, $alpha: 0.12);
     }
 
@@ -16,10 +16,10 @@
       background-color: rgba($color: $color, $alpha: 0.1);
     }
   }
-  &.mat-flat-button,
-  &.mat-raised-button,
-  &.mat-fab,
-  &.mat-mini-fab {
+  &.mat-mdc-unelevated-button,
+  &.mat-mdc-raised-button,
+  &.mat-mdc-fab,
+  &.mat-mdc-mini-fab {
     color: $contrast;
     background-color: $color;
 
@@ -27,7 +27,7 @@
       background-color: rgba($color: $contrast, $alpha: 0.1);
     }
   }
-  &.mat-icon-button {
+  &.mat-mdc-icon-button {
     .mat-ripple-element {
       background-color: rgba($color: $color, $alpha: 0.2);
     }
@@ -42,24 +42,30 @@
   button {
     &.mat-success {
       @include stark-button-color(
-        mat.get-color-from-palette($success-palette, 500),
-        mat.get-contrast-color-from-palette($success-palette, 500)
+        mat.m2-get-color-from-palette($success-palette, 500),
+        mat.m2-get-contrast-color-from-palette($success-palette, 500)
       );
     }
 
     &.mat-alert {
       @include stark-button-color(
-        mat.get-color-from-palette($alert-palette, 500),
-        mat.get-contrast-color-from-palette($alert-palette, 500)
+        mat.m2-get-color-from-palette($alert-palette, 500),
+        mat.m2-get-contrast-color-from-palette($alert-palette, 500)
       );
     }
 
     &.mat-alt {
-      @include stark-button-color(mat.get-color-from-palette($grey-palette, 900), mat.get-contrast-color-from-palette($grey-palette, 900));
+      @include stark-button-color(
+        mat.m2-get-color-from-palette($grey-palette, 900),
+        mat.m2-get-contrast-color-from-palette($grey-palette, 900)
+      );
     }
 
     &.mat-neutral {
-      @include stark-button-color(mat.get-color-from-palette($grey-palette, 400), mat.get-contrast-color-from-palette($grey-palette, 400));
+      @include stark-button-color(
+        mat.m2-get-color-from-palette($grey-palette, 400),
+        mat.m2-get-contrast-color-from-palette($grey-palette, 400)
+      );
     }
 
     &.mat-white {

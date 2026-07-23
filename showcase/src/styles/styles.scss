@@ -12,3 +12,81 @@ IMPORTANT: Stark styles are provided as SCSS styles so they should be imported i
 @use "../app/demo-ui/pages/message-pane/demo-message-pane-page.component";
 @use "../app/demo-ui/components/table-regular/table-regular.component";
 @use "../app/styleguide/pages/layout/styleguide-layout-page.component";
+
+.showcase-layout-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.showcase-layout-gap-10 {
+  gap: 10px;
+}
+
+.showcase-layout-form-grid {
+  display: flex;
+  flex-flow: column;
+  align-items: stretch;
+  gap: 20px;
+
+  > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  > .showcase-flex-full {
+    flex-basis: 100%;
+  }
+}
+
+.showcase-layout-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  > * {
+    flex: 1 1 0;
+  }
+}
+
+.showcase-layout-demo-flex {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  > * {
+    flex: 1 1 0;
+  }
+}
+
+.showcase-layout-demo-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 960px) {
+  .showcase-layout-form-grid {
+    flex-flow: row wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .showcase-layout-details {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .showcase-layout-demo-flex {
+    flex-direction: row;
+  }
+
+  .showcase-layout-demo-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .showcase-layout-demo-flex > .accent {
+    flex-basis: 75%;
+  }
+}

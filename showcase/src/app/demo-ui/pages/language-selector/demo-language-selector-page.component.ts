@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-language-selector",
 	templateUrl: "./demo-language-selector-page.component.html"
 })

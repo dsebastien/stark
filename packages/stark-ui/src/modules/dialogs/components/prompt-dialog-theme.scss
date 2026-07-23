@@ -11,8 +11,13 @@
 
   .stark-prompt-dialog {
     .button-ok {
-      background-color: mat.get-color-from-palette($primary-palette, 500);
-      color: mat.get-contrast-color-from-palette($primary-palette, 500);
+      --mat-button-protected-container-color: #{mat.m2-get-color-from-palette($primary-palette, 500)};
+      --mat-button-protected-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary-palette, 500)};
+      --mat-button-protected-ripple-color: #{mat.m2-get-contrast-color-from-palette($primary-palette, 500)};
+      --mat-button-protected-state-layer-color: #{mat.m2-get-contrast-color-from-palette($primary-palette, 500)};
+
+      background-color: mat.m2-get-color-from-palette($primary-palette, 500);
+      color: mat.m2-get-contrast-color-from-palette($primary-palette, 500);
     }
   }
 }

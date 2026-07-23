@@ -21,7 +21,7 @@ import { MatDatepicker, MatDatepickerInput, MatDatepickerInputEvent } from "@ang
 import moment from "moment";
 import { AbstractControl, ControlValueAccessor, NG_VALIDATORS, NgControl, ValidationErrors, Validator } from "@angular/forms";
 import { MAT_DATE_FORMATS, MatDateFormats } from "@angular/material/core";
-import { MatLegacyFormFieldControl as MatFormFieldControl } from "@angular/material/legacy-form-field";
+import { MatFormFieldControl } from "@angular/material/form-field";
 import { FocusMonitor, FocusOrigin } from "@angular/cdk/a11y";
 import { BooleanInput, coerceBooleanProperty } from "@angular/cdk/coercion";
 import { TranslateService } from "@ngx-translate/core";
@@ -61,13 +61,13 @@ const componentName = "stark-date-picker";
  * Component to display the stark date-picker
  */
 @Component({
+	standalone: false,
 	selector: "stark-date-picker",
 	templateUrl: "./date-picker.component.html",
 	encapsulation: ViewEncapsulation.None,
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
-		// The `mat-form-field-flex` class is necessary to apply `mat-form-field` styles on this date-picker component.
-		class: componentName + " mat-form-field-flex"
+		class: componentName
 	},
 	providers: [
 		{
@@ -77,7 +77,7 @@ const componentName = "stark-date-picker";
 		},
 		{
 			// This implementation has been made thanks to the official documentation.
-			// See: https://v7.material.angular.io/guide/creating-a-custom-form-field-control
+			// See: https://material.angular.dev/guide/creating-a-custom-form-field-control
 			provide: MatFormFieldControl,
 			useExisting: StarkDatePickerComponent
 		}
@@ -126,6 +126,9 @@ export class StarkDatePickerComponent
 		return this._dateFilter;
 	}
 
+	/**
+	 * Normalizes symbolic date-filter aliases to executable predicates.
+	 */
 	public set dateFilter(value: StarkDatePickerFilter | undefined) {
 		this._dateFilter = value;
 		if (this._dateFilter === "OnlyWeekends") {
@@ -184,6 +187,9 @@ export class StarkDatePickerComponent
 		}
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `dateMask` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_dateMask: BooleanInput | StarkDatePickerMaskConfig;
 
@@ -195,10 +201,17 @@ export class StarkDatePickerComponent
 		return this._disabled;
 	}
 
+	/**
+	 * Enables or disables the date picker and its backing input.
+	 */
 	public set disabled(value: boolean) {
 		this._disabled = coerceBooleanProperty(value);
+		this.syncPickerInputState();
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `disabled` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_disabled: BooleanInput;
 
@@ -225,10 +238,16 @@ export class StarkDatePickerComponent
 		}
 	}
 
+	/**
+	 * Returns the normalized maximum date constraint.
+	 */
 	public get max(): moment.Moment | null {
 		return this._max;
 	}
 
+	/**
+	 * Accepts `Date`-compatible template input for the `max` constraint.
+	 */
 	// Information about input setter coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_max: StarkDateInput;
 
@@ -256,10 +275,16 @@ export class StarkDatePickerComponent
 		}
 	}
 
+	/**
+	 * Returns the normalized minimum date constraint.
+	 */
 	public get min(): moment.Moment | null {
 		return this._min;
 	}
 
+	/**
+	 * Accepts `Date`-compatible template input for the `min` constraint.
+	 */
 	// Information about input setter coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_min: StarkDateInput;
 
@@ -295,6 +320,9 @@ export class StarkDatePickerComponent
 		this.stateChanges.next();
 	}
 
+	/**
+	 * Returns the translated placeholder currently rendered by the component.
+	 */
 	public get placeholder(): string {
 		return this._placeholder;
 	}
@@ -314,10 +342,16 @@ export class StarkDatePickerComponent
 		return this._required;
 	}
 
+	/**
+	 * Updates the required state of the date picker.
+	 */
 	public set required(value: boolean) {
 		this._required = coerceBooleanProperty(value);
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `required` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_required: BooleanInput;
 
@@ -335,9 +369,13 @@ export class StarkDatePickerComponent
 		return this._value;
 	}
 
+	/**
+	 * Updates the selected date value and refreshes the Material form-field state.
+	 */
 	public set value(value: Date | null) {
 		if (!isEqual(this._value, value)) {
 			this._value = value;
+			this.syncPickerInputState();
 			this.stateChanges.next();
 		}
 	}
@@ -406,6 +444,13 @@ export class StarkDatePickerComponent
 	 * @internal
 	 */
 	public focused = false;
+
+	/**
+	 * Part of {@link MatFormFieldControl} API
+	 * @ignore
+	 * @internal
+	 */
+	public controlType = componentName;
 
 	/**
 	 * @ignore
@@ -523,6 +568,8 @@ export class StarkDatePickerComponent
 	 * Component lifecycle hook
 	 */
 	public ngAfterViewInit(): void {
+		this.syncPickerInputState();
+
 		const markPickerInputAsTouched = (): void => {
 			this.pickerInputTouched = true;
 			this.stateChanges.next();
@@ -630,6 +677,21 @@ export class StarkDatePickerComponent
 	 */
 	public writeValue(obj: any): void {
 		this.value = obj;
+	}
+
+	/**
+	 * Keep the underlying Material datepicker input synchronized when Angular
+	 * forms updates the control value or disabled state outside the template
+	 * binding cycle.
+	 */
+	private syncPickerInputState(): void {
+		if (!this.pickerInput) {
+			return;
+		}
+
+		this.pickerInput.disabled = this.disabled;
+		// eslint-disable-next-line no-null/no-null -- Angular Material datepicker inputs use `null` to clear the selected value.
+		this.pickerInput.value = this.value ? moment(this.value) : null;
 	}
 
 	/**

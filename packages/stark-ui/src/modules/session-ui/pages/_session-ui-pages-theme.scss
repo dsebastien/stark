@@ -5,6 +5,6 @@
 
 @mixin stark-session-ui-pages-theme($material-theme-config, $stark-theme-config) {
   .stark-session-ui-page header {
-    background-color: mat.get-color-from-palette(map.get($material-theme-config, primary), 900);
+    background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, primary), 900);
   }
 }

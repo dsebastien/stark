@@ -5,8 +5,51 @@
 
 @mixin stark-language-selector() {
   .stark-language-selector.stark-full-width {
-    .mat-form-field {
+    .mat-mdc-form-field {
       width: 100%;
+    }
+  }
+
+  .stark-language-selector.stark-white {
+    .stark-dropdown-mat-form-field.mat-mdc-form-field {
+      height: 40px;
+
+      .mat-mdc-text-field-wrapper {
+        height: 40px;
+        padding: 0 8px;
+        background-color: transparent;
+      }
+
+      .mat-mdc-form-field-flex {
+        height: 40px;
+        align-items: center;
+      }
+
+      .mat-mdc-form-field-infix {
+        display: flex;
+        align-items: center;
+        min-height: 40px;
+        width: auto;
+        padding: 0;
+      }
+
+      .mat-mdc-select-trigger {
+        height: 24px;
+      }
+
+      .mat-mdc-select-value,
+      .mat-mdc-select-arrow {
+        color: currentColor;
+      }
+
+      .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      .mdc-line-ripple::before,
+      .mdc-line-ripple::after {
+        border-bottom-color: currentColor;
+      }
     }
   }
 }

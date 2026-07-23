@@ -1,17 +1,25 @@
-import { StarkProgressIndicatorFullConfig } from "../entities";
 import { StarkProgressIndicatorActions } from "../actions";
+import { StarkProgressIndicatorConfig } from "../entities/progress-indicator-config.entity.intf";
+import { StarkProgressIndicatorType } from "../entities/progress-indicator-type.entity";
 import cloneDeep from "lodash-es/cloneDeep";
 import { createReducer, on } from "@ngrx/store";
+
+type ProgressIndicatorStateConfig = StarkProgressIndicatorConfig & {
+	visible?: boolean;
+	listenersCount?: number;
+	pendingListenersCount?: number;
+	type: StarkProgressIndicatorType;
+};
 
 /**
  * Initial state of the reducer
  */
-const INITIAL_PROGRESS_INDICATOR_STATE: Map<string, StarkProgressIndicatorFullConfig> = new Map<string, StarkProgressIndicatorFullConfig>();
+const INITIAL_PROGRESS_INDICATOR_STATE: Map<string, ProgressIndicatorStateConfig> = new Map<string, ProgressIndicatorStateConfig>();
 
 /**
  * Definition of the reducer using `createReducer` method.
  */
-const reducer = createReducer<Map<string, StarkProgressIndicatorFullConfig>, StarkProgressIndicatorActions.Types>(
+const reducer = createReducer<Map<string, ProgressIndicatorStateConfig>, StarkProgressIndicatorActions.Types>(
 	INITIAL_PROGRESS_INDICATOR_STATE,
 	// on(StarkProgressIndicatorActions.register || StarkProgressIndicatorActions.deregister || StarkProgressIndicatorActions.show || StarkProgressIndicatorActions.hide, (state) => cloneDeep(state)),
 	on(StarkProgressIndicatorActions.register, (_state, action) => {
@@ -20,7 +28,7 @@ const reducer = createReducer<Map<string, StarkProgressIndicatorFullConfig>, Sta
 		const topic = action.progressIndicatorConfig.topic;
 
 		if (state.has(topic)) {
-			const progressIndicatorConfig = cloneDeep(<StarkProgressIndicatorFullConfig>state.get(topic));
+			const progressIndicatorConfig = cloneDeep(<ProgressIndicatorStateConfig>state.get(topic));
 			progressIndicatorConfig.listenersCount = <number>progressIndicatorConfig.listenersCount + 1;
 			state = state.set(topic, progressIndicatorConfig);
 		} else {
@@ -35,7 +43,7 @@ const reducer = createReducer<Map<string, StarkProgressIndicatorFullConfig>, Sta
 		const topic = action.topic;
 
 		if (state.has(topic)) {
-			const progressIndicatorConfig = cloneDeep(<StarkProgressIndicatorFullConfig>state.get(topic));
+			const progressIndicatorConfig = cloneDeep(<ProgressIndicatorStateConfig>state.get(topic));
 			progressIndicatorConfig.listenersCount = <number>progressIndicatorConfig.listenersCount - 1;
 
 			if (progressIndicatorConfig.listenersCount === 0) {
@@ -53,7 +61,7 @@ const reducer = createReducer<Map<string, StarkProgressIndicatorFullConfig>, Sta
 		const topic = action.topic;
 
 		if (state.has(topic)) {
-			const progressIndicatorConfig = cloneDeep(<StarkProgressIndicatorFullConfig>state.get(topic));
+			const progressIndicatorConfig = cloneDeep(<ProgressIndicatorStateConfig>state.get(topic));
 			progressIndicatorConfig.visible = true;
 			progressIndicatorConfig.pendingListenersCount = <number>progressIndicatorConfig.pendingListenersCount + 1;
 			state = state.set(topic, progressIndicatorConfig);
@@ -67,7 +75,7 @@ const reducer = createReducer<Map<string, StarkProgressIndicatorFullConfig>, Sta
 		const topic = action.topic;
 
 		if (state.has(topic)) {
-			const progressIndicatorConfig = cloneDeep(<StarkProgressIndicatorFullConfig>state.get(topic));
+			const progressIndicatorConfig = cloneDeep(<ProgressIndicatorStateConfig>state.get(topic));
 
 			if (<number>progressIndicatorConfig.pendingListenersCount > 0) {
 				progressIndicatorConfig.pendingListenersCount = <number>progressIndicatorConfig.pendingListenersCount - 1;
@@ -86,13 +94,13 @@ const reducer = createReducer<Map<string, StarkProgressIndicatorFullConfig>, Sta
 
 /**
  * Reducer for the progress indicator
- * @param state - Map<string, StarkProgressIndicatorFullConfig> the actual state of the progress indicator
+ * @param state - Map<string, ProgressIndicatorStateConfig> the actual state of the progress indicator
  * @param action - StarkProgressIndicatorActions the action to perform
- * @returns Map<string, StarkProgressIndicatorFullConfig> the new state of the progress indicator
+ * @returns Map<string, ProgressIndicatorStateConfig> the new state of the progress indicator
  */
 export function progressIndicatorReducer(
-	state: Map<string, StarkProgressIndicatorFullConfig> | undefined,
+	state: Map<string, ProgressIndicatorStateConfig> | undefined,
 	action: StarkProgressIndicatorActions.Types
-): Map<string, StarkProgressIndicatorFullConfig> {
+): Map<string, ProgressIndicatorStateConfig> {
 	return reducer(state, action);
 }

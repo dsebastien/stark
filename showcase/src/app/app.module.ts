@@ -2,10 +2,10 @@ import { APP_INITIALIZER, Inject, NgModule } from "@angular/core";
 import { BrowserModule, DomSanitizer } from "@angular/platform-browser";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
 import { UIRouter, UIRouterModule } from "@uirouter/angular";
-import { ActionReducer, ActionReducerMap, MetaReducer, StoreModule } from "@ngrx/store";
+import { ActionReducerMap, StoreModule } from "@ngrx/store";
 import { StoreDevtoolsModule } from "@ngrx/store-devtools";
 import { EffectsModule } from "@ngrx/effects";
-import { storeLogger } from "ngrx-store-logger";
+import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from "@angular/material/form-field";
 import { MatIconRegistry } from "@angular/material/icon";
 import { DateAdapter } from "@angular/material/core";
 import { Observable, of } from "rxjs";
@@ -23,7 +23,6 @@ import {
 	StarkApplicationMetadataImpl,
 	StarkErrorHandlingModule,
 	StarkHttpModule,
-	StarkLoggingActions,
 	StarkLoggingModule,
 	StarkMockData,
 	starkPreloadingStateName,
@@ -75,6 +74,9 @@ import { getAuthenticationHeaders } from "./authentication.config";
  * Platform and Environment providers/directives/pipes
  */
 import { environment } from "../environments/environment";
+import appConfigJson from "../stark-app-config.json";
+import appMetadataJson from "../stark-app-metadata.json";
+import mockDataJson from "../../config/json-server/data.json";
 import { APP_STATES } from "./app.routes";
 // App is our top level component
 import { AppComponent } from "./app.component";
@@ -82,9 +84,7 @@ import { AppComponent } from "./app.component";
 // TODO: where to put this factory function?
 /* eslint-disable-next-line jsdoc/require-jsdoc */
 export function starkAppConfigFactory(): StarkApplicationConfig {
-	const config: any = require("../stark-app-config.json");
-
-	const applicationConfig: StarkApplicationConfig = Deserialize(config, StarkApplicationConfigImpl);
+	const applicationConfig: StarkApplicationConfig = Deserialize(appConfigJson, StarkApplicationConfigImpl);
 
 	applicationConfig.rootStateUrl = "/";
 	applicationConfig.rootStateName = "";
@@ -101,16 +101,14 @@ export function starkAppConfigFactory(): StarkApplicationConfig {
 // TODO: where to put this factory function?
 /* eslint-disable-next-line jsdoc/require-jsdoc */
 export function starkAppMetadataFactory(): StarkApplicationMetadata {
-	const metadata: any = require("../stark-app-metadata.json");
-
-	return Deserialize(metadata, StarkApplicationMetadataImpl);
+	return Deserialize(appMetadataJson, StarkApplicationMetadataImpl);
 }
 
 // TODO: where to put this factory function?
 /* eslint-disable-next-line jsdoc/require-jsdoc */
 export function starkMockDataFactory(): StarkMockData {
 	if (ENV === "development") {
-		return require("../../config/json-server/data.json");
+		return mockDataJson;
 	}
 
 	return {};
@@ -137,6 +135,7 @@ export function getXsrfWaitBeforePinging(sessionService: StarkSessionService): O
 }
 
 // Application Redux State
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty application reducer extension point.
 export interface State {
 	// reducer interfaces
 }
@@ -144,18 +143,6 @@ export interface State {
 export const reducers: ActionReducerMap<State> = {
 	// reducers
 };
-
-/* eslint-disable-next-line jsdoc/require-jsdoc */
-export function logger(reducer: ActionReducer<State>): any {
-	// default, no options
-	return storeLogger({
-		filter: {
-			blacklist: [StarkLoggingActions.logMessage.type]
-		}
-	})(reducer);
-}
-
-export const metaReducers: MetaReducer<State>[] = ENV === "development" ? [logger] : [];
 
 /**
  * `AppModule` is the main entry point into Angular's bootstrapping process
@@ -170,7 +157,6 @@ export const metaReducers: MetaReducer<State>[] = ENV === "development" ? [logge
 		BrowserModule,
 		BrowserAnimationsModule,
 		StoreModule.forRoot(reducers, {
-			metaReducers,
 			runtimeChecks: {
 				strictActionImmutability: true,
 				strictStateImmutability: true
@@ -233,6 +219,7 @@ export const metaReducers: MetaReducer<State>[] = ENV === "development" ? [logge
 	 */
 	providers: [
 		environment.ENV_PROVIDERS,
+		{ provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { subscriptSizing: "dynamic" } },
 		{ provide: STARK_APP_CONFIG, useFactory: starkAppConfigFactory },
 		{ provide: STARK_APP_METADATA, useFactory: starkAppMetadataFactory },
 		{ provide: STARK_MOCK_DATA, useFactory: starkMockDataFactory },

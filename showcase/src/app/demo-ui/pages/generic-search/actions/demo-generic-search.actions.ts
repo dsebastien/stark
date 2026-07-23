@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 import { HeroMovieSearchCriteria } from "../entities";
 import { demoGenericSearchStoreKey } from "../constants";
 
@@ -10,5 +10,8 @@ export const hasSearchedReset = createAction(`[${demoGenericSearchStoreKey}] Has
 /**
  * @ignore
  */
-const all = union({ setCriteria, removeCriteria, hasSearched, hasSearchedReset });
-export type Types = typeof all;
+export type Types =
+	| ReturnType<typeof setCriteria>
+	| ReturnType<typeof removeCriteria>
+	| ReturnType<typeof hasSearched>
+	| ReturnType<typeof hasSearchedReset>;

@@ -17,8 +17,8 @@ import {
 import { AbstractStarkUiComponent } from "@nationalbankbelgium/stark-ui/src/internal-common";
 import { BooleanInput, coerceBooleanProperty } from "@angular/cdk/coercion";
 import { UntypedFormControl } from "@angular/forms";
-import { LegacyMenuPositionY as MenuPositionY } from "@angular/material/legacy-menu";
-import { MatLegacyColumnDef as MatColumnDef } from "@angular/material/legacy-table";
+import { MenuPositionY } from "@angular/material/menu";
+import { MatColumnDef } from "@angular/material/table";
 import { distinctUntilChanged } from "rxjs/operators";
 import isEqual from "lodash-es/isEqual";
 import get from "lodash-es/get";
@@ -33,6 +33,7 @@ import {
  * Component to display a column inside the StarkTableComponent
  */
 @Component({
+	standalone: false,
 	selector: "stark-table-column",
 	templateUrl: "./column.component.html",
 	encapsulation: ViewEncapsulation.None,
@@ -308,7 +309,7 @@ export class StarkTableColumnComponent extends AbstractStarkUiComponent implemen
 	 * @param renderer - Angular `Renderer2` wrapper for DOM manipulations.
 	 * @param elementRef - Reference to the DOM element where this component is attached to.
 	 */
-	// eslint-disable-next-line no-useless-constructor
+
 	public constructor(renderer: Renderer2, elementRef: ElementRef) {
 		super(renderer, elementRef);
 	}

@@ -8,6 +8,7 @@ const componentName = "stark-reference-block";
  * Component to display a list of URLS to documentation
  */
 @Component({
+	standalone: false,
 	selector: "stark-reference-block",
 	templateUrl: "./reference-block.component.html"
 })

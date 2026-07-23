@@ -38,6 +38,16 @@
         width: 250px;
       }
 
+      & button.mat-mdc-icon-button {
+        --mdc-icon-button-state-layer-size: 40px;
+        --mat-icon-button-state-layer-size: 40px;
+        --mat-icon-button-touch-target-size: 40px;
+
+        width: 40px;
+        height: 40px;
+        padding: 8px;
+      }
+
       & svg {
         transition: transform 0.4s;
       }
@@ -55,7 +65,8 @@
   /* ------------------------------------------------ */
   /*              app data "detail" slot              */
   /* ------------------------------------------------ */
-  .stark-app-data.mat-menu-panel {
+  .stark-app-data.dropdown-detail,
+  .stark-app-data.menu-detail {
     & .stark-app-data-detail {
       padding: 2px 10px;
       line-height: 1.5;

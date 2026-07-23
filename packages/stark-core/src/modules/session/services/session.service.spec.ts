@@ -7,7 +7,7 @@ import { Store } from "@ngrx/store";
 import { TranslateService, type InterpolatableTranslationObject } from "@ngx-translate/core";
 import { HookMatchCriteria, Predicate, StateObject } from "@uirouter/core";
 
-import { defer, Observable, of, Subject, Subscriber, throwError } from "rxjs";
+import { defer, EMPTY, Observable, of, Subject, Subscriber, throwError } from "rxjs";
 import { take } from "rxjs/operators";
 
 import { StarkSessionActions } from "../actions";
@@ -26,7 +26,7 @@ import { StarkCoreApplicationState } from "../../../common/store";
 import { starkAppExitStateName, starkAppInitStateName, starkSessionExpiredStateName } from "../constants";
 import { vi } from "vitest";
 
-type SessionBeforeHookCallback = () => Promise<boolean>;
+type SessionBeforeHookCallback = () => Promise<boolean | undefined>;
 
 function isSessionBeforeHookCallback(callback: unknown): callback is SessionBeforeHookCallback {
 	return typeof callback === "function";
@@ -280,7 +280,7 @@ describe("Service: StarkSessionService", () => {
 
 			// trigger the onBefore hook callback
 			defer(() => onBeforeHookCallback()).subscribe(
-				(result: boolean) => {
+				(result: boolean | undefined) => {
 					expect(result).toBe(true);
 				},
 				() => {
@@ -307,6 +307,15 @@ describe("Service: StarkSessionService", () => {
 					expect(error.message).toBe(starkUnauthenticatedUserError);
 				}
 			);
+		});
+
+		it("should resolve undefined when the session stream completes without a value", async () => {
+			sessionService.session$ = EMPTY;
+			sessionService.registerTransitionHook();
+
+			const onBeforeHookCallback = getOnBeforeHookCallback(mockRoutingService);
+
+			await expect(onBeforeHookCallback()).resolves.toBeUndefined();
 		});
 	});
 

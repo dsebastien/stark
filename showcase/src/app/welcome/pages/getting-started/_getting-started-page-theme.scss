@@ -2,20 +2,20 @@
 @use "@nationalbankbelgium/stark-ui" as stark-ui;
 
 .file-structure-title {
-  color: mat.get-color-from-palette(stark-ui.$grey-palette, 900);
+  color: mat.m2-get-color-from-palette(stark-ui.$grey-palette, 900);
 }
 
 .custom-title {
-  color: mat.get-color-from-palette(stark-ui.$grey-palette, 900);
+  color: mat.m2-get-color-from-palette(stark-ui.$grey-palette, 900);
 }
 
 .custom-subtitle {
-  color: mat.get-color-from-palette(stark-ui.$grey-palette, 800);
+  color: mat.m2-get-color-from-palette(stark-ui.$grey-palette, 800);
 }
 
 .custom-code {
   font-family: monospace;
-  background-color: mat.get-color-from-palette(stark-ui.$grey-palette, 200);
+  background-color: mat.m2-get-color-from-palette(stark-ui.$grey-palette, 200);
 }
 
 .custom-section {
@@ -30,5 +30,5 @@
     border-radius: 0.3em;
   }
 
-  color: mat.get-color-from-palette(stark-ui.$grey-palette, 100);
+  color: mat.m2-get-color-from-palette(stark-ui.$grey-palette, 100);
 }

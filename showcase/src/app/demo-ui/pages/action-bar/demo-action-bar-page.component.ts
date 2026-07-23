@@ -4,6 +4,7 @@ import { StarkAction, StarkActionBarConfig } from "@nationalbankbelgium/stark-ui
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-action-bar",
 	templateUrl: "./demo-action-bar-page.component.html"
 })

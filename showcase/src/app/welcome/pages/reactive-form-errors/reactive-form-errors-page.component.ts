@@ -5,6 +5,7 @@ import { getConfirmPasswordValidator } from "./password-validator";
 import { ReferenceLink } from "../../../shared/components/reference-block";
 
 @Component({
+	standalone: false,
 	// eslint-disable-next-line @angular-eslint/component-selector
 	selector: "reactive-forms",
 	templateUrl: "./reactive-form-errors-page.component.html",

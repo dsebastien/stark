@@ -1,11 +1,10 @@
 import { Inject, Injectable } from "@angular/core";
-import { Actions, createEffect, ofType } from "@ngrx/effects";
+import { Actions, createEffect, CreateEffectMetadata, ofType } from "@ngrx/effects";
+import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
 import { StarkSettingsActions } from "../actions";
 import { STARK_SESSION_SERVICE, StarkSessionService } from "../../session/services";
-import { Observable } from "rxjs";
-import { CreateEffectMetadata } from "@ngrx/effects/src/models";
 
 /**
  * Effects definition to modify the session's settings.
@@ -14,12 +13,12 @@ import { CreateEffectMetadata } from "@ngrx/effects/src/models";
 export class StarkSettingsEffects {
 	/**
 	 * Class constructor
-	 * @param actions$ - The action to perform.
+	 * @param actions$ - The action stream.
 	 * @param sessionService - The `StarkSessionService` instance of the application.
 	 */
 	public constructor(
 		private actions$: Actions,
-		@Inject(STARK_SESSION_SERVICE) public sessionService: StarkSessionService
+		@Inject(STARK_SESSION_SERVICE) private sessionService: StarkSessionService
 	) {
 		this.setPreferredLanguage$ = createEffect(
 			() =>

@@ -403,6 +403,42 @@ describe("TextMaskDirective", () => {
 			}
 		});
 
+		it("should buffer IME input until composition ends", () => {
+			changeInputValue(inputElement, "", "compositionstart");
+			changeInputValue(inputElement, "123");
+			fixture.detectChanges();
+
+			expect((<HTMLInputElement>inputElement.nativeElement).value).toBe("123");
+			expect(hostComponent.formControl.value).toBe("");
+			expect(mockValueChangeObserver.next).not.toHaveBeenCalled();
+
+			changeInputValue(inputElement, "123", "compositionend");
+			fixture.detectChanges();
+
+			expect((<HTMLInputElement>inputElement.nativeElement).value).toBe("12/3_");
+			expect(hostComponent.formControl.value).toBe("12/3_");
+			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
+		});
+
+		it("should buffer IME input while the mask is disabled", () => {
+			updateMaskConfig({ mask: false });
+			mockValueChangeObserver.next.mockClear();
+
+			changeInputValue(inputElement, "", "compositionstart");
+			changeInputValue(inputElement, "自由");
+			fixture.detectChanges();
+
+			expect((<HTMLInputElement>inputElement.nativeElement).value).toBe("自由");
+			expect(hostComponent.formControl.value).toBe("");
+			expect(mockValueChangeObserver.next).not.toHaveBeenCalled();
+
+			changeInputValue(inputElement, "自由", "compositionend");
+			fixture.detectChanges();
+
+			expect(hostComponent.formControl.value).toBe("自由");
+			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
+		});
+
 		it("should refresh the mask whenever the configuration changes", () => {
 			changeInputValue(inputElement, "123");
 			fixture.detectChanges();

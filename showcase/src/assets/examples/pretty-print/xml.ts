@@ -1,6 +1,7 @@
 import { Component } from "@angular/core";
 
 @Component({
+	standalone: false,
 	selector: "demo-pretty-print",
 	templateUrl: "./demo-pretty-print.component.html",
 	styleUrls: ["./demo-pretty-print.component.scss"]

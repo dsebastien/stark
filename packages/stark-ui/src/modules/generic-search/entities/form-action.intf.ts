@@ -4,6 +4,7 @@ import { StarkActionBarButtonColor } from "@nationalbankbelgium/stark-ui/src/mod
  * Predefined colors for form buttons
  */
 export type StarkFormButtonColor = StarkActionBarButtonColor;
+export type StarkFormButtonClick = VoidFunction;
 
 /**
  * Base definition of a form button to be used in Stark
@@ -54,7 +55,7 @@ export interface StarkFormButton extends StarkFormButtonBase {
 	/**
 	 * Function to be fired when form button is clicked
 	 */
-	onClick: Function;
+	onClick: StarkFormButtonClick;
 
 	/**
 	 * Whether the form button will be visible or not
@@ -65,6 +66,7 @@ export interface StarkFormButton extends StarkFormButtonBase {
 /**
  * Definition of a form's default button to be used in an Stark generic form
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Preserve this public form-button variant interface.
 export interface StarkFormDefaultPredefinedButton extends StarkFormButtonBase {}
 
 /**

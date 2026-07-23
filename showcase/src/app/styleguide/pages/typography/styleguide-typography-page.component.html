@@ -1,4 +1,4 @@
-<h1 class="mat-display-3" translate>SHOWCASE.STYLEGUIDE.TYPOGRAPHY.TITLE</h1>
+<h1 class="mat-headline-2" translate>SHOWCASE.STYLEGUIDE.TYPOGRAPHY.TITLE</h1>
 
 <section class="stark-section">
 	<h1 translate>SHOWCASE.STYLEGUIDE.TYPOGRAPHY.MATERIAL_BASED.TITLE</h1>
@@ -19,7 +19,7 @@
 	<p class="mat-caption" translate [innerHTML]="'SHOWCASE.STYLEGUIDE.TYPOGRAPHY.FONT_FAMILY.IE_NOTE' | translate"></p>
 	<p class="mt3" [innerHTML]="'SHOWCASE.STYLEGUIDE.TYPOGRAPHY.FONT_FAMILY.CDN_FONT_EXPLAINED' | translate"></p>
 	<p>
-		<stark-pretty-print [data]="webpackExample" format="json" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="devServerHeadersExample" format="json" [enableHighlighting]="true"></stark-pretty-print>
 	</p>
 </section>
 
@@ -37,10 +37,10 @@
 		filesPath="typography/mat"
 		exampleTitle="Angular Material Typography"
 	>
-		<div class="mat-display-4">Mat-Display-4</div>
-		<div class="mat-display-3">Mat-Display-3</div>
-		<div class="mat-display-2">Mat-Display-2</div>
-		<div class="mat-display-1">Mat-Display-1</div>
+		<div class="mat-headline-1">Mat-Headline-1</div>
+		<div class="mat-headline-2">Mat-Headline-2</div>
+		<div class="mat-headline-3">Mat-Headline-3</div>
+		<div class="mat-headline-4">Mat-Headline-4</div>
 		<p class="mat-body-2">Mat-Body-2</p>
 		<p class="mat-caption">Mat-Caption</p>
 	</example-viewer>
@@ -55,47 +55,47 @@
 		<tbody>
 			<tr>
 				<th>SCSS map property</th>
-				<th>Class / Tag</th>
+				<th>Angular Material 22 class / tag</th>
 			</tr>
 			<tr>
 				<td>display-4</td>
-				<td><code>.mat-display-4</code></td>
+				<td><code>.mat-headline-1</code></td>
 			</tr>
 			<tr>
 				<td>display-3</td>
-				<td><code>.mat-display-3</code></td>
+				<td><code>.mat-headline-2</code></td>
 			</tr>
 			<tr>
 				<td>display-2</td>
-				<td><code>.mat-display-2</code></td>
+				<td><code>.mat-headline-3</code></td>
 			</tr>
 			<tr>
 				<td>display-1</td>
-				<td><code>.mat-display-1</code></td>
+				<td><code>.mat-headline-4</code></td>
 			</tr>
 			<tr>
 				<td>headline</td>
-				<td><code>h1</code></td>
+				<td><code>h1</code> / <code>.mat-headline-5</code></td>
 			</tr>
 			<tr>
 				<td>title</td>
-				<td><code>h2</code></td>
+				<td><code>h2</code> / <code>.mat-headline-6</code></td>
 			</tr>
 			<tr>
 				<td>subheading-2</td>
-				<td><code>h3</code></td>
+				<td><code>h3</code> / <code>.mat-subtitle-1</code></td>
 			</tr>
 			<tr>
 				<td>subheading-1</td>
-				<td><code>h4</code></td>
+				<td><code>h4</code> / <code>.mat-body-1</code></td>
 			</tr>
 			<tr>
 				<td>body-2</td>
-				<td><code>.mat-body-2</code></td>
+				<td><code>.mat-body-strong</code> / <code>.mat-subtitle-2</code></td>
 			</tr>
 			<tr>
 				<td>body-1</td>
-				<td><code>.mat-body-1</code></td>
+				<td><code>.mat-body</code> / <code>.mat-body-2</code></td>
 			</tr>
 			<tr>
 				<td>caption</td>

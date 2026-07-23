@@ -10,6 +10,7 @@ interface FileType {
 }
 
 @Component({
+	standalone: false,
 	selector: "demo-pretty-print",
 	templateUrl: "./demo-pretty-print-page.component.html",
 	styleUrls: ["./demo-pretty-print-page.component.scss"]

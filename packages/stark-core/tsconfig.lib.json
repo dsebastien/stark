@@ -8,5 +8,6 @@
   "compilerOptions": {
     "inlineSourceMap": true
   },
+  "include": ["public_api.ts", "src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }

@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { StarkMinimapItemProperties } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-minimap",
 	templateUrl: "./full.html"
 })

@@ -1,9 +1,13 @@
 import { Directive, ElementRef, forwardRef, Inject, Input, OnChanges, Optional, Provider, Renderer2, SimpleChanges } from "@angular/core";
 import { COMPOSITION_BUFFER_MODE, NG_VALUE_ACCESSOR } from "@angular/forms";
-import { MaskedInputDirective, TextMaskConfig as Ng2TextMaskConfig } from "angular2-text-mask";
-import { MaskArray } from "text-mask-core";
+import { AbstractStarkTextMaskDirective, StarkTextMaskRuntimeConfig } from "./abstract-text-mask.directive";
 import { StarkTimestampMaskConfig } from "./timestamp-mask-config.intf";
 import { createTimestampPipe } from "./timestamp-pipe.fn";
+
+/**
+ * The tokenized mask representation used by the Stark mask runtime.
+ */
+type MaskArray = Array<string | RegExp>;
 
 /**
  * @ignore
@@ -20,14 +24,13 @@ const DEFAULT_DATE_TIME_FORMAT = "DD-MM-YYYY HH:mm:ss";
  */
 export const STARK_TIMESTAMP_MASK_VALUE_ACCESSOR: Provider = {
 	provide: NG_VALUE_ACCESSOR,
-	// eslint-disable-next-line @angular-eslint/no-forward-ref
+
 	useExisting: forwardRef(() => StarkTimestampMaskDirective),
 	multi: true
 };
 
 /**
- * Directive to display a timestamp mask in input elements. This directive internally uses the {@link https://github.com/text-mask/text-mask/tree/master/core|text-mask-core} library
- * to provide the input mask functionality.
+ * Directive to display a timestamp mask in input elements.
  *
  * **`IMPORTANT:`** Currently the Number Mask supports only input of type text, tel, url, password, and search.
  * Due to a limitation in browser API, other input types, such as email or number, cannot be supported.
@@ -44,17 +47,18 @@ export const STARK_TIMESTAMP_MASK_VALUE_ACCESSOR: Provider = {
  *
  */
 @Directive({
+	standalone: false,
 	host: {
-		"(input)": "_handleInput($event.target.value)",
+		"(input)": "_handleInput($any($event.target).value)",
 		"(blur)": "onTouched()",
 		"(compositionstart)": "_compositionStart()",
-		"(compositionend)": "_compositionEnd($event.target.value)"
+		"(compositionend)": "_compositionEnd($any($event.target).value)"
 	},
 	selector: directiveName,
 	exportAs: "starkTimestampMask",
 	providers: [STARK_TIMESTAMP_MASK_VALUE_ACCESSOR]
 })
-export class StarkTimestampMaskDirective extends MaskedInputDirective implements OnChanges {
+export class StarkTimestampMaskDirective extends AbstractStarkTextMaskDirective implements OnChanges {
 	/**
 	 * Default configuration.
 	 * It will be merged with the configuration passed to the directive.
@@ -71,9 +75,9 @@ export class StarkTimestampMaskDirective extends MaskedInputDirective implements
 	public maskConfig?: StarkTimestampMaskConfig;
 
 	/**
-	 * @ignore
+	 * Latest user-entered value without static mask characters.
 	 */
-	public elementRef: ElementRef;
+	private lastUnmaskedValue = "";
 
 	/**
 	 * Class constructor
@@ -87,7 +91,6 @@ export class StarkTimestampMaskDirective extends MaskedInputDirective implements
 		@Optional() @Inject(COMPOSITION_BUFFER_MODE) _compositionMode: boolean
 	) {
 		super(_renderer, _elementRef, _compositionMode);
-		this.elementRef = _elementRef;
 	}
 
 	/**
@@ -95,34 +98,92 @@ export class StarkTimestampMaskDirective extends MaskedInputDirective implements
 	 * @param changes - Contains the changed properties
 	 */
 	public override ngOnChanges(changes: SimpleChanges): void {
+		const inputElement = this.getInputElement();
+		const currentUnmaskedValue = this.getUnmaskedValue(inputElement?.value || "", this.textMaskConfig) || this.lastUnmaskedValue;
+
 		this.textMaskConfig = this.normalizeMaskConfig(this.maskConfig);
+
+		if (typeof this.maskConfig === "undefined") {
+			this.clearMask();
+			if (inputElement) {
+				inputElement.value = currentUnmaskedValue;
+			}
+			this.lastUnmaskedValue = currentUnmaskedValue;
+			return;
+		}
 
 		super.ngOnChanges(changes);
 
-		// TODO: temporary workaround to update the model when the maskConfig changes since this is not yet implemented in text-mask and still being discussed
-		// see: https://github.com/text-mask/text-mask/issues/657
-		if (changes["maskConfig"] && !changes["maskConfig"].isFirstChange() && this.textMaskConfig.mask !== false) {
-			// trigger a dummy "input" event in the input to trigger the changes in the model (only if the mask was not disabled!)
-			const ev: Event = document.createEvent("Event");
-			ev.initEvent("input", true, true);
-			(<HTMLInputElement>this.elementRef.nativeElement).dispatchEvent(ev);
+		if (changes["maskConfig"] && !changes["maskConfig"].isFirstChange() && typeof this.maskConfig !== "undefined") {
+			const textMaskInputElement = this.textMaskInputElement;
+			if (textMaskInputElement) {
+				textMaskInputElement.update(currentUnmaskedValue);
+			}
+
+			this.lastUnmaskedValue = this.getUnmaskedValue(inputElement?.value || "");
+
+			// Re-emit the normalized value so Angular forms stay in sync after a runtime mask change.
+			if (inputElement) {
+				this.onChange(inputElement.value);
+			}
 		}
 	}
 
 	/**
-	 * Create a valid configuration to be passed to the MaskedInputDirective
+	 * Writes the model value to the host input while preserving the unmasked timestamp representation.
+	 * @param value - The incoming Angular forms value.
+	 */
+	public override writeValue(value: any): void {
+		const normalizedValue = String(value ?? "");
+		const inputElement = this.getInputElement();
+		this.lastUnmaskedValue = this.getUnmaskedValue(normalizedValue);
+
+		if (typeof this.maskConfig === "undefined") {
+			if (inputElement) {
+				inputElement.value = normalizedValue;
+			}
+			return;
+		}
+
+		super.writeValue(value);
+		this.lastUnmaskedValue = this.getUnmaskedValue(inputElement?.value || normalizedValue);
+	}
+
+	/**
+	 * Tracks user input across masked and unmasked states before delegating to the Stark mask engine.
+	 * @param value - The raw value emitted by the host input.
+	 */
+	public override _handleInput(value: string): void {
+		if (this.shouldBufferInput()) {
+			return;
+		}
+
+		if (typeof this.maskConfig === "undefined") {
+			this.lastUnmaskedValue = value || "";
+			this.onChange(this.lastUnmaskedValue);
+			return;
+		}
+
+		this.lastUnmaskedValue = this.getUnmaskedValue(value || "");
+		super._handleInput(value);
+
+		const inputElement = this.getInputElement();
+		this.lastUnmaskedValue = this.getUnmaskedValue(inputElement?.value || this.lastUnmaskedValue);
+	}
+
+	/**
+	 * Create a normalized configuration for the Stark mask runtime.
 	 * @param maskConfig - The provided configuration via the directive's input
 	 */
-	public normalizeMaskConfig(maskConfig?: StarkTimestampMaskConfig): Ng2TextMaskConfig {
+	public normalizeMaskConfig(maskConfig?: StarkTimestampMaskConfig): StarkTextMaskRuntimeConfig {
 		if (typeof maskConfig === "undefined") {
 			return { mask: false }; // remove the mask
 		}
 
-		// TODO: Ng2TextMaskConfig is not the same as Core TextMaskConfig
 		const timestampMaskConfig: StarkTimestampMaskConfig = { ...this.defaultTimestampMaskConfig, ...maskConfig };
 
 		return {
-			pipe: <any>createTimestampPipe(timestampMaskConfig.format),
+			pipe: createTimestampPipe(timestampMaskConfig.format),
 			mask: this.convertFormatIntoMask(timestampMaskConfig.format),
 			placeholderChar: "_",
 			keepCharPositions: true // to avoid weird date values when deleting characters (see https://github.com/NationalBankBelgium/stark/issues/1260)
@@ -150,5 +211,36 @@ export class StarkTimestampMaskDirective extends MaskedInputDirective implements
 			}
 		}
 		return mask;
+	}
+
+	private getUnmaskedValue(value: string, maskConfig: StarkTextMaskRuntimeConfig = this.textMaskConfig): string {
+		if (!value || !Array.isArray(maskConfig.mask)) {
+			return value || "";
+		}
+
+		const placeholderChar = maskConfig.placeholderChar || "_";
+		let rawValue = "";
+		let valueIndex = 0;
+
+		for (const maskToken of maskConfig.mask) {
+			const currentChar = value[valueIndex];
+			if (typeof currentChar === "undefined") {
+				break;
+			}
+
+			if (maskToken instanceof RegExp) {
+				if (currentChar !== placeholderChar) {
+					rawValue += currentChar;
+				}
+				valueIndex++;
+				continue;
+			}
+
+			if (value.startsWith(maskToken, valueIndex)) {
+				valueIndex += maskToken.length;
+			}
+		}
+
+		return rawValue;
 	}
 }

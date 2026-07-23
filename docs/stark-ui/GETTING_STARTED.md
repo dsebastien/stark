@@ -82,7 +82,7 @@ For this reason, you must add these typings to the `typeRoots` in the `tsconfig.
 ### Material Icons
 
 The different features provided by Stark-UI (components and directives) follow the Material Design specs as much as possible. This is the reason why all the components
-are implemented with [Angular Material](https://material.angular.io/) and the icons used are also from the Material Design specs.
+are implemented with [Angular Material](https://material.angular.dev/) and the icons used are also from the Material Design specs.
 
 In this case, the icons used in Stark-UI are provided by [MaterialDesign-Angular-Material](https://github.com/Templarian/MaterialDesign-Angular-Material) which is an SVG icon set specially
 bundled for Angular Material. You can see the different icons that are available in this icon set at https://materialdesignicons.com/.

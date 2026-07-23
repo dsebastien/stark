@@ -8,13 +8,21 @@ $stark-table-multifilters-side-padding: 10px;
 @mixin stark-multisort() {
   .stark-table-dialog-multisort-panel-class {
     width: 500px;
+
+    .mat-mdc-dialog-surface {
+      overflow: auto;
+    }
+
+    .mat-mdc-dialog-content.mat-mdc-dialog-content {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
   }
 
   .stark-table-dialog-multisort {
     .header {
       display: flex;
-      // FIXME should be "start"?
-      align-items: top;
+      align-items: flex-start;
       justify-content: space-between;
     }
 
@@ -36,7 +44,7 @@ $stark-table-multifilters-side-padding: 10px;
           flex-grow: 1;
         }
 
-        .form-field-order .mat-form-field-infix {
+        .form-field-order .mat-mdc-form-field-infix {
           width: 80px;
         }
       }

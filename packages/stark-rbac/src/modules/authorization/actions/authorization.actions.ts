@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 
 /**
  * Action to be triggered when the user has navigated to a route that he is not authorized to.
@@ -20,8 +20,4 @@ export const userNavigationUnauthorizedRedirected = createAction(
 	props<{ targetState: string; redirectionState: string }>()
 );
 
-/**
- * @ignore
- */
-const all = union({ userNavigationUnauthorized, userNavigationUnauthorizedRedirected });
-export type Types = typeof all;
+export type Types = ReturnType<typeof userNavigationUnauthorized> | ReturnType<typeof userNavigationUnauthorizedRedirected>;

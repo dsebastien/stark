@@ -1,6 +1,7 @@
 @use "sass:map";
 @use "@angular/material" as mat;
-@use "@angular/material/core/theming/palette" as mat-palette;
+@use "@angular/material/core/m2" as mat-m2;
+@use "@angular/material/core/m2/palette" as mat-palette;
 
 $stark-alert-palette: null !default;
 $stark-grey-palette: null !default;
@@ -39,7 +40,7 @@ $alert-palette: (
   )
 ) !default;
 
-$grey-palette: mat.$grey-palette !default;
+$grey-palette: mat-m2.$grey-palette !default;
 
 $success-palette: (
   50: #eaf5ea,
@@ -87,7 +88,7 @@ $success-palette: (
 }
 
 $stark-base-theme: (
-  alert-palette: mat.define-palette($alert-palette),
-  grey-palette: mat.define-palette($grey-palette),
-  success-palette: mat.define-palette($success-palette)
+  alert-palette: mat.m2-define-palette($alert-palette),
+  grey-palette: mat.m2-define-palette($grey-palette),
+  success-palette: mat.m2-define-palette($success-palette)
 ) !default;

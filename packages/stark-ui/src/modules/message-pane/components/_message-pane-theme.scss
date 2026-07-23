@@ -5,13 +5,14 @@
 
 @use "sass:map";
 @use "@angular/material" as mat;
+@use "@angular/material/core/m2" as mat-m2;
 
 @mixin stark-message-pane-color($color) {
   .stark-message-pane-item {
     color: rgba($color: $color, $alpha: 0.87);
   }
 
-  .mat-icon-button:not([disabled]) mat-icon {
+  .mat-mdc-icon-button:not([disabled]) mat-icon {
     color: rgba($color: $color, $alpha: 0.87);
   }
 
@@ -22,39 +23,39 @@
 
 @mixin stark-message-pane-theme($material-theme-config, $stark-theme-config) {
   .stark-message-pane {
-    @include stark-message-pane-color(mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), 800));
+    @include stark-message-pane-color(mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), 800));
 
     .inner {
-      color: mat.get-color-from-palette(mat.$light-theme-background-palette, background);
-      background-color: mat.get-color-from-palette(mat.$light-theme-background-palette, background);
+      color: mat.m2-get-color-from-palette(mat-m2.$light-theme-background-palette, background);
+      background-color: mat.m2-get-color-from-palette(mat-m2.$light-theme-background-palette, background);
     }
 
     .summary {
       button.active::after {
-        background-color: mat.get-color-from-palette(map.get($material-theme-config, accent), 500);
+        background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, accent), 500);
       }
 
       b {
-        color: mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), 900);
+        color: mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), 900);
       }
     }
 
     .errors > mat-icon {
-      fill: mat.get-color-from-palette(map.get($stark-theme-config, alert-palette), 500);
+      fill: mat.m2-get-color-from-palette(map.get($stark-theme-config, alert-palette), 500);
     }
 
     .warnings > mat-icon {
-      fill: mat.get-color-from-palette(map.get($material-theme-config, warn), 500);
+      fill: mat.m2-get-color-from-palette(map.get($material-theme-config, warn), 500);
     }
 
     .infos > mat-icon {
-      fill: mat.get-color-from-palette(map.get($material-theme-config, primary), 500);
+      fill: mat.m2-get-color-from-palette(map.get($material-theme-config, primary), 500);
     }
   }
 
   .stark-message-pane {
     &.stark-white {
-      @include stark-message-pane-color(mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), A100));
+      @include stark-message-pane-color(mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), A100));
     }
   }
 }

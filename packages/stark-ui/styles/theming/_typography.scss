@@ -3,7 +3,7 @@
 
 $stark-typography-theme: null !default;
 
-// https://material.angular.io/guide/typography
+// https://material.angular.dev/guide/typography
 $typography-theme: (
   font-family: "BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif",
   display-4: (
@@ -78,23 +78,35 @@ $typography-theme: (
 }
 
 @function define-typography-level-from-list($list) {
-  @return mat.define-typography-level($list...);
+  @return mat.m2-define-typography-level($list...);
 }
 
-//TO DO: Document correspondance with html tags
-$typography-config: mat.define-legacy-typography-config(
+@function typography-level($level) {
+  @return define-typography-level-from-list(map.get($typography-theme, $level));
+}
+
+// Stark keeps its historical customization keys, but compiles them to Angular Material's
+// current M2 typography level names so consumers do not rely on deprecated Material APIs.
+$typography-config: mat.m2-define-typography-config(
   $font-family: map.get($typography-theme, font-family),
-  $display-4: define-typography-level-from-list(map.get($typography-theme, display-4)),
-  $display-3: define-typography-level-from-list(map.get($typography-theme, display-3)),
-  $display-2: define-typography-level-from-list(map.get($typography-theme, display-2)),
-  $display-1: define-typography-level-from-list(map.get($typography-theme, display-1)),
-  $headline: define-typography-level-from-list(map.get($typography-theme, headline)),
-  $title: define-typography-level-from-list(map.get($typography-theme, title)),
-  $subheading-2: define-typography-level-from-list(map.get($typography-theme, subheading-2)),
-  $subheading-1: define-typography-level-from-list(map.get($typography-theme, subheading-1)),
-  $body-2: define-typography-level-from-list(map.get($typography-theme, body-2)),
-  $body-1: define-typography-level-from-list(map.get($typography-theme, body-1)),
-  $caption: define-typography-level-from-list(map.get($typography-theme, caption)),
-  $button: define-typography-level-from-list(map.get($typography-theme, button)),
-  $input: define-typography-level-from-list(map.get($typography-theme, input))
+  $headline-1: typography-level(display-4),
+  $headline-2: typography-level(display-3),
+  $headline-3: typography-level(display-2),
+  $headline-4: typography-level(display-1),
+  $headline-5: typography-level(headline),
+  $headline-6: typography-level(title),
+  $subtitle-1: typography-level(subheading-2),
+  $subtitle-2: typography-level(body-2),
+  $body-1: typography-level(subheading-1),
+  $body-2: typography-level(body-1),
+  $caption: typography-level(caption),
+  $button: typography-level(button),
+  $overline: mat.m2-define-typography-level(12px, 32px, 500)
 ) !default;
+
+$typography-config: map.merge(
+  $typography-config,
+  (
+    input: typography-level(input)
+  )
+);

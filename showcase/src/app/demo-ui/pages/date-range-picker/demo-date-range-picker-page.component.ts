@@ -3,13 +3,14 @@ import { Component, Inject, OnDestroy } from "@angular/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { StarkDateRangePickerEvent } from "@nationalbankbelgium/stark-ui";
 import { AbstractControl, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators } from "@angular/forms";
-import { MatLegacyCheckboxChange as MatCheckboxChange } from "@angular/material/legacy-checkbox";
+import { MatCheckboxChange } from "@angular/material/checkbox";
 import { Subscription } from "rxjs";
 import { ReferenceLink } from "../../../shared/components";
 
 const MONTH_IN_MILLI = 2592000000;
 
 @Component({
+	standalone: false,
 	selector: "demo-date-range-picker",
 	templateUrl: "./demo-date-range-picker-page.component.html"
 })

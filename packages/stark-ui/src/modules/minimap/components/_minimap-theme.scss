@@ -24,7 +24,7 @@
   .stark-primary.stark-minimap {
     .stark-minimap-dots {
       i {
-        background-color: mat.get-color-from-palette(map.get($material-theme-config, primary), 500);
+        background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, primary), 500);
       }
     }
   }
@@ -32,7 +32,7 @@
   .stark-accent.stark-minimap {
     .stark-minimap-dots {
       i {
-        background-color: mat.get-color-from-palette(map.get($material-theme-config, accent), 500);
+        background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, accent), 500);
       }
     }
   }
@@ -40,7 +40,7 @@
   .stark-warning.stark-minimap {
     .stark-minimap-dots {
       i {
-        background-color: mat.get-color-from-palette(map.get($material-theme-config, warn), 500);
+        background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, warn), 500);
       }
     }
   }

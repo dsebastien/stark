@@ -256,8 +256,7 @@ describe("NumberMaskDirective", () => {
 
 			expect(hostComponent.ngModelValue).toBe("12,345");
 
-			hostComponent.numberMaskConfig = { ...numberMaskConfig, prefix: "%", suffix: " percent", thousandsSeparatorSymbol: "-" };
-			fixture.detectChanges();
+			updateMaskConfig({ ...numberMaskConfig, prefix: "%", suffix: " percent", thousandsSeparatorSymbol: "-" });
 
 			expect(hostComponent.ngModelValue).toBe("%12-345 percent");
 		});

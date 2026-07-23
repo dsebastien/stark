@@ -1,6 +1,7 @@
+import { CommonModule } from "@angular/common";
 import { Component, ElementRef, Inject, Input, OnDestroy, OnInit, Renderer2, ViewChild, ViewEncapsulation } from "@angular/core";
 import { BreakpointObserver, BreakpointState } from "@angular/cdk/layout";
-import { MatDrawerMode, MatDrawerToggleResult, MatSidenav, MatSidenavContainer } from "@angular/material/sidenav";
+import { MatDrawerMode, MatDrawerToggleResult, MatSidenav, MatSidenavContainer, MatSidenavModule } from "@angular/material/sidenav";
 import { from, Subscription } from "rxjs";
 import {
 	STARK_LOGGING_SERVICE,
@@ -21,12 +22,14 @@ const componentName = "stark-app-sidebar";
 
 /**
  * Component to display the application's sidebar
- * Only 2 sidebars are allowed: https://github.com/angular/material2/issues/1514
+ * Only 2 sidebars are allowed: https://github.com/angular/components/issues/1514
  */
 @Component({
+	standalone: true,
 	selector: "stark-app-sidebar",
 	templateUrl: "./app-sidebar.component.html",
 	encapsulation: ViewEncapsulation.None,
+	imports: [CommonModule, MatSidenavModule],
 	host: {
 		class: componentName
 	}
@@ -109,7 +112,7 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 	/**
 	 * Function to deregister the routing transition hook
 	 */
-	public deregisterTransitionHook!: Function;
+	public deregisterTransitionHook!: VoidFunction;
 
 	/**
 	 * Class constructor
@@ -171,7 +174,7 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 		this.openSidebarSubscription.unsubscribe();
 		this.closeSidebarSubscription.unsubscribe();
 		this.toggleSidebarSubscription.unsubscribe();
-		/* eslint-disable-next-line @angular-eslint/no-lifecycle-call */
+
 		this.breakpointObserver.ngOnDestroy();
 		this.deregisterTransitionHook();
 	}

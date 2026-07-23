@@ -1,4 +1,4 @@
-<h1 class="mat-display-3" translate>SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.TITLE</h1>
+<h1 class="mat-headline-2" translate>SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.TITLE</h1>
 <section class="stark-section">
 	<h1 translate>SHOWCASE.DEMO.SHARED.EXAMPLE_VIEWER_LIST</h1>
 	<example-viewer
@@ -7,10 +7,7 @@
 		filesPath="input-mask-directives/text-mask-directive"
 		[exampleTitle]="'SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.TEXT_MASK.TITLE' | translate"
 	>
-		<!-- TODO: fxLayoutAlign is not really needed here but it should be added otherwise an error is thrown in (@angular/flex-layout 7.0.0-beta.22) -->
-		<!-- this issue is already solved in @angular/flex-layout 7.0.0-beta.23, remove fxLayoutAlign from here once we upgrade to that version -->
-		<!-- see https://github.com/angular/flex-layout/issues/951 and https://github.com/angular/flex-layout/issues/947-->
-		<div fxLayout="column" fxLayoutAlign="space-between" fxLayout.gt-sm="row wrap" fxLayoutGap="20px">
+		<div class="showcase-layout-form-grid">
 			<mat-form-field>
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.TEXT_MASK.CREDIT_CARD_MASK</mat-label>
 				<input
@@ -56,10 +53,7 @@
 		filesPath="input-mask-directives/number-mask-directive"
 		[exampleTitle]="'SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.NUMBER_MASK.TITLE' | translate"
 	>
-		<!-- TODO: fxLayoutAlign is not really needed here but it should be added otherwise an error is thrown in (@angular/flex-layout 7.0.0-beta.22) -->
-		<!-- this issue is already solved in @angular/flex-layout 7.0.0-beta.23, remove fxLayoutAlign from here once we upgrade to that version -->
-		<!-- see https://github.com/angular/flex-layout/issues/951 and https://github.com/angular/flex-layout/issues/947-->
-		<div fxLayout="column" fxLayoutAlign="space-between" fxLayout.gt-sm="row wrap" fxLayoutGap="20px">
+		<div class="showcase-layout-form-grid">
 			<mat-form-field>
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.NUMBER_MASK.EURO_AMOUNT_MASK</mat-label>
 				<input
@@ -105,10 +99,7 @@
 		filesPath="input-mask-directives/email-mask-directive"
 		[exampleTitle]="'SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.EMAIL_MASK.TITLE' | translate"
 	>
-		<!-- TODO: fxLayoutAlign is not really needed here but it should be added otherwise an error is thrown in (@angular/flex-layout 7.0.0-beta.22) -->
-		<!-- this issue is already solved in @angular/flex-layout 7.0.0-beta.23, remove fxLayoutAlign from here once we upgrade to that version -->
-		<!-- see https://github.com/angular/flex-layout/issues/951 and https://github.com/angular/flex-layout/issues/947-->
-		<div fxLayout="column" fxLayoutAlign="space-between" fxLayout.gt-sm="row wrap" fxLayoutGap="20px">
+		<div class="showcase-layout-form-grid">
 			<mat-form-field>
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.EMAIL_MASK.EMAIL_MASK</mat-label>
 				<input
@@ -130,10 +121,7 @@
 		filesPath="input-mask-directives/timestamp-mask-directive"
 		[exampleTitle]="'SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.TIMESTAMP_MASK.TITLE' | translate"
 	>
-		<!-- TODO: fxLayoutAlign is not really needed here but it should be added otherwise an error is thrown in (@angular/flex-layout 7.0.0-beta.22) -->
-		<!-- this issue is already solved in @angular/flex-layout 7.0.0-beta.23, remove fxLayoutAlign from here once we upgrade to that version -->
-		<!-- see https://github.com/angular/flex-layout/issues/951 and https://github.com/angular/flex-layout/issues/947-->
-		<div fxLayout="column" fxLayoutAlign="space-between" fxLayout.gt-sm="row wrap">
+		<div class="showcase-layout-form-grid">
 			<mat-form-field>
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.INPUT_MASK.TIMESTAMP_MASK.TIMESTAMP_DMY_MASK</mat-label>
 				<input

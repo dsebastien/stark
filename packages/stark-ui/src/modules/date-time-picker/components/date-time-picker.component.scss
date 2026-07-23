@@ -1,17 +1,35 @@
-/* The 'stark-date-time-picker-form-field-wrapper' is added dynamically by the component to the surrounding form field wrapper*/
+/* The surrounding `mat-form-field` receives a public control-type class from Angular Material. */
 
 @mixin stark-date-time-picker() {
-  // FIXME Still necessary with NG12 ?
-  .mat-form-field .mat-form-field-wrapper.stark-date-time-picker-form-field-wrapper {
+  .mat-form-field-type-stark-date-time-picker,
+  .mat-mdc-form-field-type-stark-date-time-picker {
     width: 280px;
+
+    .mat-mdc-text-field-wrapper {
+      height: 44px;
+      padding: 0;
+    }
+
+    .mat-mdc-form-field-flex {
+      height: 44px;
+      align-items: flex-end;
+    }
+
+    .mat-mdc-form-field-infix {
+      min-height: 44px;
+      padding: 6px 0;
+    }
   }
 
   .stark-date-time-picker {
     display: flex;
+    align-items: center;
+    width: 100%;
 
     .date-time-wrapper {
       width: 100%;
       display: flex;
+      align-items: center;
 
       input {
         text-align: left;
@@ -26,16 +44,45 @@
       /* Time */
       > .time-picker {
         display: inline-flex;
+        align-items: center;
         justify-content: space-around;
 
         .time-input {
           max-width: 60px;
+          height: 21px;
+          line-height: 21px;
         }
       }
     }
 
-    .mat-datepicker-toggle {
+    .stark-date-time-picker-toggle {
+      display: inline-flex;
+      flex: 0 0 24px;
+      align-items: center;
+      justify-content: center;
+      height: 24px;
       transition: color 500ms;
+
+      .mat-mdc-icon-button {
+        --mdc-icon-button-state-layer-size: 24px;
+        --mat-icon-button-state-layer-size: 24px;
+        --mat-icon-button-touch-target-size: 24px;
+
+        width: 24px;
+        height: 24px;
+        padding: 0;
+      }
+
+      .mat-mdc-button-touch-target {
+        width: 24px;
+        height: 24px;
+      }
+
+      .mat-icon {
+        width: 18px;
+        height: 18px;
+        font-size: 18px;
+      }
     }
 
     /*
@@ -45,8 +92,13 @@
     */
 
     .clear-date-time-button {
+      --mdc-icon-button-state-layer-size: 20px;
+      --mat-icon-button-state-layer-size: 20px;
+      --mat-icon-button-touch-target-size: 20px;
+
       height: 20px;
       width: 20px;
+      padding: 0;
       line-height: 20px;
       position: absolute;
       right: -20px; /* to render it to the right of the date-time-wrapper */

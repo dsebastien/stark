@@ -254,8 +254,7 @@ describe("TimestampMaskDirective", () => {
 
 			expect(hostComponent.ngModelValue).toBe("12/3_/____");
 
-			hostComponent.timestampMaskConfig = { ...timestampMaskConfig, format: "DD-MM" };
-			fixture.detectChanges();
+			updateMaskConfig({ ...timestampMaskConfig, format: "DD-MM" });
 
 			expect(hostComponent.ngModelValue).toBe("12-3_");
 		});

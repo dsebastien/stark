@@ -1,7 +1,7 @@
 import { ModuleWithProviders, NgModule, Optional, SkipSelf } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatIconModule } from "@angular/material/icon";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
+import { MatTooltipModule } from "@angular/material/tooltip";
 
 import { StoreModule } from "@ngrx/store";
 import { EffectsModule } from "@ngrx/effects";
@@ -21,12 +21,13 @@ import { mergeUiTranslations } from "@nationalbankbelgium/stark-ui/src/common";
 import { starkMessagePaneStoreKey } from "./constants";
 
 @NgModule({
-	declarations: [StarkMessagePaneComponent],
+	declarations: [],
 	imports: [
 		CommonModule,
 		TranslateModule,
 		MatTooltipModule,
 		MatIconModule,
+		StarkMessagePaneComponent,
 		StoreModule.forFeature(starkMessagePaneStoreKey, starkMessagesReducers),
 		EffectsModule.forFeature([StarkMessagePaneEffects])
 	],

@@ -33,9 +33,9 @@
         align-items: center;
 
         .stark-collapsible-title {
-          font-size: mat.font-size($typography-config, subheading-1);
-          font-weight: mat.font-weight($typography-config, subheading-1);
-          line-height: mat.line-height($typography-config, subheading-1);
+          font-size: mat.m2-font-size($typography-config, body-1);
+          font-weight: mat.m2-font-weight($typography-config, body-1);
+          line-height: mat.m2-line-height($typography-config, body-1);
         }
       }
     }

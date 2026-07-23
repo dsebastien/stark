@@ -6,6 +6,7 @@ import { StarkTextMasks, StarkTextMaskConfig, StarkTimestampMaskConfig, StarkNum
 import { ReferenceLink } from "../../../shared/components/reference-block";
 
 @Component({
+	standalone: false,
 	selector: "showcase-demo-mask-directives",
 	styleUrls: ["./demo-input-mask-directives-page.component.scss"],
 	templateUrl: "./demo-input-mask-directives-page.component.html"

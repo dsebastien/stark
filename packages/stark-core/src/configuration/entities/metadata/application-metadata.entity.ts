@@ -60,7 +60,7 @@ export class StarkApplicationMetadataImpl implements StarkApplicationMetadata {
 
 		for (const item of supportedLanguages) {
 			if (item) {
-				const languageConstant: StarkLanguage = StarkLanguages[item.toUpperCase().replace("-", "_")];
+				const languageConstant = <StarkLanguage | undefined>Reflect.get(StarkLanguages, item.toUpperCase().replace("-", "_"));
 				if (languageConstant) {
 					instance.supportedLanguages.push(languageConstant);
 				} else {

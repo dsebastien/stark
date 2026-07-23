@@ -3,6 +3,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { StarkAction, StarkActionBarConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-action-bar",
 	templateUrl: "./demo-action-bar.component.html"
 })

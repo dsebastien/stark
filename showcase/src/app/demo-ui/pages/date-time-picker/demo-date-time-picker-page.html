@@ -1,4 +1,4 @@
-<h1 class="mat-display-3" translate>SHOWCASE.DEMO.DATE_TIME_PICKER.TITLE</h1>
+<h1 class="mat-headline-2" translate>SHOWCASE.DEMO.DATE_TIME_PICKER.TITLE</h1>
 
 <section class="stark-section">
 	<h1 translate>SHOWCASE.DEMO.SHARED.EXAMPLE_VIEWER_LIST</h1>
@@ -10,6 +10,7 @@
 		filesPath="date-time-picker/reactive-form"
 	>
 		<mat-form-field [ngClass]="{ expanded: !!(formControl.errors && (formControl.errors | keyvalue).length > 1) }">
+			<mat-label translate>SHOWCASE.DEMO.DATE_TIME_PICKER.PLACEHOLDER</mat-label>
 			<stark-date-time-picker
 				pickerId="date-time-picker-form-control"
 				[formControl]="formControl"
@@ -43,6 +44,7 @@
 		<mat-form-field
 			[ngClass]="{ expanded: !!(timePickerNgModel.control.errors && (timePickerNgModel.control.errors | keyvalue).length > 1) }"
 		>
+			<mat-label translate>SHOWCASE.DEMO.DATE_TIME_PICKER.PLACEHOLDER</mat-label>
 			<stark-date-time-picker
 				pickerId="date-time-picker-ng-model"
 				[(ngModel)]="dateTimeModel"

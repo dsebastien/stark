@@ -483,7 +483,7 @@ The template contains all information necessary for a page, the title and the st
 The usage of Generic Search component is explained in the [StarkGenericSearchComponent API documentation](https://stark.nbb.be/api-docs/stark-ui/latest/components/StarkGenericSearchComponent.html).
 
 ```html
-<h1 class="mat-display-3" translate>Movie Search</h1>
+<h1 class="mat-headline-2" translate>Movie Search</h1>
 <section class="stark-section">
   <stark-generic-search
     formHtmlId="demo-generic-search-form"

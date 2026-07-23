@@ -408,14 +408,14 @@
     },
     "HOMEPAGE": {
       "CORE": "Stark Core",
-      "DESCRIPTION_DETAIL": "<p>Stark fournit les principaux outils pour accélérer le développement front-end.<br>Vous y trouverez un build fiable et réutilisable basé sur Webpack, un projet Starter, des modules core et ui fournissant des composants ui incroyables, ... <br>Tous ces modules sont comme des LEGO: ajoutez ce dont vous avez besoin, ni plus, ni moins!</p>",
+      "DESCRIPTION_DETAIL": "<p>Stark fournit des briques conçues pour accélérer le développement front-end.<br>Il comprend une configuration Angular CLI, une application de démarrage, des services core réutilisables et des composants UI accessibles.<br>Utilisez uniquement les modules nécessaires à votre application.</p>",
       "DOCUMENTATION_CORE_DESC": "<p>Stark Core, aussi appelé stark-core, est un module fournissant des APIs réutilisables, comme par exemple une API de routing, de logging, de log shipping,etc... </p>",
       "DOCUMENTATION_MAIN_TITLE": "Documentation",
       "DOCUMENTATION_RBAC_DESC": "<p>Le module RBAC de Stark, aussi appelé stark-rbac, est un module distinct de Stark qui peut éventuellement être inclus dans toute application basée sur Stark afin de fournir différents éléments (directives, services et composants) prenant en charge le mécanisme de contrôle d'accès basé sur le rôle (RBAC).</p>",
       "DOCUMENTATION_SHOWCASE_DESC": "<p>Le Showcase, vous vous y trouvez en ce moment même! <br> Amusez-vous à parcourir notre liste de composants visuels ainsi que leur documentation et à découvrir de vos propres yeux nos guidelines en matière de design.</p>",
       "DOCUMENTATION_UI_DESC": "<p>Stark UI fournit des composants UI réutilisables: table de données, boite de dialogue, ... mais également des thèmes.</p>",
       "GETTING_STARTED": "Démarrer",
-      "INTRODUCTION": "Un framework front-end basé sur Angular 16",
+      "INTRODUCTION": "Un framework front-end basé sur Angular 22",
       "LATEST_API": "Dernière API",
       "LATEST_NEWS": "Dernières nouvelles",
       "MAIN_TITLE": "Qu'est-ce que Stark?",
@@ -492,7 +492,7 @@
           "TITLE": "Carte avancée"
         },
         "BASIC": {
-          "DETAILS": "Stark propose un layout alternatif concernant les cartes. Vous pouvez utiliser les cartes d'Angular Material et ajouter la classe <code>.stark-card</code> aux composants. Nous suggérons aussi d'utiliser le tag <code>h3</code> à l'intérieur du <code>mat-card-title</code>.<br>Pour plus d'information sur les cards d'Angular Material, rendez vous sur cette page: <a href=\"https://material.angular.io/components/card/overview\" target=\"_blank\">https://material.angular.io/components/card/overview</a>",
+          "DETAILS": "Stark propose un layout alternatif concernant les cartes. Vous pouvez utiliser les cartes d'Angular Material et ajouter la classe <code>.stark-card</code> aux composants. Nous suggérons aussi d'utiliser le tag <code>h3</code> à l'intérieur du <code>mat-card-title</code>.<br>Pour plus d'information sur les cards d'Angular Material, rendez vous sur cette page: <a href=\"https://material.angular.dev/components/card/overview\" target=\"_blank\">https://material.angular.dev/components/card/overview</a>",
           "TITLE": "Carte basique"
         },
         "CODE": "Voici le code correspondant à cette carte:",
@@ -504,15 +504,15 @@
           "TITLE": "Palettes Stark alternatives"
         },
         "BASIC": {
-          "DETAILS": "Angular Material utilise trois palettes de couleurs: primary, accent et warn. Stark donne la possibilité de définir ces palettes de couleur via 3 maps SCSS: <code>$stark-primary-palette</code>, <code>$stark-accent-palette</code> and <code>$stark-warn-palette</code>.<br><br><br>Pour plus de détails sur la gestion du theme par Angular Material, veuillez consulter <a href=\"https://material.angular.io/guide/theming\" target=\"_blank\">https://material.angular.io/guide/theming</a>",
+          "DETAILS": "Angular Material utilise trois palettes de couleurs: primary, accent et warn. Stark donne la possibilité de définir ces palettes de couleur via 3 maps SCSS: <code>$stark-primary-palette</code>, <code>$stark-accent-palette</code> and <code>$stark-warn-palette</code>.<br><br><br>Pour plus de détails sur la gestion du theme par Angular Material, veuillez consulter <a href=\"https://material.angular.dev/guide/theming\" target=\"_blank\">https://material.angular.dev/guide/theming</a>",
           "TITLE": "Material palettes"
         },
         "CUSTOM": {
-          "DETAILS": "Afin de personnaliser ces palettes, il faut d'abord créer une palette à l'aide de cet outil: <a href=\"http://mcg.mbitson.com/\" target=\"_blank\">http://mcg.mbitson.com/</a>. Selectionner la couleur de votre choix, l'outil génère le code SCSS pour vous, puis il suffit d'assigner la map à la palette que vous souhaitez modifier. Ne pas oublier d'importer le theming Stark après la déclaration des maps. <br>Voici un example:",
+          "DETAILS": "Afin de personnaliser ces palettes, partez du système de couleurs actuel de Material Design et générez un schéma tonal avec Material Theme Builder: <a href=\"https://m3.material.io/styles/color/resources\" target=\"_blank\">https://m3.material.io/styles/color/resources</a>. Copiez ensuite les valeurs générées nécessaires dans la palette que vous souhaitez modifier. Ne pas oublier d'importer le theming Stark après la déclaration des maps. <br>Voici un example:",
           "TITLE": "Customize palettes"
         },
         "LINKS": {
-          "DETAILS": "Voici les palettes mises à dispostion par Material Design: <a href=\"https://material.io/design/color/the-color-system.html#tools-for-picking-colors\" target=\"_blank\">https://material.io/design/color/the-color-system.html#tools-for-picking-colors</a>",
+          "DETAILS": "Voici le système de couleurs actuel de Material Design: <a href=\"https://m3.material.io/styles/color/system/overview\" target=\"_blank\">https://m3.material.io/styles/color/system/overview</a>",
           "TITLE": "Liens utiles"
         },
         "TITLE": "Color Palettes"
@@ -545,20 +545,20 @@
           "DETAILS_2": "Voici la liste de police fournit que le système va se charger d'interpréter:",
           "CUSTOM_FONT_EXPLAINED": "Pour définir une police web (ex. Roboto), ajouter la police (ttf, woff, ...) aux \"assets\" de votre projet, ajouter la police comme une font-face a SCSS et le définir dans <code>stark-typography-theme</code>",
           "IE_NOTE": "* Le format de police woff2 n'est pas pris en charge par IE. <a href=\"https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face#Browser_compatibility\" target=\"_blank\" rel=\"noopener\">MDN</a>",
-          "CDN_FONT_EXPLAINED": "Pour définir une police web d'une source externe (CDN) vous devez indiquer à Webpack d'autoriser les polices à partir de sources externes. Dans le fichier <code>config/webpack-custom-config.dev.json</code> ajouter l'hôte/port a <code>cspFontSrc</code>. Pour plus d'informations, consultez <a href=\"https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/font-src\" target=\"_blank\" rel=\"noopener\"> CSP: font-src </a>."
+          "CDN_FONT_EXPLAINED": "Pour définir une police web provenant d'une source externe (CDN), ajoutez cette origine aux directives <code>font-src</code> sous <code>projects.&lt;app&gt;.architect.serve.options.headers</code> dans <code>angular.json</code>. Pour plus d'informations, consultez <a href=\"https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/font-src\" target=\"_blank\" rel=\"noopener\"> CSP: font-src </a>."
         },
         "MATERIAL_BASED": {
-          "DETAILS": "Nous avons garder un maximum de compatibilité avec Angular Material. Pour plus de détails sur la philosophie derrière Angular Material, consulter cetee page: <a href=\"https://material.angular.io/guide/typography\" target=\"_blank\">https://material.angular.io/guide/typography</a>",
+          "DETAILS": "Nous avons garder un maximum de compatibilité avec Angular Material. Pour plus de détails sur la philosophie derrière Angular Material, consulter cetee page: <a href=\"https://material.angular.dev/guide/typography\" target=\"_blank\">https://material.angular.dev/guide/typography</a>",
           "TITLE": "Basé sur Angular Material"
         },
         "TITLE": "Typography"
       },
       "LAYOUT": {
         "TITLE": "Layout",
-        "INTRO": "Nous vous suggérons d'utiliser <a href=\"https://github.com/angular/flex-layout#angular-flex-layout\" target=\"_blank\" rel=\"noopener noreferrer\">Angular Flex-Layout</a> pour vous aider lors de la construction de l'interface de votre application. Une documentation complète est disponible sur leur <a href=\"https://github.com/angular/flex-layout/wiki/API-Documentation\"  target=\"_blank\" rel=\"noopener noreferrer\">wiki</a>.",
-        "ANGULAR_FLEX_LAYOUT": "Angular Flex Layout",
+        "INTRO": "Utilisez <a href=\"https://developer.mozilla.org/fr/docs/Web/CSS/CSS_flexible_box_layout\" target=\"_blank\" rel=\"noopener noreferrer\">CSS Flexbox</a> et <a href=\"https://developer.mozilla.org/fr/docs/Web/CSS/CSS_grid_layout\" target=\"_blank\" rel=\"noopener noreferrer\">CSS Grid</a> natifs pour les mises en page adaptatives.",
+        "CSS_LAYOUT": "Mise en page CSS native",
         "FLEX": "Flexbox",
-        "GRID_WARNING": "Attention, bien que certaines directives du grid soient disponibles dans la bibliothèque d'Angular Flex-Layout, elles ne sont pas complètement documentées.  Gardez également à l'esprit que CSS Grid Layout n'est pas pris en charge par tous les navigateurs. <a href=\"https://developer.mozilla.org/en-US/docs/Web/CSS/grid#Browser_compatibility\" target=\"_blank\" rel=\"noopener noreferrer\">MDN</a>",
+        "GRID_WARNING": "Cet exemple utilise CSS Grid natif et passe d'une colonne à quatre colonnes au point de rupture desktop.",
         "GRID": "Grid layout"
       }
     }

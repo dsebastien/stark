@@ -2,22 +2,22 @@
 @use "@nationalbankbelgium/stark-ui" as stark-ui;
 
 .app-card.app-color-primary mat-card {
-  background-color: mat.get-color-from-palette(stark-ui.$primary-palette, 500);
-  color: mat.get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
+  background-color: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 500);
+  color: mat.m2-get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
 }
 
 .app-card.app-color-accent mat-card {
-  background-color: mat.get-color-from-palette(stark-ui.$primary-palette, 500);
-  color: mat.get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
+  background-color: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 500);
+  color: mat.m2-get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
 }
 
 .app-card.app-color-warning mat-card {
-  background-color: mat.get-color-from-palette(stark-ui.$warning-palette, 500);
-  color: mat.get-contrast-color-from-palette(stark-ui.$warning-palette, 500);
+  background-color: mat.m2-get-color-from-palette(stark-ui.$warning-palette, 500);
+  color: mat.m2-get-contrast-color-from-palette(stark-ui.$warning-palette, 500);
 }
 
 .app-card.app-color-success mat-card {
   /*Themes do not have a success map by default*/
-  background-color: mat.get-color-from-palette(stark-ui.$success-palette, 500);
-  color: mat.get-contrast-color-from-palette(stark-ui.$success-palette, 500);
+  background-color: mat.m2-get-color-from-palette(stark-ui.$success-palette, 500);
+  color: mat.m2-get-contrast-color-from-palette(stark-ui.$success-palette, 500);
 }

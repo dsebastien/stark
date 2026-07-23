@@ -10,7 +10,7 @@
     flex-wrap: nowrap;
     justify-content: space-between;
     max-height: 40px;
-    overflow: hidden;
+    overflow: visible;
     transform-origin: bottom;
 
     &.extended {
@@ -23,6 +23,26 @@
       display: flex;
       align-items: center;
       flex-wrap: wrap;
+    }
+
+    .stark-action-bar-action.mat-mdc-icon-button {
+      --mdc-icon-button-state-layer-size: 40px;
+      --mat-icon-button-state-layer-size: 40px;
+      --mat-icon-button-touch-target-size: 40px;
+
+      width: 40px;
+      height: 40px;
+      padding: 8px;
+
+      .mat-mdc-button-ripple {
+        overflow: visible;
+      }
+
+      &:hover {
+        .mat-mdc-button-persistent-ripple::before {
+          opacity: 0;
+        }
+      }
     }
 
     &.stark-action-bar-full {

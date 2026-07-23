@@ -1,4 +1,4 @@
-<!-- Support for changing multiSelect after init. https://material.angular.io/components/select/overview#error-cannot-change-code-multiple-code-mode-of-select-after-initialization -->
+<!-- Support for changing multiSelect after init. https://material.angular.dev/components/select/overview#error-cannot-change-code-multiple-code-mode-of-select-after-initialization -->
 <!-- single-selection view -->
 <mat-select
 	#singleSelectEl
@@ -9,10 +9,11 @@
 	[attr.aria-label]="dropdownName | translate"
 	[required]="required"
 	[disabled]="disabled"
+	[panelWidth]="panelWidth"
 	(selectionChange)="onSelectionChange($event)"
 	(openedChange)="onOpenedChange()"
 >
-	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/material2/pull/7835 -->
+	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/components/pull/7835 -->
 	<!--<mat-select-header-->
 	<!--*ngIf="header !== undefined && header !== ''"-->
 	<!--class="stark-dropdown-header"-->
@@ -37,11 +38,12 @@
 	[attr.aria-label]="dropdownName | translate"
 	[required]="required"
 	[disabled]="disabled"
+	[panelWidth]="panelWidth"
 	(selectionChange)="onSelectionChange($event)"
 	(openedChange)="onOpenedChange()"
 	multiple
 >
-	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/material2/pull/7835 -->
+	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/components/pull/7835 -->
 	<!--<mat-select-header-->
 	<!--ng-if="$ctrl.header !== undefined && $ctrl.header !== ''"-->
 	<!--class="stark-dropdown-header"-->

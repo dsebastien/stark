@@ -1,4 +1,11 @@
-import { Mask, PipeFunction } from "text-mask-core";
+export type StarkMaskArray = Array<string | RegExp>;
+export type StarkMaskFunction = (raw: string) => StarkMaskArray;
+export interface StarkPipeResultObject {
+	value: string;
+	indexesOfPipedChars?: number[];
+}
+export type StarkPipeFunction = (conformedValue: string, config: StarkTextMaskConfig) => false | string | StarkPipeResultObject;
+export type StarkMask = StarkMaskArray | StarkMaskFunction;
 
 /**
  * Defines the base configuration for the mask directives provided by Stark-UI.
@@ -9,7 +16,6 @@ export interface StarkTextMaskBaseConfig {
 	 *
 	 * Default: `true`.
 	 *
-	 * See {@link https://github.com/text-mask/text-mask/blob/master/componentDocumentation.md#guide}
 	 */
 	guide?: boolean;
 
@@ -18,7 +24,6 @@ export interface StarkTextMaskBaseConfig {
 	 *
 	 * Default: `"_"`.
 	 *
-	 * See {@link https://github.com/text-mask/text-mask/blob/master/componentDocumentation.md#placeholderchar}
 	 */
 	placeholderChar?: string;
 
@@ -27,7 +32,6 @@ export interface StarkTextMaskBaseConfig {
 	 *
 	 * Default: `true`.
 	 *
-	 * See {@link https://github.com/text-mask/text-mask/blob/master/componentDocumentation.md#keepcharpositions}
 	 */
 	keepCharPositions?: boolean;
 }
@@ -39,14 +43,12 @@ export interface StarkTextMaskConfig extends StarkTextMaskBaseConfig {
 	/**
 	 * Array or a function that defines how the user input is going to be masked. If is set to `false`, the mask will be removed.
 	 *
-	 * See {@link https://github.com/text-mask/text-mask/blob/master/componentDocumentation.md#mask}
 	 */
-	mask: Mask | false;
+	mask: StarkMask | false;
 
 	/**
 	 * Function that can modify the conformed value before it is displayed on the screen.
 	 *
-	 * See {@link https://github.com/text-mask/text-mask/blob/master/componentDocumentation.md#pipe}
 	 */
-	pipe?: PipeFunction;
+	pipe?: StarkPipeFunction;
 }
