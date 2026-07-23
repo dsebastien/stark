@@ -198,8 +198,13 @@ adaptNpmPackageLockDependencies() {
   
   local PACKAGE="$1"
   local VERSION="$2"
-  local PACKAGE_JSON_FILE="$3"
+  local PACKAGE_LOCK_JSON_FILE="$3"
   local SUB_LEVEL=$(($4))
+
+  if [[ ! -f "$PACKAGE_LOCK_JSON_FILE" ]]; then
+    logInfo "Skipping package-lock update for ${PACKAGE}: ${PACKAGE_LOCK_JSON_FILE} does not exist"
+    return 0
+  fi
   
   local PATH_PARENT=""
   
@@ -225,12 +230,12 @@ adaptNpmPackageLockDependencies() {
   
   logTrace "PATTERN: $PATTERN"
   logTrace "REPLACEMENT: $REPLACEMENT"
-  logTrace "Package JSON file: $PACKAGE_JSON_FILE"
+  logTrace "Package lock file: $PACKAGE_LOCK_JSON_FILE"
   
   # Packages will have dependencies between them. They will so have "devDependencies" and "peerDependencies" with different values.
   # We should only replace the value of the devDependency for make it work.
   
-  perl -p -i.bak -0 -e "s/$PATTERN/$REPLACEMENT/m" $PACKAGE_JSON_FILE
+  perl -p -i.bak -0 -e "s/$PATTERN/$REPLACEMENT/m" $PACKAGE_LOCK_JSON_FILE
   
   # In npm >= v8, the package-lock.json file contains also the path in the node_modules folder.
   local PATTERN="\\\"node_modules\/\@nationalbankbelgium\/$PACKAGE\\\": \\{(\s*)\\\"version\\\": \\\"(\S*)\\\"(,(\s*)\\\"resolved\\\": \\\"(.*))?,(\s*)\\\"integrity\\\": \\\"sha512-(.*)\\\""
@@ -238,10 +243,10 @@ adaptNpmPackageLockDependencies() {
 
 	logTrace "PATTERN: $PATTERN"
 	logTrace "REPLACEMENT: $REPLACEMENT"
-	logTrace "Package JSON file: $PACKAGE_JSON_FILE"
+	logTrace "Package lock file: $PACKAGE_LOCK_JSON_FILE"
 
 	# Packages will have dependencies between them. They will so have "devDependencies" and "peerDependencies" with different values.
 	# We should only replace the value of the devDependency for make it work.
 
-	perl -p -i.bak -0 -e "s/$PATTERN/$REPLACEMENT/m" $PACKAGE_JSON_FILE
+	perl -p -i.bak -0 -e "s/$PATTERN/$REPLACEMENT/m" $PACKAGE_LOCK_JSON_FILE
 }

@@ -10,18 +10,89 @@
       "prefix": "stark",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:ng-packagr",
+          "builder": "@angular/build:ng-packagr",
           "options": {
             "tsConfig": "tsconfig.lib.json",
             "project": "ng-package.json"
           }
         },
         "test": {
-          "builder": "@angular-devkit/build-angular:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "main": "base.spec.ts",
-            "tsConfig": "tsconfig.spec.json",
-            "karmaConfig": "karma.conf.js"
+            "buildTarget": "stark-ui:build",
+            "include": [
+              "modules/action-bar/components/action-bar.component.spec.ts",
+              "modules/app-footer/components/app-footer.component.spec.ts",
+              "modules/app-data/components/app-data.component.spec.ts",
+              "modules/app-logo/components/app-logo.component.spec.ts",
+              "modules/app-logout/components/app-logout.component.spec.ts",
+              "modules/app-menu/components/app-menu.component.spec.ts",
+              "modules/app-menu/components/app-menu-item.component.spec.ts",
+              "modules/app-sidebar/services/app-sidebar.service.spec.ts",
+              "modules/collapsible/components/collapsible.component.spec.ts",
+              "modules/progress-indicator/components/progress-indicator.component.spec.ts",
+              "modules/progress-indicator/directives/progress-indicator.directive.spec.ts",
+              "modules/progress-indicator/reducers/progress-indicator.reducer.spec.ts",
+              "modules/progress-indicator/services/progress-indicator.service.spec.ts",
+              "modules/minimap/components/minimap.component.spec.ts",
+              "modules/message-pane/services/message-pane.service.spec.ts",
+              "modules/message-pane/components/message-pane.component.spec.ts",
+              "modules/message-pane/effects/message-pane.effects.spec.ts",
+              "modules/message-pane/reducers/messages-pane.reducer.spec.ts",
+              "modules/slider/components/slider.component.spec.ts",
+              "modules/session-ui/pages/preloading/preloading-page.component.spec.ts",
+              "modules/session-ui/pages/session-expired/session-expired-page.component.spec.ts",
+              "modules/session-ui/pages/session-logout/session-logout-page.component.spec.ts",
+              "modules/session-ui/pages/login/login-page.component.spec.ts",
+              "modules/session-ui/components/session-card/session-card.component.spec.ts",
+              "modules/session-ui/session-ui.module.spec.ts",
+              "modules/breadcrumb/components/breadcrumb.component.spec.ts",
+              "modules/date-picker/components/date-picker.component.spec.ts",
+              "modules/date-range-picker/components/date-range-picker.component.spec.ts",
+              "modules/date-time-picker/components/date-time-picker.component.spec.ts",
+              "modules/dropdown/components/dropdown.component.spec.ts",
+              "modules/generic-search/classes/abstract-search-component.spec.ts",
+              "modules/generic-search/components/generic-search/generic-search.component.spec.ts",
+              "modules/language-selector/components/language-selector.component.spec.ts",
+              "modules/pagination/components/pagination.component.spec.ts",
+              "modules/dialogs/components/alert-dialog.component.spec.ts",
+              "modules/dialogs/components/confirm-dialog.component.spec.ts",
+              "modules/dialogs/components/prompt-dialog.component.spec.ts",
+              "modules/input-mask-directives/directives/email-mask.directive.spec.ts",
+              "modules/input-mask-directives/directives/number-mask.directive.spec.ts",
+              "modules/input-mask-directives/directives/text-mask.directive.spec.ts",
+              "modules/input-mask-directives/directives/timestamp-pipe.fn.spec.ts",
+              "modules/input-mask-directives/directives/timestamp-mask.directive.spec.ts",
+              "modules/pretty-print/components/pretty-print.component.spec.ts",
+              "modules/pretty-print/services/pretty-print.service.spec.ts",
+              "modules/restrict-input-directive/directives/restrict-input.directive.spec.ts",
+              "modules/route-search/components/route-search.component.spec.ts",
+              "modules/svg-view-box/directives/svg-view-box.directive.spec.ts",
+              "modules/table/components/table.component.spec.ts",
+              "modules/transform-input-directive/directives/transform-input.directive.spec.ts",
+              "modules/toast-notification/components/toast-notification.component.spec.ts",
+              "modules/toast-notification/services/toast-notification.service.spec.ts",
+              "modules/app-sidebar/components/app-sidebar.component.spec.ts",
+              "modules/session-ui/components/session-timeout-warning-dialog/session-timeout-warning-dialog.component.spec.ts",
+              "modules/session-ui/effects/session-timeout-warning.effect.spec.ts",
+              "common/translations/merge-translations.spec.ts",
+              "util/dom/dom.util.spec.ts",
+              "util/form/form.util.spec.ts"
+            ],
+            "runner": "vitest",
+            "runnerConfig": "vitest.config.mjs",
+            "setupFiles": ["base.vitest.spec.ts"],
+            "tsConfig": "tsconfig.spec.json"
+          }
+        },
+        "test-vitest-smoke": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "stark-ui:build",
+            "include": ["util/dom/dom.util.spec.ts"],
+            "runner": "vitest",
+            "runnerConfig": "vitest.config.mjs",
+            "tsConfig": "tsconfig.spec.vitest-smoke.json"
           }
         },
         "lint": {
@@ -33,7 +104,6 @@
       }
     }
   },
-  "defaultProject": "stark-ui",
   "cli": {
     "analytics": false
   }

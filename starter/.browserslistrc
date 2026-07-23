@@ -1,12 +1,11 @@
 [production]
-> 1%
+baseline widely available on 2025-10-20
 
 [modern]
-last 5 chrome version
-last 5 firefox version
+baseline widely available on 2025-10-20
 
 [ssr]
-node 14
+node 22
 
 # This file is used by the build system to adjust CSS and JS output to support the specified browsers below.
 # For additional information regarding the format and rule options, please see:
@@ -15,7 +14,4 @@ node 14
 # You can see what browsers were selected by your queries by running:
 #   npx browserslist
 
-> 0.5%
-last 8 versions
-Firefox ESR
-not dead
+baseline widely available on 2025-10-20

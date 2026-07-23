@@ -3,12 +3,12 @@
 Stark provides 2 different ways to get environment information depending on your needs:
 
 - at runtime by importing the environment.ts file
-- at compilation time by checking the global/ambient variables set by Webpack
+- at compilation time by checking the global/ambient variables set by the build configuration
 
 ## Environment information at runtime (environment.ts)
 
 Stark provides the `StarkEnvironment` interface that describes which information you can get from the current environment.
-It follows the guidelines described in the Angular CLI Wiki regarding [application environments](https://github.com/angular/angular-cli/wiki/stories-application-environments) and [HMR configuration](https://github.com/angular/angular-cli/wiki/stories-configure-hmr).
+It follows Angular's current guidance for [application environments](https://angular.dev/tools/cli/environments) and the dev-server [HMR configuration](https://angular.dev/cli/serve).
 
 Such environment interface is defined as follows:
 
@@ -17,13 +17,13 @@ import { NgModuleRef } from "@angular/core";
 
 export interface StarkEnvironment {
   /**
-   * Whether the current environment is production (as described in Angular CLI Wiki)
-   * @link https://github.com/angular/angular-cli/wiki/stories-application-environments
+   * Whether the current environment is production (as described in Angular docs)
+   * @link https://angular.dev/tools/cli/environments
    */
   production: boolean;
   /**
-   * Whether the current environment has Hot Module Replacement enabled (as described in Angular CLI Wiki)
-   * @link https://github.com/angular/angular-cli/wiki/stories-configure-hmr
+   * Whether the current environment has Angular dev-server Hot Module Replacement enabled
+   * @link https://angular.dev/cli/serve
    */
   hmr: boolean;
   /**
@@ -48,8 +48,7 @@ In your project, the files to define the different environments will be located 
 |   |
 |   +---environments                    # configuration variables for each environment
 |   |   |                               #
-|   |   |   environment.e2e.prod.ts     # e2e tests configuration
-|   |   |   environment.hmr.ts          # development with HMR (Hot Module Replacement) configuration
+|   |   |   environment.hmr.ts          # development with Angular dev-server HMR configuration
 |   |   |   environment.prod.ts         # production configuration
 |   |   \   environment.ts              # development configuration
 |   |
@@ -79,11 +78,13 @@ export const environment: StarkEnvironment = {
 };
 ```
 
+When `hmr` is enabled, Angular's dev server now handles the runtime HMR wiring. Stark no longer requires the older Webpack-specific `module.hot` bootstrap path.
+
 ### How to get environment variables in your application?
 
 All you have to do is to import the `environment.ts` constant anywhere you want in your application.
 
-**You should always import from `environments/environment` because Webpack will internally replace such file with the right environment file as defined in the `fileReplacements` option in the `angular.json` file.**
+**You should always import from `environments/environment` because the Angular build system will internally replace such file with the right environment file as defined in the `fileReplacements` option in the `angular.json` file.**
 
 This way, you will be able to programmatically read the different environment variables you need.
 For example, you can determine which providers you will include for a specific environment in your AppModule:
@@ -140,7 +141,7 @@ export const environment: StarkEnvironment = {
 };
 ```
 
-Finally, define the file replacement of your new environment in the `angular.json` file so that Webpack can replace the default file `environments/environment` with your new file:
+Finally, define the file replacement of your new environment in the `angular.json` file so that the Angular build system can replace the default file `environments/environment` with your new file:
 
 ```text
 {
@@ -189,25 +190,24 @@ export const environment: StarkEnvironment = {
 };
 ```
 
-## Environment information at compilation time (Webpack global variables)
+## Environment information at compilation time (build-time global variables)
 
-Thanks to the customizations done by Stark-Build to the default Angular CLI build configuration you have some global variables available at compilation time,
-which means that you can implement some checks in your code and this will be analyzed when your application bundle is being built by Webpack.
-
-See [Stark-Build: Webpack build customizations - DefinePlugin](https://github.com/NationalBankBelgium/stark/blob/master/docs/stark-build/NG_CLI_BUILD_CUSTOMIZATIONS.md#defineplugin)
+Stark exposes `ENV` and `HMR` as build-time globals.
+In the Angular 22 path validated in this repository, those globals are injected through the native Angular `define` option.
+See the [Stark 13 migration guide](../MIGRATION_GUIDE_STARK_13.md#define-env-and-hmr-without-webpack) for the supported downstream configuration.
 
 ### Why do you need the target environment at compilation time?
 
 Sometimes you might need to add some logic or import some files only when your application is running in development or production.
 
-**In this case, when Webpack builds your application, the final bundle will contain also that code and/or imports that will only be used on a specific environment.
+**In this case, when the application is built, the final bundle will contain also that code and/or imports that will only be used on a specific environment.
 For example, the specific code related to development will never be executed in production and yet it will be included in your production build which will increase the size of your bundle.**
 
-This is why knowing the target environment at compilation time is useful. You can put the logic inside an if block and then such code will be tree-shaken by Webpack as it will recognize it as dead code:
+This is why knowing the target environment at compilation time is useful. You can put the logic inside an if block and then such code will be tree-shaken during the build once the global is replaced with a literal value:
 
 ```typescript
 // this check is translated to "if (false)" when ENV is "production"
-// allowing Webpack to identify it as dead code and so remove it
+// allowing the build optimizer to identify it as dead code and so remove it
 if (ENV === "development") {
   /* the code inside this block will only be included in development */
 }

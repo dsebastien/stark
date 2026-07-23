@@ -1,3 +1,3 @@
-// Extra variables that live on Global that will be replaced by webpack DefinePlugin
+// Extra globals provided at compile time through Angular's native "define" option.
 declare let ENV: "development" | "production";
 declare let HMR: boolean;
