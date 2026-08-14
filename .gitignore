@@ -88,3 +88,10 @@ packages/stark-testing/package-lock.json
 
 # Stark-ui exception
 packages/stark-ui/package-lock.json
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*

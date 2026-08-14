@@ -60,7 +60,7 @@ Do not add cleanup for one layer to an unrelated higher commit merely to avoid r
 
 Run these checks after restacking:
 
-```powershell
+```bash
 git merge-base --is-ancestor master migration/angular-22/01-dependencies
 git merge-base --is-ancestor migration/angular-22/01-dependencies migration/angular-22/02-build
 git merge-base --is-ancestor migration/angular-22/02-build migration/angular-22/03-testing

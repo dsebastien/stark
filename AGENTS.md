@@ -13,7 +13,9 @@
 ## Working Rules
 
 - Read `MIGRATION_BRANCH_STRUCTURE.md` before changing any Angular 22 migration branch or commit.
-- Use the repository's cross-platform Node/npm scripts. PowerShell, Git Bash, and POSIX shells are supported for maintained build and synchronization paths.
+- Run migration repository commands only through `C:\LocalData\DEV\Software\Git\usr\bin\bash.exe --noprofile --norc`. Do not run project Git, Node, npm, npx, build, test, package, or lockfile commands directly from PowerShell or `cmd.exe`.
+- After entering the target repository, run `eval "$(fnm env --shell bash)"`, `fnm use --install-if-missing`, and verify `node --version` equals `v$(cat .nvmrc)` before invoking Node tooling. Never use ambient Windows Node/npm executables.
+- Use generated local `file:` tarballs while actively coordinating sibling-repository changes. Restore canonical publishable references and run the dependency preflight before review, integration, or publication; never hand-edit dependency modes or commit machine-specific paths.
 - Do not edit generated outputs such as `dist/`, `coverage/`, `reports/`, `.angular/`, packaged tarballs, or `node_modules/`.
 - Keep public API changes deliberate. This repo is a library workspace first, so package boundaries and peer dependency boundaries matter.
 - During coordinated framework migrations, inspect sibling clones under `C:\LocalData\duboiss\wks\NGMigration` before replacing local tarballs or peer dependency wiring.
