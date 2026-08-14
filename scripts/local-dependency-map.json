@@ -1,0 +1,444 @@
+{
+  "schemaVersion": 1,
+  "runtimeEvidence": {
+    "sourceCommit": {
+      "command": ["git", "rev-parse", "HEAD"],
+      "recordAt": "build"
+    },
+    "nodeVersion": {
+      "command": ["node", "--version"],
+      "recordAt": "build"
+    },
+    "packageVersion": {
+      "source": "repository package.json#version",
+      "recordAt": "pack"
+    },
+    "tarballIntegrity": {
+      "algorithm": "sha512",
+      "recordAt": "pack"
+    },
+    "packagingProvenance": {
+      "fields": [
+        "repository",
+        "sourceCommit",
+        "commandSequence",
+        "artifactPath",
+        "tarballIntegrity"
+      ],
+      "recordAt": "pack"
+    }
+  },
+  "repositories": [
+    {
+      "id": "code-style",
+      "directory": "code-style-dsebastien",
+      "node": {
+        "versionFile": ".nvmrc",
+        "required": true,
+        "requirement": "18"
+      },
+      "commands": [
+        {
+          "phase": "build-and-pack",
+          "cwd": ".",
+          "argv": ["npm", "run", "build"]
+        }
+      ],
+      "packaging": {
+        "implementation": "build.sh",
+        "packCwd": "dist"
+      },
+      "packages": [
+        {
+          "name": "@nationalbankbelgium/code-style",
+          "manifest": "package.json",
+          "dependencies": [],
+          "buildOrder": 0,
+          "artifact": {
+            "directory": "dist",
+            "pattern": "nationalbankbelgium-code-style-*.tgz",
+            "expectedName": "nationalbankbelgium-code-style-{packageVersion}.tgz"
+          }
+        }
+      ]
+    },
+    {
+      "id": "eslint-config",
+      "directory": "eslint-config-dsebastien",
+      "node": {
+        "versionFile": ".nvmrc",
+        "required": true,
+        "requirement": "20.11"
+      },
+      "commands": [
+        {
+          "phase": "build-and-pack",
+          "cwd": ".",
+          "argv": ["npm", "run", "build"]
+        }
+      ],
+      "packaging": {
+        "implementation": "build.sh",
+        "packCwd": "dist"
+      },
+      "packages": [
+        {
+          "name": "@nationalbankbelgium/eslint-config",
+          "manifest": "package.json",
+          "dependencies": ["@nationalbankbelgium/code-style"],
+          "buildOrder": 1,
+          "artifact": {
+            "directory": "dist",
+            "pattern": "nationalbankbelgium-eslint-config-*.tgz",
+            "expectedName": "nationalbankbelgium-eslint-config-{packageVersion}.tgz"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ngx-form-errors",
+      "directory": "ngx-form-errors-dsebastien",
+      "node": {
+        "versionFile": ".nvmrc",
+        "required": true,
+        "requirement": "22.22.3"
+      },
+      "commands": [
+        {
+          "phase": "build-and-pack",
+          "cwd": ".",
+          "argv": ["npm", "run", "build"]
+        }
+      ],
+      "packaging": {
+        "implementation": "package.json#scripts.build",
+        "packCwd": "dist"
+      },
+      "packages": [
+        {
+          "name": "@nationalbankbelgium/ngx-form-errors",
+          "manifest": "package.json",
+          "dependencies": [
+            "@nationalbankbelgium/code-style",
+            "@nationalbankbelgium/eslint-config"
+          ],
+          "buildOrder": 2,
+          "artifact": {
+            "directory": "dist",
+            "pattern": "nationalbankbelgium-ngx-form-errors-*.tgz",
+            "expectedName": "nationalbankbelgium-ngx-form-errors-{packageVersion}.tgz"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ui-router-angular",
+      "directory": "ui-router-angular-dsebastien",
+      "node": {
+        "versionFile": ".nvmrc",
+        "required": false,
+        "requirement": null,
+        "fallback": {
+          "version": "22.22.3",
+          "reason": "The repository has no .nvmrc; use the verified shared migration runtime.",
+          "compatibilityConstraintSource": "package.json#engines.node"
+        }
+      },
+      "commands": [
+        {
+          "phase": "build",
+          "cwd": ".",
+          "argv": ["npm", "run", "build"]
+        },
+        {
+          "phase": "pack",
+          "cwd": "dist",
+          "argv": ["npm", "pack", ".", "--silent"]
+        }
+      ],
+      "packaging": {
+        "implementation": "package.json#scripts.build + npm pack",
+        "packCwd": "dist"
+      },
+      "packages": [
+        {
+          "name": "@uirouter/angular",
+          "manifest": "package.json",
+          "dependencies": [],
+          "buildOrder": 0,
+          "artifact": {
+            "directory": "dist",
+            "pattern": "uirouter-angular-*.tgz",
+            "expectedName": "uirouter-angular-{packageVersion}.tgz"
+          }
+        }
+      ]
+    },
+    {
+      "id": "stark",
+      "directory": "stark-dsebastien",
+      "node": {
+        "versionFile": ".nvmrc",
+        "required": true,
+        "requirement": "22.22.3"
+      },
+      "commands": [
+        {
+          "phase": "build-and-pack",
+          "cwd": ".",
+          "argv": [
+            "npm",
+            "run",
+            "build",
+            "--",
+            "--packages=stark-build,stark-core,stark-ui,stark-rbac"
+          ]
+        }
+      ],
+      "packaging": {
+        "implementation": "scripts/build-packages.mjs",
+        "packCwd": "dist/packages-dist/{unscopedPackageName}"
+      },
+      "packages": [
+        {
+          "name": "@nationalbankbelgium/stark-build",
+          "manifest": "packages/stark-build/package.json",
+          "dependencies": [],
+          "buildOrder": 0,
+          "artifact": {
+            "directory": "dist/packages-dist/stark-build",
+            "pattern": "nationalbankbelgium-stark-build-*.tgz",
+            "expectedName": "nationalbankbelgium-stark-build-{packageVersion}.tgz"
+          }
+        },
+        {
+          "name": "@nationalbankbelgium/stark-core",
+          "manifest": "packages/stark-core/package.json",
+          "dependencies": ["@uirouter/angular"],
+          "buildOrder": 1,
+          "artifact": {
+            "directory": "dist/packages-dist/stark-core",
+            "pattern": "nationalbankbelgium-stark-core-*.tgz",
+            "expectedName": "nationalbankbelgium-stark-core-{packageVersion}.tgz"
+          }
+        },
+        {
+          "name": "@nationalbankbelgium/stark-ui",
+          "manifest": "packages/stark-ui/package.json",
+          "dependencies": ["@nationalbankbelgium/stark-core"],
+          "buildOrder": 2,
+          "artifact": {
+            "directory": "dist/packages-dist/stark-ui",
+            "pattern": "nationalbankbelgium-stark-ui-*.tgz",
+            "expectedName": "nationalbankbelgium-stark-ui-{packageVersion}.tgz"
+          }
+        },
+        {
+          "name": "@nationalbankbelgium/stark-rbac",
+          "manifest": "packages/stark-rbac/package.json",
+          "dependencies": ["@nationalbankbelgium/stark-core"],
+          "buildOrder": 3,
+          "artifact": {
+            "directory": "dist/packages-dist/stark-rbac",
+            "pattern": "nationalbankbelgium-stark-rbac-*.tgz",
+            "expectedName": "nationalbankbelgium-stark-rbac-{packageVersion}.tgz"
+          }
+        }
+      ]
+    }
+  ],
+  "consumers": [
+    {
+      "repository": "eslint-config",
+      "manifest": "package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/code-style",
+      "package": "@nationalbankbelgium/code-style",
+      "reference": "file:../code-style-dsebastien/dist/nationalbankbelgium-code-style-{packageVersion}.tgz"
+    },
+    {
+      "repository": "ngx-form-errors",
+      "manifest": "package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/code-style",
+      "package": "@nationalbankbelgium/code-style",
+      "reference": "file:../code-style-dsebastien/dist/nationalbankbelgium-code-style-{packageVersion}.tgz"
+    },
+    {
+      "repository": "ngx-form-errors",
+      "manifest": "package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/eslint-config",
+      "package": "@nationalbankbelgium/eslint-config",
+      "reference": "file:../eslint-config-dsebastien/dist/nationalbankbelgium-eslint-config-{packageVersion}.tgz"
+    },
+    {
+      "repository": "ngx-form-errors",
+      "manifest": "demo-app/ng15/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/code-style",
+      "package": "@nationalbankbelgium/code-style",
+      "reference": "file:../../../code-style-dsebastien/dist/nationalbankbelgium-code-style-{packageVersion}.tgz"
+    },
+    {
+      "repository": "ngx-form-errors",
+      "manifest": "demo-app/ng15/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/eslint-config",
+      "package": "@nationalbankbelgium/eslint-config",
+      "reference": "file:../../../eslint-config-dsebastien/dist/nationalbankbelgium-eslint-config-{packageVersion}.tgz"
+    },
+    {
+      "repository": "ngx-form-errors",
+      "manifest": "demo-app/ng16/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/code-style",
+      "package": "@nationalbankbelgium/code-style",
+      "reference": "file:../../../code-style-dsebastien/dist/nationalbankbelgium-code-style-{packageVersion}.tgz"
+    },
+    {
+      "repository": "ngx-form-errors",
+      "manifest": "demo-app/ng16/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/eslint-config",
+      "package": "@nationalbankbelgium/eslint-config",
+      "reference": "file:../../../eslint-config-dsebastien/dist/nationalbankbelgium-eslint-config-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/code-style",
+      "package": "@nationalbankbelgium/code-style",
+      "reference": "file:../code-style-dsebastien/dist/nationalbankbelgium-code-style-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/eslint-config",
+      "package": "@nationalbankbelgium/eslint-config",
+      "reference": "file:../eslint-config-dsebastien/dist/nationalbankbelgium-eslint-config-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "package.json",
+      "section": "devDependencies",
+      "field": "@uirouter/angular",
+      "package": "@uirouter/angular",
+      "reference": "file:../ui-router-angular-dsebastien/dist/uirouter-angular-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "dependencies",
+      "field": "@nationalbankbelgium/ngx-form-errors",
+      "package": "@nationalbankbelgium/ngx-form-errors",
+      "reference": "file:../../ngx-form-errors-dsebastien/dist/nationalbankbelgium-ngx-form-errors-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "dependencies",
+      "field": "@nationalbankbelgium/stark-core",
+      "package": "@nationalbankbelgium/stark-core",
+      "reference": "file:../dist/packages-dist/stark-core/nationalbankbelgium-stark-core-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "dependencies",
+      "field": "@nationalbankbelgium/stark-rbac",
+      "package": "@nationalbankbelgium/stark-rbac",
+      "reference": "file:../dist/packages-dist/stark-rbac/nationalbankbelgium-stark-rbac-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "dependencies",
+      "field": "@nationalbankbelgium/stark-ui",
+      "package": "@nationalbankbelgium/stark-ui",
+      "reference": "file:../dist/packages-dist/stark-ui/nationalbankbelgium-stark-ui-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "dependencies",
+      "field": "@uirouter/angular",
+      "package": "@uirouter/angular",
+      "reference": "file:../../ui-router-angular-dsebastien/dist/uirouter-angular-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/code-style",
+      "package": "@nationalbankbelgium/code-style",
+      "reference": "file:../../code-style-dsebastien/dist/nationalbankbelgium-code-style-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/eslint-config",
+      "package": "@nationalbankbelgium/eslint-config",
+      "reference": "file:../../eslint-config-dsebastien/dist/nationalbankbelgium-eslint-config-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "showcase/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/stark-build",
+      "package": "@nationalbankbelgium/stark-build",
+      "reference": "file:../dist/packages-dist/stark-build/nationalbankbelgium-stark-build-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "starter/package.json",
+      "section": "dependencies",
+      "field": "@nationalbankbelgium/stark-core",
+      "package": "@nationalbankbelgium/stark-core",
+      "reference": "file:../dist/packages-dist/stark-core/nationalbankbelgium-stark-core-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "starter/package.json",
+      "section": "dependencies",
+      "field": "@nationalbankbelgium/stark-ui",
+      "package": "@nationalbankbelgium/stark-ui",
+      "reference": "file:../dist/packages-dist/stark-ui/nationalbankbelgium-stark-ui-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "starter/package.json",
+      "section": "dependencies",
+      "field": "@uirouter/angular",
+      "package": "@uirouter/angular",
+      "reference": "file:../../ui-router-angular-dsebastien/dist/uirouter-angular-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "starter/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/code-style",
+      "package": "@nationalbankbelgium/code-style",
+      "reference": "file:../../code-style-dsebastien/dist/nationalbankbelgium-code-style-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "starter/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/eslint-config",
+      "package": "@nationalbankbelgium/eslint-config",
+      "reference": "file:../../eslint-config-dsebastien/dist/nationalbankbelgium-eslint-config-{packageVersion}.tgz"
+    },
+    {
+      "repository": "stark",
+      "manifest": "starter/package.json",
+      "section": "devDependencies",
+      "field": "@nationalbankbelgium/stark-build",
+      "package": "@nationalbankbelgium/stark-build",
+      "reference": "file:../dist/packages-dist/stark-build/nationalbankbelgium-stark-build-{packageVersion}.tgz"
+    }
+  ]
+}
