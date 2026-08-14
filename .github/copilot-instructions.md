@@ -19,9 +19,10 @@ This repository uses **Beads (bd)** for issue tracking.
 ## Shell and Dependency Contract
 
 - Run migration repository commands through `C:\LocalData\DEV\Software\Git\usr\bin\bash.exe --noprofile --norc`; do not use PowerShell or `cmd.exe` as the project shell
-- After changing to the target repository, run `eval "$(fnm env --shell bash)"`, `fnm use --install-if-missing`, and verify `node --version` equals `v$(cat .nvmrc)`
+- In profile-free Git Bash, use `bash scripts/with-project-node.sh -- COMMAND [ARGS...]` for Stark or `bash scripts/with-project-node.sh --repo /c/LocalData/duboiss/wks/NGMigration/<repository> -- COMMAND [ARGS...]` for a sibling fork
+- The launcher must verify fnm and the target repository's exact `.nvmrc` Node version before running the command
 - Never use ambient Windows `node`, `npm`, or `npx`
-- Use generated local tarballs for active sibling development and canonical publishable references for review/integration
+- Use generated local tarballs for active sibling development; restore repository-appropriate non-local references only when preparing clean upstream pull requests
 - Never hand-edit dependency mode switches or commit machine-specific local package paths
 
 ## Context Loading

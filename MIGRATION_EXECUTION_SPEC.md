@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for maintainer approval. Implementation must not begin until this specification is approved.
+Approved orchestration contract. Implementation is in progress.
 
 ## Objective
 
@@ -28,10 +28,11 @@ The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral or
 - Initialize Beads and its Copilot integration in `05-agent-context`.
 - Version immutable legacy golden screenshots in Git.
 - Keep videos, traces, HTML reports, console logs, network logs, and accessibility details as CI artifacts rather than Git-tracked files.
-- Run all repository commands through profile-independent Git Bash, activate fnm from the target repository, and verify the repository's `.nvmrc` before invoking Node or npm.
+- Run all repository commands through profile-independent Git Bash and the repository launcher, which activates fnm and verifies the target repository's `.nvmrc` before invoking Node or npm.
 - Never use the ambient Windows `node`, `npm`, or `npx` from PowerShell or `cmd.exe`.
-- During coordinated sibling-repository development, consume generated local `file:` tarballs. Before review or integration, restore and verify canonical publishable dependency references.
-- Never push to the `upstream` remote (`NationalBankBelgium/stark`). Publish migration branches only to `origin`.
+- During all current sibling-repository migration work, build and consume generated local `file:` tarballs for every cross-project relationship.
+- Canonical mode exists only to remove machine-specific references when preparing clean upstream pull requests; no package release work is in scope.
+- Never push to the `upstream` remote (`NationalBankBelgium/stark`). Synchronize migration branches only to the personal `origin` fork after explicit approval.
 - Preserve the documented one-commit-per-layer migration stack.
 
 ## Tech Stack
@@ -114,10 +115,9 @@ Agents must invoke the configured Git Bash executable without interactive or log
 C:\LocalData\DEV\Software\Git\usr\bin\bash.exe --noprofile --norc
 ```
 
-Before any repository command, the shell must run:
+The launcher performs this bootstrap inside the target repository:
 
 ```bash
-cd /c/LocalData/duboiss/wks/NGMigration/stark-dsebastien
 eval "$(fnm env --shell bash)"
 fnm use --install-if-missing
 test "$(node --version)" = "v$(cat .nvmrc)"
@@ -125,11 +125,12 @@ node --version
 npm --version
 ```
 
-The planned repository helper must make the same checks available as one stable entry point:
+Agents use the approved repository helper as the stable entry point:
 
 ```bash
-./scripts/with-project-node.sh npm run lint:all
-./scripts/with-project-node.sh npm run build
+bash scripts/with-project-node.sh -- npm run lint:all
+bash scripts/with-project-node.sh -- npm run build
+bash scripts/with-project-node.sh --repo /c/LocalData/duboiss/wks/NGMigration/code-style-dsebastien -- npm run build
 ```
 
 It must fail closed when Git Bash, fnm, `.nvmrc`, Node, or npm does not match the repository contract.
@@ -143,8 +144,8 @@ npm run deps:check
 ```
 
 - `deps:local` builds and packs the active sibling repositories, then rewrites the relevant manifests and lockfiles to generated local `file:` tarballs.
-- `deps:canonical` restores the tracked publishable references and regenerates deterministic lockfiles.
-- `deps:check` fails when local tarball references, stale tarballs, mismatched hashes, or the wrong dependency mode are present at review/integration time.
+- `deps:canonical` restores the tracked non-local references and regenerates deterministic lockfiles for upstream PR preparation.
+- `deps:check` fails when local tarball references, stale tarballs, mismatched hashes, or the wrong dependency mode are present in an upstream PR diff.
 - Agents must never hand-edit dependency mode changes or commit local workspace paths.
 
 ## Project Structure
@@ -207,7 +208,7 @@ export const starkUiSurfaces = [
   - immutable legacy baseline capture;
   - visual and behavioral remediation;
   - downstream migration-guide validation;
-  - review, integration, and publication.
+  - review, integration, fork synchronization, and upstream PR preparation.
 
 ### Required task fields
 
@@ -280,9 +281,9 @@ Workers must execute project commands only through profile-independent Git Bash 
 4. update consuming `package.json` and lockfiles to those generated `file:` tarballs;
 5. record the source repository, branch, commit, package version, tarball path, and checksum.
 
-`canonical` mode is mandatory for review, integration, clean-install validation, and publication:
+`canonical` mode is used only for clean upstream PR preparation and final integration validation:
 
-1. restore the approved canonical package versions or immutable archive references;
+1. restore the repository-appropriate non-local package references;
 2. regenerate lockfiles with the verified fnm Node/npm toolchain;
 3. reject local absolute paths, sibling-directory links, stale tarballs, and uncommitted dependency-mode changes;
 4. run clean install, strict dependency-tree, package, and consumer checks.
@@ -339,20 +340,22 @@ At a reviewed checkpoint:
 7. run the affected focused gates and the complete stack integrity checks;
 8. run an independent final review of each layer against its direct parent;
 9. record hashes, evidence, decisions, and known debt in Beads and `IMPROVEMENT_PLAN.md`;
-10. obtain explicit maintainer approval before any force-with-lease push;
-11. push rewritten branches from 01 through 05 to `origin` only;
+10. obtain explicit maintainer approval before any force-with-lease synchronization;
+11. synchronize rewritten branches from 01 through 05 to the personal `origin` fork only;
 12. verify remote hashes and return the primary worktree to `05-agent-context`.
 
 Never merge a staging branch directly into a canonical migration branch because that would violate the one-commit-per-layer contract.
 
-### Publication safety
+### Fork synchronization and upstream PR safety
 
 - `upstream` is fetch-only and its local push URL must remain `DISABLED`.
 - Workers never push.
 - The orchestrator never uses plain `--force`.
 - Every rewritten push uses an observed lease value and `--force-with-lease`.
-- A remote hash mismatch stops publication immediately.
+- A remote hash mismatch stops synchronization immediately.
 - No GitHub merge action targets `NationalBankBelgium/stark`.
+- No npm/package release or release-version preparation is part of this execution plan.
+- Upstream repositories receive changes only through later maintainer-created pull requests.
 
 ## Browser Regression Strategy
 
@@ -475,8 +478,8 @@ On failure, CI retains:
 - Beads is initialized, healthy, and integrated with GitHub Copilot CLI.
 - All known remaining migration work is represented as dependency-aware beads with owning layers and acceptance criteria.
 - Every agent command runs through verified Git Bash/fnm with the target repository's `.nvmrc`.
-- Local sibling tarball mode is deterministic and reversible, and canonical mode rejects accidental local references before review/integration.
-- The canonical local stack is published to `origin` with verified hashes after explicit approval.
+- Local sibling tarball mode is deterministic and reversible, and canonical mode rejects accidental local references in upstream PR preparation.
+- The reviewed WIP stack is synchronized to the personal `origin` fork with verified hashes after explicit approval.
 - Every one of the 48 known concrete routes is discovered and covered.
 - Every one of the 52 known visible/interactive Stark UI surfaces maps to at least one verified scenario.
 - All golden screenshots are captured from the legacy Showcase in the pinned environment and reviewed.
@@ -485,6 +488,7 @@ On failure, CI retains:
 - Existing unit, lint, build, package, starter, Showcase, and downstream migration-guide gates pass.
 - Every integrated bead has independent review evidence.
 - Canonical migration branches retain one commit per layer and correct ancestry.
+- Each upgraded fork is ready for a separately reviewed upstream pull request; no package release work is performed.
 - No push is made to `upstream` or a `NationalBankBelgium` repository.
 
 ## Sources
