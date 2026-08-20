@@ -162,6 +162,7 @@
 		"sync:stark-ui:showcase": "npm run build:stark-ui && node ./scripts/sync-built-package.mjs stark-ui showcase",
 		"sync:stark-ui:starter": "npm run build:stark-ui && node ./scripts/sync-built-package.mjs stark-ui starter",
     "showcase": "cd showcase && npm start && cd ..",
+    "session-handoff": "node ./scripts/session-handoff.mjs",
     "starter": "cd starter && npm start && cd ..",
     "stylelint-check": "stylelint-config-prettier-check",
     "test": "npm run test:ci:all",
