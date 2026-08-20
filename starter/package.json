@@ -99,7 +99,7 @@
     "@ngrx/effects": "22.0.0-beta.0",
     "@ngrx/store": "22.0.0-beta.0",
     "@ngrx/store-devtools": "22.0.0-beta.0",
-    "@uirouter/angular": "https://codeload.github.com/dsebastien/ui-router-angular/tar.gz/ad424b3265bb6ef88651e2d6d30715fe5491a7af",
+    "@uirouter/angular": "^22.0.0",
     "rxjs": "^7.8.2",
     "zone.js": "~0.16.2"
   },
