@@ -19,7 +19,7 @@ This is the human-readable checkpoint. Beads remains the authoritative task grap
 ## Completed checkpoints
 
 - Beads and GitHub Copilot integration is installed with orchestrator-only writes.
-- The 77-issue graph has no cycles, template warnings, or orphans.
+- The current Beads graph has no cycles, template warnings, or orphans in the latest audit.
 - All five canonical local tips and observed `origin` lease hashes have timestamped local backup refs.
 - Independent standards and specification reviews attributed every local-versus-origin changed file.
 - Personal-fork synchronization is separated from migration validation and requires its own exact-hash approval.
