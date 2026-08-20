@@ -1,20 +1,20 @@
 # Angular 22 Migration Status
 
-Updated: 2026-08-14
+Updated: 2026-08-20
 
 This is the human-readable checkpoint. Beads remains the authoritative task graph.
 
 ## Executive status
 
-| Item               | Current state                                                                       |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| Phase              | Build deterministic local tarball workflow across sibling forks                     |
-| Beads              | 77 total: 12 closed, 0 in progress, 65 open                                         |
-| Active tasks       | No worker is active; `stark-4sp.9.4` is the next implementation task                |
-| Staging            | Layer 02 at `8259c826`; layer 05 at `b73adbf9` plus this status/guidance checkpoint |
-| Canonical branches | Unchanged                                                                           |
-| Pushes             | None                                                                                |
-| Upstream safety    | `NationalBankBelgium/stark` remains fetch-only; local push URL is `DISABLED`        |
+| Item               | Current state                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| Phase              | Canonical dependency cutover, durable orchestration, and browser-baseline foundation |
+| Beads              | 83 total: 13 closed, 2 in progress, 68 open, 52 blocked, 16 ready                    |
+| Active tasks       | `stark-4sp.2.5` handoff hooks; `stark-4sp.3.2` Playwright runner                     |
+| Staging            | Layer 05 at `7bf7c1d1`; UI-Router dependency at `b9e63a92`                           |
+| Canonical branches | Unchanged                                                                            |
+| Pushes             | None                                                                                 |
+| Upstream safety    | `NationalBankBelgium/stark` remains fetch-only; local push URL is `DISABLED`         |
 
 ## Completed checkpoints
 
@@ -26,31 +26,34 @@ This is the human-readable checkpoint. Beads remains the authoritative task grap
 - The approved orchestration and reconciliation record is committed locally on the layer-05 staging branch.
 - The profile-free Git Bash/fnm launcher and the five-repository local tarball map are independently reviewed and integrated on layer-02 staging.
 - Repository guidance now gives every worker the same copy-paste launcher and local-tarball-only contract.
+- The public `@uirouter/angular@22.0.0` package replaced the Angular 22 fork in the root, Showcase, and Starter manifests and locks; no fork references remain.
+- Codex and GitHub Copilot now share a tested Beads-backed session handoff and PreCompact checkpoint flow.
 
 ## Active work
 
-| Bead            | Owner                   | State   | Current evidence                                                                                      |
-| --------------- | ----------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| `stark-4sp.9.1` | `shell-launcher-worker` | Closed  | Launcher passed 11 focused tests, live fnm Node/npm checks, and independent review.                   |
-| `stark-4sp.9.3` | `dependency-map-worker` | Closed  | Map validates 5 repositories, 8 packages, 24 consumers, and 7 negative cases; independently approved. |
-| `stark-4sp.7.1` | Unassigned              | Blocked | The initial run used remote companion archives and is not accepted. It resumes after `stark-4sp.9.8`. |
-| `stark-4sp.7.2` | Orchestrator            | Closed  | Source/package provenance now feeds build-time evidence in the local tarball map.                     |
+| Bead             | Owner               | State   | Current evidence                                                                                    |
+| ---------------- | ------------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `stark-4sp.2.5`  | Orchestrator        | Active  | Handoff script, Codex hooks, Copilot hooks, pinned Node launcher, and focused tests are integrated. |
+| `stark-4sp.3.2`  | Orchestrator/worker | Active  | Playwright runner foundation is being reviewed in an isolated worktree.                             |
+| `stark-4sp.10.1` | Orchestrator/worker | Closed  | Public UI-Router 22.0.0 manifests/locks integrated; fork references removed.                        |
+| `stark-4sp.10.2` | Unassigned          | Open    | Validate routing journeys and remove remaining fork bookkeeping/docs.                               |
+| `stark-4sp.7.1`  | Unassigned          | Blocked | The initial run used remote companion archives and is not accepted; resume after `.9.8`.            |
 
 ## Current work queue
 
-1. `stark-4sp.9.4`: build deterministic local tarballs from the sibling forks.
-2. `stark-4sp.9.5`: switch consumers into local-tarball mode without hand edits.
-3. `stark-4sp.9.6` through `.9.8`: guard, independently review, and validate the workflow.
-4. Resume `stark-4sp.7.1`, then proceed to browser infrastructure and visual coverage.
+1. `stark-4sp.3.2`: integrate and verify the Playwright runner foundation.
+2. `stark-4sp.10.2`: validate public UI-Router routing, lazy loading, and session/RBAC transitions.
+3. `stark-4sp.9.4` through `.9.8`: build, guard, review, and validate the local tarball workflow.
+4. Resume `stark-4sp.7.1`, then complete all 48 routes/52 surfaces in the visual baseline matrix.
 
 No package release, version bump, npm publication, or release-guard work is in scope.
 
 ## Next decisions and actions
 
-1. Build local tarballs for code-style, eslint-config, ngx-form-errors, UI-Router, and Stark packages.
-2. Implement reversible local dependency switching and the upstream-PR path guard.
-3. Independently review and validate local dependency mode.
-4. Resume the fresh-consumer validation with those local tarballs.
+1. Integrate the reviewed Playwright runner and deterministic fixtures without auto-updating goldens.
+2. Validate the published UI-Router package through focused routing journeys before closing `.10.2`.
+3. Build local tarballs for code-style, eslint-config, ngx-form-errors, and Stark packages.
+4. Implement reversible local dependency switching and the upstream-PR path guard.
 5. Synchronize WIP branches only after a separate exact-hash approval; later upstream changes use pull requests.
 
 ## Update contract
