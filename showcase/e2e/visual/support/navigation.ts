@@ -77,7 +77,20 @@ async function navigateVisibleMenuRoute(page: Page, target: ShowcaseNavigationTa
 	for (const menuId of target.menuTrail) {
 		const menuItem = page.locator(`#${menuId}`);
 		await expect(menuItem).toBeVisible();
-		await menuItem.click();
+
+		// Menu groups keep their expansion state while the active route changes. Do not
+		// toggle an already-open group: doing so starts the Material expansion animation
+		// and can make the next child click race the panel's pointer-event shield.
+		const expansionPanel = page.locator(`#${menuId} + mat-expansion-panel`);
+		if ((await expansionPanel.count()) > 0) {
+			const classes = (await expansionPanel.getAttribute("class"))?.split(/\s+/) ?? [];
+			if (!classes.includes("mat-expanded")) {
+				await menuItem.click();
+				await expect(expansionPanel).toHaveClass(/mat-expanded/);
+			}
+		} else {
+			await menuItem.click();
+		}
 	}
 
 	await expect(page).toHaveURL(new RegExp(`${escapeRegExp(target.path)}(?:[?#]|$)`));
