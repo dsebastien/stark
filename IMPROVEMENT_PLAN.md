@@ -90,7 +90,7 @@ Use one of these statuses for every review item:
 - [x] Verify that all Angular framework, CLI, CDK, Material, and build packages use one compatible release line.
 - [x] Verify TypeScript, RxJS, Zone.js, NgRx, UI-Router, translation, and Angular ESLint compatibility from their official support statements.
 - [x] Verify every Stark package peer dependency range from a packed downstream consumer, not only from the monorepo.
-- [x] Verify compatible fork builds of `code-style`, `eslint-config`, `ngx-form-errors`, and UI-Router through generated local tarballs.
+- [x] Verify compatible fork builds of `code-style`, `eslint-config`, and `ngx-form-errors` through generated local tarballs; validate the published `@uirouter/angular@22.0.0` package from npm instead of a fork.
 - [x] Ensure no machine-specific local `file:` path is committed; generate active sibling tarballs under ignored workspace storage and restore non-local references only for upstream PR preparation.
 
 ### Dependency hygiene
