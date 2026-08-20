@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bd prime"
+            "command": "bash scripts/with-project-node.sh -- node scripts/codex-session-hook.mjs resume && bd prime --memories-only --max-memories 3 --max-memory-chars 12000"
           }
         ]
       }
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bd prime"
+            "command": "bash scripts/with-project-node.sh -- node scripts/codex-session-hook.mjs precompact && bd prime --memories-only --max-memories 3 --max-memory-chars 12000"
           }
         ]
       }

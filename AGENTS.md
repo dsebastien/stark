@@ -20,6 +20,7 @@
 - Keep public API changes deliberate. This repo is a library workspace first, so package boundaries and peer dependency boundaries matter.
 - During coordinated framework migrations, inspect sibling clones under `C:\LocalData\duboiss\wks\NGMigration` before replacing local tarballs or peer dependency wiring.
 - Keep commits conventional and granular. Existing history uses forms such as `feat(scope): ...`, `fix(scope): ...`, `docs(scope): ...`, and `chore(release): ...`.
+- Codex discovers the trusted project hooks in `.codex/hooks.json`; GitHub Copilot uses `.copilot-plugin/plugin.json`. Both must call the same `scripts/session-handoff.mjs` checkpoint and resume flow.
 
 ## High-Value Paths
 

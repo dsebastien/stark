@@ -8,7 +8,7 @@ Approved orchestration contract. Implementation is in progress.
 
 Finish the Angular 22 migration without losing work to context limits and without accepting unexplained UI drift.
 
-Beads is the durable source of truth for remaining work. A single orchestrator owns Beads state, dispatches small tasks to isolated GitHub Copilot CLI agents, verifies their evidence, and coordinates review and integration.
+Beads is the durable source of truth for remaining work. A single orchestrator owns Beads state, dispatches small tasks to isolated Codex or explicitly configured worker agents, verifies their evidence, and coordinates review and integration.
 
 The current local five-branch migration stack is canonical:
 
@@ -22,7 +22,7 @@ The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral or
 
 ## Confirmed Decisions
 
-- Use GitHub Copilot CLI agents only. Do not use Codex agents or the Beads Codex integration.
+- Use Codex agents when the session host provides them, with the same isolated-worktree and worker-report contract as other configured clients. Do not install a separate Beads Codex integration; the orchestrator writes Beads through the repository CLI.
 - The orchestrator is the only process allowed to claim, update, or close Beads issues.
 - Workers receive an immutable issue snapshot and return code, validation evidence, and discovered follow-up work.
 - Initialize Beads and its Copilot integration in `05-agent-context`.
@@ -34,6 +34,26 @@ The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral or
 - Canonical mode exists only to remove machine-specific references when preparing clean upstream pull requests; no package release work is in scope.
 - Never push to the `upstream` remote (`NationalBankBelgium/stark`). Synchronize migration branches only to the personal `origin` fork after explicit approval.
 - Preserve the documented one-commit-per-layer migration stack.
+
+## Session continuity and compaction
+
+The repository command `npm run session-handoff` persists one compact JSON checkpoint
+under the Beads memory key `migration-session-handoff`. It records the active and ready
+issues, branch/HEAD, dirty files and their classification, worktrees, test evidence,
+blockers, and next action. The workspace-level `AGENTS.md` is the handoff contract for
+Codex and other agents.
+
+Before a worker boundary, session end, or compaction, the orchestrator runs:
+
+```bash
+bash scripts/with-project-node.sh -- npm run session-handoff -- --hook precompact --require-active --evidence "<latest command and result>" --dirty-note "<classification>"
+```
+
+The command fails closed when Beads is unavailable, no active issue exists, a lease is
+stale, or dirty work is not classified. SessionStart runs `--resume` and injects only a
+small bounded Beads memory set. Hook success guarantees a durable checkpoint only when
+the host honors the hook; no repository command can veto a host that ignores hook exit
+codes. A failed checkpoint is never reported as a successful handoff.
 
 ## Tech Stack
 
@@ -158,6 +178,8 @@ MIGRATION_EXECUTION_SPEC.md                  This specification
 IMPROVEMENT_PLAN.md                          Review status, decisions, and validation results
 scripts/
   with-project-node.sh                       Profile-free Git Bash/fnm command launcher
+  session-handoff.mjs                        Beads-backed session checkpoint and resume command
+  session-handoff.test.mjs                   Focused checkpoint contract tests
   manage-workspace-dependencies.mjs          Local/canonical dependency-mode switch
   workspace-dependencies.json                Sibling repositories, build order, and canonical refs
 tmp/local-packages/                          Ignored generated sibling tarballs and checksums
@@ -246,7 +268,7 @@ Only the orchestrator may run Beads write commands. Worker agents may run `bd pr
    - assumptions;
    - risks;
    - discovered follow-up work.
-5. A separate Copilot review agent reviews the diff against the bead, this specification, repository guidance, and the five review axes.
+5. A separate review agent reviews the diff against the bead, this specification, repository guidance, and the five review axes.
 6. Required findings return to the implementation agent. The same reviewer rechecks the revised diff.
 7. The orchestrator independently verifies the final diff and validation evidence before accepting it.
 8. The orchestrator commits accepted work with the Beads ID in the commit message and updates Beads.
@@ -462,7 +484,7 @@ On failure, CI retains:
 ### Never
 
 - Push to `upstream` or any repository under `NationalBankBelgium`.
-- Use Codex agents or install the Beads Codex integration.
+- Let workers mutate Beads, canonical branches, or another worker's worktree.
 - Run project Git, Node, npm, npx, build, test, or packaging commands directly from PowerShell or `cmd.exe`.
 - Use ambient Windows Node/npm executables or skip `fnm use` in a target repository.
 - Hand-edit manifests to switch dependency modes or commit machine-specific local tarball paths.
