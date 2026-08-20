@@ -11,7 +11,7 @@ This is the human-readable checkpoint. Beads remains the authoritative task grap
 | Phase              | Canonical dependency cutover, UI-Router 22 validation, durable orchestration, and browser-baseline foundation |
 | Beads              | 83 total: 15 closed, 1 in progress, 65 open, 52 blocked, 13 ready                                             |
 | Active tasks       | `stark-4sp.2.5` handoff hooks; browser foundation awaits prerequisite graph closure                           |
-| Staging            | Layer 05 at `5a8da3f9`; UI-Router dependency at `b9e63a92`                                                    |
+| Staging            | Layer 05 at `2c3d0dce`; UI-Router dependency at `b9e63a92`                                                    |
 | Canonical branches | Unchanged                                                                                                     |
 | Pushes             | None                                                                                                          |
 | Upstream safety    | `NationalBankBelgium/stark` remains fetch-only; local push URL is `DISABLED`                                  |
