@@ -24,6 +24,11 @@ export const representativeRoutes = [
 		path: "/styleguide/button"
 	},
 	{
+		id: "route-search",
+		menuTrail: ["menu-stark-ui-components", "menu-stark-ui-components-route-search"],
+		path: "/demo-ui/route-search"
+	},
+	{
 		id: "rbac-authorization",
 		menuTrail: ["menu-stark-rbac-directives", "menu-stark-rbac-authorization"],
 		path: "/demo-rbac/authorization-directives"
