@@ -1,9 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import { getVisualTarget, isBaselineUpdateRequested, legacyOracle } from "./support/oracle";
 
-const legacyBaseUrl = "https://stark.nbb.be/showcase/latest/";
 const candidateBaseUrl = process.env.STARK_VISUAL_BASE_URL ?? "http://127.0.0.1:4200/";
-const targetKind = process.env.STARK_VISUAL_TARGET === "legacy" ? "legacy" : "candidate";
-const targetBaseUrl = targetKind === "legacy" ? legacyBaseUrl : candidateBaseUrl;
+const targetKind = getVisualTarget();
+const targetBaseUrl = targetKind === "legacy" ? legacyOracle.baseUrl : candidateBaseUrl;
+const shouldUpdateSnapshots = isBaselineUpdateRequested();
 const shouldStartCandidateServer =
 	targetKind === "candidate" &&
 	process.env.STARK_VISUAL_BASE_URL === undefined &&
@@ -19,6 +20,7 @@ export default defineConfig({
 		}
 	},
 	fullyParallel: false,
+	updateSnapshots: shouldUpdateSnapshots ? "all" : "none",
 	outputDir: "../../test-results/visual",
 	reporter: [
 		["list"],
@@ -37,7 +39,7 @@ export default defineConfig({
 		serviceWorkers: "block",
 		timezoneId: "UTC",
 		trace: "retain-on-failure",
-		video: "retain-on-failure"
+		video: shouldUpdateSnapshots ? "on" : "retain-on-failure"
 	},
 	workers: 1,
 	projects: [
