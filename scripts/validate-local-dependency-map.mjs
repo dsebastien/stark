@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const mapPath = path.join(scriptDirectory, "local-dependency-map.json");
@@ -21,6 +21,17 @@ function isRelativePath(value, allowParent = false) {
 
 function readJson(filePath) {
 	return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+export function defaultWorkspaceRoot(map) {
+	const candidates = [
+		path.resolve(process.cwd(), ".."),
+		path.resolve(scriptDirectory, "..", ".."),
+		path.resolve(scriptDirectory, "..", "..", "..")
+	];
+	return candidates.find((candidate) => (map?.repositories ?? []).every((repository) => (
+		typeof repository?.directory === "string" && fs.existsSync(path.join(candidate, repository.directory))
+	))) ?? candidates[0];
 }
 
 function readJsonSource(repositoryDirectory, source) {
@@ -53,7 +64,7 @@ function listSourceManifests(repositoryDirectory) {
 	return manifests;
 }
 
-function validateMap(map, workspaceRoot) {
+export function validateMap(map, workspaceRoot) {
 	const errors = [];
 	if (map?.schemaVersion !== 1) {
 		errors.push(`schemaVersion must be 1, received ${JSON.stringify(map?.schemaVersion)}`);
@@ -341,16 +352,18 @@ function runSelfTests(map, workspaceRoot) {
 	process.stdout.write(`Local dependency map validator self-tests passed (${reachedCases.length}/${reachedCases.length} negative cases reached).\n`);
 }
 
-const map = JSON.parse(fs.readFileSync(mapPath, "utf8"));
-const arguments_ = process.argv.slice(2);
-const workspaceArgument = arguments_.find((argument) => !argument.startsWith("-"));
-const workspaceRoot = path.resolve(workspaceArgument ?? path.join(scriptDirectory, "..", "..", ".."));
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+	const map = JSON.parse(fs.readFileSync(mapPath, "utf8"));
+	const arguments_ = process.argv.slice(2);
+	const workspaceArgument = arguments_.find((argument) => !argument.startsWith("-"));
+	const workspaceRoot = path.resolve(workspaceArgument ?? defaultWorkspaceRoot(map));
 
-if (arguments_.includes("--self-test")) {
-	runSelfTests(map, workspaceRoot);
-} else {
-	const result = validateMap(map, workspaceRoot);
-	process.stdout.write(
-		`Validated local dependency map: ${result.repositories} repositories, ${result.packages} packages, ${result.consumers} consumers.\n`
-	);
+	if (arguments_.includes("--self-test")) {
+		runSelfTests(map, workspaceRoot);
+	} else {
+		const result = validateMap(map, workspaceRoot);
+		process.stdout.write(
+			`Validated local dependency map: ${result.repositories} repositories, ${result.packages} packages, ${result.consumers} consumers.\n`
+		);
+	}
 }

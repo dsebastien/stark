@@ -94,7 +94,8 @@
     "zone.js": "~0.16.2"
   },
   "scripts": {
-		"build": "node ./scripts/build-packages.mjs",
+    "build": "node ./scripts/build-packages.mjs",
+    "build:local-packages": "node ./scripts/build-local-packages.mjs",
     "build:trace": "npm run build -- --trace",
     "build:stark-build": "npm run build -- --packages=stark-build",
     "build:stark-core": "npm run build -- --packages=stark-core",
@@ -166,6 +167,7 @@
     "starter": "cd starter && npm start && cd ..",
     "stylelint-check": "stylelint-config-prettier-check",
     "test": "npm run test:ci:all",
+    "test:local-packages": "node --test ./scripts/build-local-packages.test.mjs",
     "test:all": "npm run test:stark-core && npm run test:stark-ui && npm run test:stark-rbac && npm run test:starter && npm run test:showcase",
     "test:packages": "npm run test:stark-core && npm run test:stark-ui && npm run test:stark-rbac",
     "test:stark-core": "ng test stark-core",
@@ -183,7 +185,8 @@
     "test:ci:coveralls:combined": "node combine-packages-coverage.js",
     "tsc": "tsc",
     "update:showcase": "npm run install:showcase",
-    "update:starter": "npm run install:starter"
+    "update:starter": "npm run install:starter",
+    "validate:local-dependency-map": "node ./scripts/validate-local-dependency-map.mjs"
   },
   "lint-staged": {
     "*.{css,html,js,json,md,pcss,scss,ts,yml}": [
