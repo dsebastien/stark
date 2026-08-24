@@ -132,6 +132,21 @@ test("cross-checks result and provenance before accepting a generation", () => {
 	assert.throws(() => validateGenerationAt(descriptor.generationPath, { generationId: descriptor.generationId }), /generation identity mismatch|metadata digest mismatch/u);
 });
 
+test("rejects a source artifact changed immediately after the copy", () => {
+	const fixture = createFixture("copy-source-race");
+	const originalCopyFileSync = fs.copyFileSync;
+	fs.copyFileSync = (source, destination, flags) => {
+		originalCopyFileSync(source, destination, flags);
+		fs.appendFileSync(source, "post-copy mutation");
+	};
+	try {
+		assert.throws(() => runPipeline(fixture.plan), /source artifact changed after copy/u);
+	} finally {
+		fs.copyFileSync = originalCopyFileSync;
+	}
+	assert.equal(generationDirectories(fixture).some((directory) => directory.endsWith(".incomplete")), false);
+});
+
 test("keeps a previous complete generation byte-for-byte unchanged after a failed build", () => {
 	const fixture = createFixture("rollback");
 	const first = runPipeline(fixture.plan);

@@ -86,14 +86,19 @@ function stableJson(value) {
 
 function writeAtomic(filePath, contents, options = {}) {
 	const parent = path.dirname(filePath);
+	const beforeMutation = options.beforeMutation;
+	beforeMutation?.();
 	fs.mkdirSync(parent, { recursive: true });
 	const suffix = `${process.pid}-${randomToken(8)}`;
 	const temporaryPath = path.join(parent, `.${path.basename(filePath)}.${suffix}.incomplete`);
 	try {
+		beforeMutation?.();
 		fs.writeFileSync(temporaryPath, contents, { encoding: "utf8", flag: "wx" });
 		if (options.mode !== undefined) {
+			beforeMutation?.();
 			fs.chmodSync(temporaryPath, options.mode);
 		}
+		beforeMutation?.();
 		fs.renameSync(temporaryPath, filePath);
 	} catch (error) {
 		try {
@@ -760,6 +765,7 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 	const lockId = randomToken(16);
 	const candidate = path.join(candidatesRoot, `${lockId}.incomplete`);
 	if (fs.existsSync(candidate)) fail(`lock candidate collision: ${candidate}`, "lock");
+	assertPipelineIdentity(plan);
 	ensureDirectory(candidate, "lock candidate");
 	const descriptor = {
 		schemaVersion: lockSchemaVersion,
@@ -772,6 +778,7 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 		createdAt: new Date().toISOString()
 	};
 	faultIfRequested(faultPlan, "lock.candidate.write");
+	assertPipelineIdentity(plan);
 	writeAtomic(path.join(candidate, "descriptor.json"), stableJson(descriptor));
 	const candidateDescriptor = readJson(path.join(candidate, "descriptor.json"), "lock candidate descriptor");
 	if (!sameRecords(candidateDescriptor, descriptor)) fail("lock candidate descriptor changed before publication", "lock");
@@ -802,6 +809,9 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 }
 
 function releaseWorkspaceLock(lock, faultPlan) {
+	assertWorkspaceIdentity(lock.descriptor.workspace, lock.descriptor.workspace.realPath);
+	const stateRootIdentity = assertStateRootIdentity(lock.stateRoot, lock.descriptor.workspace);
+	if (!sameRecords(stateRootIdentity, lock.descriptor.stateRoot)) fail("canonical state-root identity changed before lock release", "containment", { expected: lock.descriptor.stateRoot, actual: stateRootIdentity });
 	const receiptsRoot = statePath(lock.stateRoot, "locks/release-receipts", "release receipts");
 	const releasedRoot = statePath(lock.stateRoot, "locks/released", "released locks");
 	const receiptPath = path.join(receiptsRoot, `${lock.lockId}.complete`);
@@ -815,6 +825,8 @@ function releaseWorkspaceLock(lock, faultPlan) {
 		state: "LOCK-RELEASED"
 	};
 	faultIfRequested(faultPlan, "lock.release.receipt");
+	const receiptState = assertStateRootIdentity(lock.stateRoot, lock.descriptor.workspace);
+	if (!sameRecords(receiptState, lock.descriptor.stateRoot)) fail("canonical state-root identity changed before release receipt", "containment", { expected: lock.descriptor.stateRoot, actual: receiptState });
 	writeAtomic(receiptPath, stableJson(receipt));
 	if (!fs.existsSync(lock.activePath)) fail(`active lock disappeared before release: ${lock.activePath}`, "lock.release");
 	const activeDescriptor = readJson(path.join(lock.activePath, "descriptor.json"), "active lock descriptor");
@@ -1164,6 +1176,7 @@ function sourceArtifactRecord(sourcePath, sourceProof, packageEntry, repositoryE
 
 function buildGeneration(plan, generationPath, descriptor, initialStates, faultPlan) {
 	const artifactOutput = path.join(generationPath, "artifacts");
+	assertPipelineIdentity(plan);
 	ensureDirectory(artifactOutput, "generation artifacts");
 	const records = [];
 	const repositoryRecords = [];
@@ -1218,6 +1231,8 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 			if (outputIdentities.has(outputIdentity)) fail(`duplicate generated artifact identity: ${outputPath}`, "artifact.validation");
 			outputIdentities.add(outputIdentity);
 			if (hashFile(outputPath) !== sourceProof.sha256 || hashFile(outputPath, "sha512") !== sourceProof.sha512 || outputStat.size !== sourceProof.size) fail(`source artifact content changed before copy: ${sourceArtifact}`, "artifact.validation");
+			const afterCopySourceProof = sourceArtifactProof(sourceArtifact);
+			if (!sameRecords(afterCopySourceProof, sourceProof)) fail(`source artifact changed after copy: ${sourceArtifact}`, "artifact.validation");
 			records.push(sourceArtifactRecord(sourceArtifact, sourceProof, packageEntry, { ...repositoryEntry, snapshot: currentSnapshot }, version, outputPath));
 		}
 		const finalSnapshot = compareRepositorySnapshot(state.directory, repository, currentSnapshot, `final ${repository.id}`);
@@ -1246,11 +1261,15 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 		warnings: []
 	};
 	faultIfRequested(faultPlan, "result.write");
+	assertPipelineIdentity(plan);
 	writeAtomic(path.join(generationPath, resultName), stableJson(result));
 	faultIfRequested(faultPlan, "checksums.write");
+	assertPipelineIdentity(plan);
 	writeAtomic(path.join(generationPath, "checksums.sha256"), checksumRecords.map((record) => `${record.sha256}  ${record.artifact}\n`).join(""));
+	assertPipelineIdentity(plan);
 	writeAtomic(path.join(generationPath, "checksums.sha512"), checksumRecords.map((record) => `${record.sha512}  ${record.artifact}\n`).join(""));
 	faultIfRequested(faultPlan, "provenance.write");
+	assertPipelineIdentity(plan);
 	writeAtomic(path.join(generationPath, "provenance.json"), stableJson({
 		schemaVersion: stateSchemaVersion,
 		generationId: descriptor.generationId,
@@ -1263,7 +1282,9 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 	const entries = collectTreeFiles(generationPath);
 	const treeSha256 = computeTreeDigest(entries);
 	faultIfRequested(faultPlan, "marker.write");
+	assertPipelineIdentity(plan);
 	writeAtomic(path.join(generationPath, treeManifestName), stableJson({ ...treeManifestCore(entries), treeSha256 }));
+	assertPipelineIdentity(plan);
 	writeAtomic(path.join(generationPath, completionMarkerName), stableJson({
 		schemaVersion: stateSchemaVersion,
 		generationId: descriptor.generationId,
@@ -1380,6 +1401,7 @@ export function breakGlassActiveLock(stateRoot) {
 function runPipelineInternal(planInput, options = {}) {
 	const plan = normalizePlan(planInput);
 	assertWorkspaceIdentity(plan.workspace, plan.workspaceRoot);
+	assertPipelineIdentity(plan);
 	ensureStateLayout(plan.stateRoot);
 	assertPipelineIdentity(plan);
 	const faultPlan = options.faultPlan ?? plan.faultPlan;
