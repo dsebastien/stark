@@ -11,6 +11,7 @@ import {
 	formatPipelineError,
 	resolveContained,
 	runPipeline,
+	writeAtomic,
 	validateGenerationAt
 } from "./build-local-packages.mjs";
 
@@ -188,6 +189,13 @@ test("rejects traversal, absolute, ADS, and reserved-name paths", () => {
 	}
 });
 
+test("publishes immutable state files without overwriting a collision", () => {
+	const filePath = path.join(testRoot, `immutable-${Date.now()}-${Math.random().toString(16).slice(2)}.complete`);
+	writeAtomic(filePath, "first\n", { noReplace: true });
+	assert.throws(() => writeAtomic(filePath, "replacement\n", { noReplace: true }), /atomic destination already exists/u);
+	assert.equal(fs.readFileSync(filePath, "utf8"), "first\n");
+});
+
 test("two real child producers contend on one atomic workspace lock", async () => {
 	const fixture = createFixture("contention");
 	fs.writeFileSync(
@@ -219,4 +227,52 @@ test("does not permit automatic break-glass recovery while the owner is alive", 
 		owner: { pid: process.pid, processStartToken: "wrong" }
 	}));
 	assert.throws(() => breakGlassActiveLock(fixture.stateRoot), /PID was reused|canonical workspace|alive|identity/u);
+});
+
+function workspaceRecord(directory) {
+	const realPath = fs.realpathSync(directory);
+	const stat = fs.statSync(realPath);
+	return { realPath, volumeId: String(stat.dev), directoryId: `${stat.dev}:${stat.ino}` };
+}
+
+function writeBreakGlassDescriptor(fixture, owner, extra = {}) {
+	fs.mkdirSync(path.join(fixture.stateRoot, "locks", "active"), { recursive: true });
+	fs.writeFileSync(path.join(fixture.stateRoot, "locks", "active", "descriptor.json"), JSON.stringify({
+		schemaVersion: 1,
+		lockId: "stale-lock",
+		workspace: workspaceRecord(fixture.workspaceRoot),
+		owner,
+		...extra
+	}));
+}
+
+test("break-glass quarantines an owner that is absent with no live descendants", () => {
+	const fixture = createFixture("break-glass-stale");
+	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+	const destination = breakGlassActiveLock(fixture.stateRoot, { processEnumerator: () => [] });
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), false);
+	assert.equal(JSON.parse(fs.readFileSync(path.join(destination, "break-glass-evidence.json"), "utf8")).lockId, "stale-lock");
+});
+
+test("break-glass refuses an unverifiable process enumeration", () => {
+	const fixture = createFixture("break-glass-enumeration");
+	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, { processEnumerator: () => { throw new Error("enumeration denied"); } }),
+		/enumeration denied/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+});
+
+test("break-glass refuses a live descendant of an absent owner", () => {
+	const fixture = createFixture("break-glass-descendant");
+	const ownerPid = 2147483647;
+	writeBreakGlassDescriptor(fixture, { pid: ownerPid, processStartToken: "stale-owner" });
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, {
+			processEnumerator: () => [{ pid: ownerPid + 1, parentPid: ownerPid, startToken: "child" }]
+		}),
+		/owner or a recorded descendant is still alive/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
 });

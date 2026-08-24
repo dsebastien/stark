@@ -84,9 +84,10 @@ function stableJson(value) {
 	return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-function writeAtomic(filePath, contents, options = {}) {
+export function writeAtomic(filePath, contents, options = {}) {
 	const parent = path.dirname(filePath);
 	const beforeMutation = options.beforeMutation;
+	const noReplace = options.noReplace === true;
 	beforeMutation?.();
 	fs.mkdirSync(parent, { recursive: true });
 	const suffix = `${process.pid}-${randomToken(8)}`;
@@ -99,7 +100,21 @@ function writeAtomic(filePath, contents, options = {}) {
 			fs.chmodSync(temporaryPath, options.mode);
 		}
 		beforeMutation?.();
-		fs.renameSync(temporaryPath, filePath);
+		if (noReplace) {
+			// rename(2) replaces an existing destination on POSIX, and the
+			// Windows behavior is not a portable no-replace contract either.
+			// A hard-link publication creates the destination atomically and
+			// fails with EEXIST without overwriting it.
+			try {
+				fs.linkSync(temporaryPath, filePath);
+			} catch (error) {
+				if (error?.code === "EEXIST") fail(`atomic destination already exists: ${filePath}`, "state.write", { path: filePath, cause: error });
+				throw error;
+			}
+			fs.unlinkSync(temporaryPath);
+		} else {
+			fs.renameSync(temporaryPath, filePath);
+		}
 	} catch (error) {
 		try {
 			if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
@@ -831,10 +846,14 @@ function releaseWorkspaceLock(lock, faultPlan) {
 		releasedAt: new Date().toISOString(),
 		state: "LOCK-RELEASED"
 	};
+	if (!fs.existsSync(lock.activePath)) fail(`active lock disappeared before release: ${lock.activePath}`, "lock.release");
+	const activeDescriptorBeforeReceipt = readJson(path.join(lock.activePath, "descriptor.json"), "active lock descriptor");
+	if (!sameRecords(activeDescriptorBeforeReceipt, lock.descriptor)) fail("active lock owner changed before release receipt", "lock.release");
+	if (fs.existsSync(releasedPath)) fail(`released lock destination collision: ${releasedPath}`, "lock.release");
 	faultIfRequested(faultPlan, "lock.release.receipt");
 	const receiptState = assertStateRootIdentity(lock.stateRoot, lock.descriptor.workspace);
 	if (!sameRecords(receiptState, lock.descriptor.stateRoot)) fail("canonical state-root identity changed before release receipt", "containment", { expected: lock.descriptor.stateRoot, actual: receiptState });
-	writeAtomic(receiptPath, stableJson(receipt));
+	writeAtomic(receiptPath, stableJson(receipt), { noReplace: true });
 	if (!fs.existsSync(lock.activePath)) fail(`active lock disappeared before release: ${lock.activePath}`, "lock.release");
 	const activeDescriptor = readJson(path.join(lock.activePath, "descriptor.json"), "active lock descriptor");
 	if (!sameRecords(activeDescriptor, lock.descriptor)) fail("active lock owner changed before release", "lock.release");
@@ -1354,20 +1373,33 @@ function createGenerationCandidate(plan, initialStates, faultPlan) {
 function liveProcessPids() {
 	if (process.platform !== "linux") fail("process-tree enumeration is unavailable on this platform; break-glass recovery is refused", "break-glass");
 	const pids = [];
-	for (const name of fs.readdirSync("/proc")) {
+	let names;
+	try {
+		names = fs.readdirSync("/proc");
+	} catch (error) {
+		fail(`process-tree enumeration is unavailable: ${error.message}`, "break-glass", { cause: error });
+	}
+	for (const name of names) {
 		if (!/^\d+$/u.test(name)) continue;
 		try {
 			const stat = fs.readFileSync(`/proc/${name}/stat`, "utf8");
 			const after = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/u);
-			pids.push({ pid: Number(name), parentPid: Number(after[1]), startToken: after[19] ?? null });
-		} catch {
+			const pid = Number(name);
+			const parentPid = Number(after[1]);
+			const startToken = after[19];
+			if (!Number.isSafeInteger(pid) || !Number.isSafeInteger(parentPid) || typeof startToken !== "string" || startToken.length === 0) {
+				fail(`process-tree enumeration returned malformed identity for PID ${name}`, "break-glass");
+			}
+			pids.push({ pid, parentPid, startToken });
+		} catch (error) {
 			// A process can exit between enumeration and reading its stat; omit only that exited process.
+			if (error?.code !== "ENOENT") fail(`process-tree enumeration failed for PID ${name}: ${error.message}`, "break-glass", { cause: error });
 		}
 	}
 	return pids;
 }
 
-export function breakGlassActiveLock(stateRoot) {
+export function breakGlassActiveLock(stateRoot, options = {}) {
 	const root = path.resolve(stateRoot);
 	ensureStateLayout(root);
 	const activePath = statePath(root, "locks/active", "active lock");
@@ -1376,10 +1408,29 @@ export function breakGlassActiveLock(stateRoot) {
 	const expectedWorkspace = descriptor.workspace?.realPath;
 	if (typeof expectedWorkspace !== "string") fail("active lock has no canonical workspace identity", "break-glass");
 	assertWorkspaceIdentity(descriptor.workspace, expectedWorkspace);
-	const processes = liveProcessPids();
-	const owner = processes.find((entry) => entry.pid === descriptor.owner?.pid);
+	const enumerateProcesses = options.processEnumerator ?? liveProcessPids;
+	let processes;
+	try {
+		processes = enumerateProcesses();
+	} catch (error) {
+		throw asError(error, "break-glass");
+	}
+	if (!Array.isArray(processes)) fail("process-tree enumeration returned no verifiable process list", "break-glass");
+	const seenPids = new Set();
+	for (const processRecord of processes) {
+		if (!processRecord || !Number.isSafeInteger(processRecord.pid) || processRecord.pid <= 0 || !Number.isSafeInteger(processRecord.parentPid) || processRecord.parentPid < 0 || typeof processRecord.startToken !== "string" || processRecord.startToken.length === 0 || seenPids.has(processRecord.pid)) {
+			fail("process-tree enumeration returned ambiguous process identity; break-glass recovery is refused", "break-glass");
+		}
+		seenPids.add(processRecord.pid);
+	}
+	const ownerPid = descriptor.owner?.pid;
+	const ownerStartToken = descriptor.owner?.processStartToken;
+	if (!Number.isSafeInteger(ownerPid) || ownerPid <= 0 || typeof ownerStartToken !== "string" || ownerStartToken.length === 0) {
+		fail("active lock has no verifiable owner process identity; break-glass recovery is refused", "break-glass");
+	}
+	const owner = processes.find((entry) => entry.pid === ownerPid);
 	if (owner && descriptor.owner.processStartToken !== owner.startToken) fail("active lock owner PID was reused; break-glass recovery is refused", "break-glass");
-	const descendants = new Set([descriptor.owner?.pid]);
+	const descendants = new Set([ownerPid]);
 	let changed = true;
 	while (changed) {
 		changed = false;
@@ -1388,7 +1439,7 @@ export function breakGlassActiveLock(stateRoot) {
 			changed = true;
 		}
 	}
-	if (descendants.size > (owner ? 0 : 1)) fail("active lock owner or a recorded descendant is still alive; break-glass recovery is refused", "break-glass");
+	if (owner || descendants.size > 1) fail("active lock owner or a recorded descendant is still alive; break-glass recovery is refused", "break-glass");
 	const destination = quarantinePath(root, activePath, "break-glass-active-lock", undefined, "break-glass.rename", {
 		workspace: descriptor.workspace,
 		workspaceRoot: descriptor.workspace.realPath,
