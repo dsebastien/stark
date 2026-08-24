@@ -237,7 +237,14 @@ function ensureDirectory(directory, label) {
 	}
 	const parent = path.dirname(directory);
 	if (parent !== directory) ensureDirectory(parent, `${label} parent`);
-	fs.mkdirSync(directory);
+	try {
+		fs.mkdirSync(directory);
+	} catch (error) {
+		// Multiple producers may initialize the shared state root concurrently.
+		// EEXIST is safe only when the winner created the expected path; the
+		// lstat/type/reparse checks below remain the authority.
+		if (error?.code !== "EEXIST") throw error;
+	}
 	const stat = fs.lstatSync(directory);
 	if (!stat.isDirectory() || isReparsePoint(stat)) fail(`${label} was not created as a safe directory`, "containment");
 }
