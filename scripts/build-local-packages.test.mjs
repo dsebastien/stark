@@ -109,6 +109,19 @@ test("does not treat an incomplete generation as published authority", () => {
 	assert.throws(() => validateGenerationAt(stagingPath, { generationId: descriptor.generationId }), /staging generation is not publish authority/u);
 });
 
+test("quarantines a complete generation whose directory identity does not match its contents", () => {
+	const fixture = createFixture("generation-identity");
+	const descriptor = runPipeline(fixture.plan);
+	const wrongId = `${descriptor.generationId[0] === "0" ? "1" : "0"}${descriptor.generationId.slice(1)}`;
+	const copiedPath = path.join(fixture.stateRoot, "generations", `${wrongId}.complete`);
+	fs.cpSync(descriptor.generationPath, copiedPath, { recursive: true });
+
+	const next = runPipeline(fixture.plan);
+	assert.equal(fs.existsSync(copiedPath), false);
+	assert.ok(fs.readdirSync(path.join(fixture.stateRoot, "quarantine")).some((name) => name.includes("invalid-complete-generation")));
+	assert.equal(fs.existsSync(next.generationPath), true);
+});
+
 test("cross-checks result and provenance before accepting a generation", () => {
 	const fixture = createFixture("provenance-proof");
 	const descriptor = runPipeline(fixture.plan);

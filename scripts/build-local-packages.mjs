@@ -260,12 +260,13 @@ function assertStateRootIdentity(stateRoot, expectedWorkspace) {
 	if (!isPathInside(expectedWorkspace.realPath, stateReal)) fail(`state root resolves outside workspace: ${stateRoot}`, "containment");
 	const stat = fs.lstatSync(stateReal);
 	if (!stat.isDirectory() || isReparsePoint(stat)) fail(`state root is not a safe directory: ${stateRoot}`, "containment");
-	return { realPath: stateReal, identity: statIdentity(stat, stateReal, "state root") };
+	return { realPath: stateReal, volumeId: String(stat.dev), directoryId: statIdentity(stat, stateReal, "state root") };
 }
 
 function assertPipelineIdentity(plan) {
 	assertWorkspaceIdentity(plan.workspace, plan.workspaceRoot);
-	assertStateRootIdentity(plan.stateRoot, plan.workspace);
+	const actual = assertStateRootIdentity(plan.stateRoot, plan.workspace);
+	if (!sameRecords(actual, plan.stateRootIdentity)) fail("canonical state-root identity changed", "containment", { expected: plan.stateRootIdentity, actual });
 }
 
 function faultIfRequested(faultPlan, operation) {
@@ -520,6 +521,24 @@ export function validateSourceArtifact(repositoryDirectory, artifact, packageVer
 	return artifactPath;
 }
 
+function sourceArtifactProof(sourcePath) {
+	const first = fs.lstatSync(sourcePath);
+	if (!first.isFile() || isReparsePoint(first) || first.nlink > 1) fail(`artifact must be a unique regular file: ${sourcePath}`, "artifact.validation");
+	const firstIdentity = fileIdentity(first, sourcePath, "source artifact");
+	const contents = fs.readFileSync(sourcePath);
+	const proof = {
+		identity: firstIdentity,
+		size: first.size,
+		sha256: hashBuffer(contents),
+		sha512: hashBuffer(contents, "sha512")
+	};
+	const second = fs.lstatSync(sourcePath);
+	if (!second.isFile() || isReparsePoint(second) || second.nlink > 1 || fileIdentity(second, sourcePath, "source artifact") !== proof.identity || second.size !== proof.size || hashFile(sourcePath) !== proof.sha256 || hashFile(sourcePath, "sha512") !== proof.sha512) {
+		fail(`source artifact changed during validation: ${sourcePath}`, "artifact.validation");
+	}
+	return proof;
+}
+
 function cleanMappedArtifacts(repositoryDirectory, packageEntries, faultPlan) {
 	faultIfRequested(faultPlan, "source.cleanup.before");
 	for (const packageEntry of packageEntries) {
@@ -674,6 +693,10 @@ function assertStateSource(stateRoot, sourcePath, label) {
 
 function assertRenamePaths(stateRoot, sourcePath, destinationPath, options = {}) {
 	if (options.workspace) assertWorkspaceIdentity(options.workspace, options.workspaceRoot);
+	if (options.stateRootIdentity) {
+		const actualState = assertStateRootIdentity(stateRoot, options.workspace ?? workspaceIdentity(options.workspaceRoot));
+		if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed before rename", "containment", { expected: options.stateRootIdentity, actual: actualState });
+	}
 	const source = assertStateSource(stateRoot, sourcePath, "rename source");
 	const destination = resolveContained(stateRoot, path.relative(stateRoot, destinationPath), "rename destination");
 	const destinationParent = canonicalExistingPath(path.dirname(destination), "rename destination parent");
@@ -685,6 +708,10 @@ function assertRenamePaths(stateRoot, sourcePath, destinationPath, options = {})
 	// last proof point against a replacement between discovery and publication.
 	const current = fs.lstatSync(source.path);
 	if (isReparsePoint(current) || statIdentity(current, source.path, "rename source") !== source.identity) fail(`rename source identity changed: ${source.path}`, "containment");
+	if (options.stateRootIdentity) {
+		const actualState = assertStateRootIdentity(stateRoot, options.workspace ?? workspaceIdentity(options.workspaceRoot));
+		if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed immediately before rename", "containment", { expected: options.stateRootIdentity, actual: actualState });
+	}
 	return { source: source.path, destination, sourceIdentity: source.identity };
 }
 
@@ -693,6 +720,10 @@ function quarantinePath(stateRoot, sourcePath, stateLabel, faultPlan, operation 
 	faultIfRequested(faultPlan, operation);
 	try {
 		const rename = assertRenamePaths(stateRoot, sourcePath, destination, { ...options, sourceSuffix: options.sourceSuffix });
+		if (options.stateRootIdentity) {
+			const actualState = assertStateRootIdentity(stateRoot, options.workspace ?? workspaceIdentity(options.workspaceRoot));
+			if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed immediately before quarantine", "containment", { expected: options.stateRootIdentity, actual: actualState });
+		}
 		renameWithWindowsRetry(rename.source, rename.destination);
 	} catch (error) {
 		throw new PipelineError(`could not quarantine ${sourcePath}: ${error.message}`, "recovery", { source: sourcePath, destination, cause: error });
@@ -735,6 +766,7 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 		lockId,
 		state: "LOCK-CANDIDATE",
 		workspace: workspaceIdentity(plan.workspaceRoot),
+		stateRoot: plan.stateRootIdentity,
 		ownerNonce: randomToken(24),
 		owner: lockOwner(plan),
 		createdAt: new Date().toISOString()
@@ -748,6 +780,7 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 		const rename = assertRenamePaths(stateRoot, candidate, activePath, {
 			workspace: plan.workspace,
 			workspaceRoot: plan.workspaceRoot,
+			stateRootIdentity: plan.stateRootIdentity,
 			sourceSuffix: ".incomplete",
 			destinationAbsent: true
 		});
@@ -791,6 +824,7 @@ function releaseWorkspaceLock(lock, faultPlan) {
 	const rename = assertRenamePaths(lock.stateRoot, lock.activePath, releasedPath, {
 		workspace: lock.descriptor.workspace,
 		workspaceRoot: lock.descriptor.workspace.realPath,
+		stateRootIdentity: lock.descriptor.stateRoot,
 		destinationSuffix: ".complete",
 		destinationAbsent: true
 	});
@@ -814,12 +848,13 @@ function normalizePlan(plan) {
 	if (reason) fail(`state root ${reason}`, "containment");
 	const stateRoot = resolveContained(workspace.realPath, stateRelative, "state root");
 	ensureDirectory(stateRoot, "state root");
-	assertStateRootIdentity(stateRoot, workspace);
+	const stateRootIdentity = assertStateRootIdentity(stateRoot, workspace);
 	const ordered = repositoryOrder({ repositories: plan.repositories });
 	return {
 		...plan,
 		workspaceRoot: workspace.realPath,
 		stateRoot,
+		stateRootIdentity,
 		repositories: ordered,
 		workspace
 	};
@@ -847,7 +882,8 @@ function expectedArtifactMetadata(repository, repositoryDirectory, packageVersio
 		artifactDirectory: packageEntry.artifact.directory,
 		expectedName: expectedArtifactName(packageEntry.artifact, packageVersions.get(packageEntry.name)),
 		pattern: packageEntry.artifact.pattern,
-		repositoryPath: canonicalExistingPath(repositoryDirectory, "repository")
+		repositoryPath: canonicalExistingPath(repositoryDirectory, "repository"),
+		sourcePath: path.join(canonicalExistingPath(repositoryDirectory, "repository"), packageEntry.artifact.directory, expectedArtifactName(packageEntry.artifact, packageVersions.get(packageEntry.name)))
 	}));
 }
 
@@ -882,6 +918,7 @@ function generationDescriptor(plan, generationId, initialStates) {
 		plan: {
 			workspaceRoot: plan.workspaceRoot,
 			stateRoot: plan.stateRoot,
+			stateRootIdentity: plan.stateRootIdentity,
 			repositories: plan.repositories.map((repository) => ({
 				id: repository.id,
 				directory: repository.directory,
@@ -966,10 +1003,15 @@ export function validateGenerationAt(generationPath, expected = {}) {
 	const marker = readJson(path.join(generationPath, completionMarkerName), "completion marker");
 	const manifest = readJson(path.join(generationPath, treeManifestName), "tree manifest");
 	if (descriptor.schemaVersion !== stateSchemaVersion || result.schemaVersion !== stateSchemaVersion || provenance.schemaVersion !== stateSchemaVersion || marker.schemaVersion !== stateSchemaVersion) fail("generation schema mismatch", "output.validation");
-	if (marker.generationId !== descriptor.generationId || result.generationId !== descriptor.generationId || provenance.generationId !== descriptor.generationId || expected.generationId !== undefined && descriptor.generationId !== expected.generationId) fail("generation identity mismatch", "output.validation");
+	const basenameGenerationId = basename.slice(0, 32);
+	if (descriptor.generationId !== basenameGenerationId || marker.generationId !== basenameGenerationId || result.generationId !== basenameGenerationId || provenance.generationId !== basenameGenerationId || expected.generationId !== undefined && descriptor.generationId !== expected.generationId) fail("generation identity mismatch", "output.validation");
 	if (!["PUBLISH-READY", "PUBLISHED"].includes(marker.state)) fail("generation completion marker is not publish-ready", "output.validation");
 	if (!sameRecords(descriptor.workspace, result.workspace) || !sameRecords(descriptor.workspace, provenance.workspace) || !sameRecords(descriptor.workspace, marker.workspace)) fail("generation workspace identity mismatch", "output.validation");
 	assertWorkspaceIdentity(descriptor.workspace, descriptor.workspace.realPath);
+	if (expected.stateRoot) {
+		const state = assertStateRootIdentity(expected.stateRoot, expected.workspace ?? descriptor.workspace);
+		if (!sameRecords(descriptor.plan?.stateRootIdentity, state)) fail("generation state-root identity mismatch", "output.validation");
+	}
 	if (descriptor.mapSha256 !== result.mapSha256 || descriptor.mapSha256 !== provenance.mapSha256) fail("generation map identity mismatch", "output.validation");
 	const entries = collectTreeFiles(generationPath);
 	if (!sameRecords(entries, manifest.entries)) fail("generation tree manifest does not match its files", "output.validation");
@@ -1003,7 +1045,33 @@ export function validateGenerationAt(generationPath, expected = {}) {
 	if (expectedByName.size !== expectedArtifacts.length || expectedByName.size !== artifactRecords.length) fail("generation expected artifact set mismatch", "output.validation");
 	for (const record of artifactRecords) {
 		const expectedArtifact = expectedByName.get(record.artifact);
-		if (!expectedArtifact || expectedArtifact.package !== record.package || expectedArtifact.repository !== record.repository || expectedArtifact.version !== record.version) fail(`generation artifact provenance mismatch: ${record.artifact}`, "output.validation");
+		const plannedRepository = plannedRepositories.find((entry) => entry.id === record.repository);
+		const expectedSourcePath = expectedArtifact && path.resolve(expectedArtifact.repositoryPath, expectedArtifact.artifactDirectory, expectedArtifact.expectedName);
+		if (
+			!expectedArtifact ||
+			!plannedRepository ||
+			expectedArtifact.package !== record.package ||
+			expectedArtifact.repository !== record.repository ||
+			expectedArtifact.version !== record.version ||
+			expectedArtifact.sourceDirectory !== record.sourceDirectory ||
+			expectedArtifact.artifactDirectory !== record.artifactDirectory ||
+			expectedArtifact.expectedName !== record.expectedName ||
+			expectedArtifact.pattern !== record.pattern ||
+			!samePath(expectedArtifact.repositoryPath, record.repositoryPath) ||
+			!samePath(expectedSourcePath, record.sourcePath) ||
+			!samePath(expectedArtifact.sourcePath, record.sourcePath) ||
+			!samePath(record.repositoryPath, plannedRepository.realPath) ||
+			record.branch !== plannedRepository.branch ||
+			record.commit !== plannedRepository.commit ||
+			typeof record.sourceIdentity !== "string" ||
+			typeof record.sourceProof !== "object" ||
+			record.sourceProof.identity !== record.sourceIdentity ||
+			record.sourceProof.size !== record.sourceSize ||
+			record.sourceProof.sha256 !== record.sourceSha256 ||
+			record.sourceProof.sha512 !== record.sourceSha512 ||
+			record.sourceProof.sha256 !== record.sha256 ||
+			record.sourceProof.sha512 !== record.sha512
+		) fail(`generation artifact provenance mismatch: ${record.artifact}`, "output.validation");
 	}
 	const actualArtifactFiles = fs.readdirSync(path.join(generationPath, "artifacts")).map((name) => `artifacts/${name}`).sort();
 	if (!sameRecords(actualArtifactFiles, [...artifactNames].sort())) fail("generated artifact set does not match provenance", "output.validation");
@@ -1032,12 +1100,12 @@ function reconcileState(plan, faultPlan, lock) {
 	}
 	for (const entry of directoryEntries(candidatesRoot)) {
 		if (!entry.name.endsWith(".incomplete") || !entry.stat.isDirectory() || isReparsePoint(entry.stat)) fail(`unclassifiable lock candidate: ${entry.name}`, "recovery");
-			quarantinePath(stateRoot, entry.path, "abandoned-lock-candidate", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot });
+			quarantinePath(stateRoot, entry.path, "abandoned-lock-candidate", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot, stateRootIdentity: plan.stateRootIdentity });
 	}
 	for (const entry of directoryEntries(generationsRoot)) {
 		if (!/^[a-f0-9]{32}\.(?:incomplete|complete)$/u.test(entry.name) || !entry.stat.isDirectory() || isReparsePoint(entry.stat)) fail(`unclassifiable generation state: ${entry.name}`, "recovery");
 		if (entry.name.endsWith(".incomplete")) {
-			quarantinePath(stateRoot, entry.path, "abandoned-generation", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot });
+			quarantinePath(stateRoot, entry.path, "abandoned-generation", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot, stateRootIdentity: plan.stateRootIdentity });
 			continue;
 		}
 		try {
@@ -1045,7 +1113,7 @@ function reconcileState(plan, faultPlan, lock) {
 		} catch (error) {
 			let reported = error;
 			try {
-				quarantinePath(stateRoot, entry.path, "invalid-complete-generation", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot });
+				quarantinePath(stateRoot, entry.path, "invalid-complete-generation", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot, stateRootIdentity: plan.stateRootIdentity });
 			} catch (quarantineError) {
 				reported = attachSecondaryFailure(reported, `quarantine invalid generation ${entry.path}`, quarantineError);
 			}
@@ -1065,22 +1133,28 @@ function expectedNodeVersion(repository, repositoryDirectory) {
 	return repository.node?.fallback?.version ?? null;
 }
 
-function sourceArtifactRecord(sourcePath, packageEntry, repositoryEntry, version, outputPath) {
-	const sourceStat = fs.lstatSync(sourcePath);
+function sourceArtifactRecord(sourcePath, sourceProof, packageEntry, repositoryEntry, version, outputPath) {
 	const outputStat = fs.lstatSync(outputPath);
-	if (isReparsePoint(sourceStat) || isReparsePoint(outputStat) || !sourceStat.isFile() || !outputStat.isFile()) fail(`artifact is not a regular file: ${sourcePath}`, "artifact.validation");
-	const sourceIdentity = fileIdentity(sourceStat, sourcePath, "source artifact");
+	if (isReparsePoint(outputStat) || !outputStat.isFile()) fail(`artifact is not a regular file: ${sourcePath}`, "artifact.validation");
 	const outputIdentity = fileIdentity(outputStat, outputPath, "generated artifact");
 	return {
 		package: packageEntry.name,
 		version,
-		repository: repositoryEntry.id,
-		sourceDirectory: repositoryEntry.directory,
-		branch: repositoryEntry.snapshot.branch,
-		commit: repositoryEntry.snapshot.commit,
-		artifact: `artifacts/${path.basename(outputPath)}`,
-		sourcePath: sourcePath,
-		sourceIdentity,
+	repository: repositoryEntry.id,
+	sourceDirectory: repositoryEntry.directory,
+	artifactDirectory: packageEntry.artifact.directory,
+	expectedName: expectedArtifactName(packageEntry.artifact, version),
+	pattern: packageEntry.artifact.pattern,
+	repositoryPath: repositoryEntry.snapshot.realPath,
+	branch: repositoryEntry.snapshot.branch,
+	commit: repositoryEntry.snapshot.commit,
+	artifact: `artifacts/${path.basename(outputPath)}`,
+	sourcePath: sourcePath,
+	sourceIdentity: sourceProof.identity,
+	sourceSize: sourceProof.size,
+	sourceSha256: sourceProof.sha256,
+	sourceSha512: sourceProof.sha512,
+	sourceProof,
 		outputIdentity,
 		sha256: hashFile(outputPath),
 		sha512: hashFile(outputPath, "sha512"),
@@ -1133,6 +1207,9 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 			const name = path.basename(sourceArtifact);
 			if (outputNames.has(name)) fail(`duplicate final artifact name: ${name}`, "artifact.validation");
 			outputNames.add(name);
+			// Revalidate identity and content immediately before copying. The proof is
+			// retained in provenance and the copied bytes must match it exactly.
+			const sourceProof = sourceArtifactProof(sourceArtifact);
 			faultIfRequested(faultPlan, "artifact.copy");
 			const outputPath = path.join(artifactOutput, name);
 			fs.copyFileSync(sourceArtifact, outputPath, fs.constants.COPYFILE_EXCL);
@@ -1140,7 +1217,8 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 			const outputIdentity = fileIdentity(outputStat, outputPath, "generated artifact");
 			if (outputIdentities.has(outputIdentity)) fail(`duplicate generated artifact identity: ${outputPath}`, "artifact.validation");
 			outputIdentities.add(outputIdentity);
-			records.push(sourceArtifactRecord(sourceArtifact, packageEntry, { ...repositoryEntry, snapshot: currentSnapshot }, version, outputPath));
+			if (hashFile(outputPath) !== sourceProof.sha256 || hashFile(outputPath, "sha512") !== sourceProof.sha512 || outputStat.size !== sourceProof.size) fail(`source artifact content changed before copy: ${sourceArtifact}`, "artifact.validation");
+			records.push(sourceArtifactRecord(sourceArtifact, sourceProof, packageEntry, { ...repositoryEntry, snapshot: currentSnapshot }, version, outputPath));
 		}
 		const finalSnapshot = compareRepositorySnapshot(state.directory, repository, currentSnapshot, `final ${repository.id}`);
 		assertPipelineIdentity(plan);
@@ -1285,7 +1363,8 @@ export function breakGlassActiveLock(stateRoot) {
 	if (descendants.size > (owner ? 0 : 1)) fail("active lock owner or a recorded descendant is still alive; break-glass recovery is refused", "break-glass");
 	const destination = quarantinePath(root, activePath, "break-glass-active-lock", undefined, "break-glass.rename", {
 		workspace: descriptor.workspace,
-		workspaceRoot: descriptor.workspace.realPath
+		workspaceRoot: descriptor.workspace.realPath,
+		stateRootIdentity: descriptor.stateRoot
 	});
 	writeAtomic(path.join(destination, "break-glass-evidence.json"), stableJson({
 		schemaVersion: lockSchemaVersion,
@@ -1321,6 +1400,7 @@ function runPipelineInternal(planInput, options = {}) {
 		const publishRename = assertRenamePaths(plan.stateRoot, candidate.incompletePath, candidate.completePath, {
 			workspace: plan.workspace,
 			workspaceRoot: plan.workspaceRoot,
+			stateRootIdentity: plan.stateRootIdentity,
 			sourceSuffix: ".incomplete",
 			destinationSuffix: ".complete",
 			destinationAbsent: true
@@ -1344,7 +1424,8 @@ function runPipelineInternal(planInput, options = {}) {
 			try {
 				quarantinePath(plan.stateRoot, source, state, faultPlan, "failure.quarantine", {
 					workspace: plan.workspace,
-					workspaceRoot: plan.workspaceRoot
+					workspaceRoot: plan.workspaceRoot,
+					stateRootIdentity: plan.stateRootIdentity
 				});
 			} catch (quarantineError) {
 				primaryError = attachSecondaryFailure(primaryError, `quarantine ${source}`, quarantineError);
