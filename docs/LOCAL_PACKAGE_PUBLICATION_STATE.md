@@ -132,6 +132,27 @@ primary error is returned. A later invocation cannot silently take ownership.
 Receipt-before-release makes a crash between the two release operations
 recoverable without guessing whether work was complete.
 
+Each mapped producer command runs through `scripts/run-with-process-identity.mjs`.
+That wrapper records its own PID before spawning the mapped command, then captures
+the direct child PID, parent PID, platform, command line, and a stable
+process-start token while the child is alive. The owner creates a durable
+`locks/active/children/<child-id>.incomplete` pending marker before spawning and
+publishes the validated identity as `<child-id>.complete`; the pending marker is
+removed only after the complete record is durable. Release verifies every recorded PID
+is quiescent and rejects a missing, reused, or still-live identity. Each complete
+record has a no-replace SHA-256 proof sidecar, and a failed pipeline records a
+terminal marker listing exactly which commands started. Break-glass
+includes the direct-child records as process-tree roots and refuses any live
+recorded child or descendant. Linux `/proc` start tokens and Windows process
+creation ticks are the supported identity adapters. If a very short-lived child
+cannot be queried before exit, the wrapper's own recorded identity becomes the
+job boundary instead of fabricating a child token. On Linux the producer runs in
+a dedicated process group and the wrapper rejects surviving group or parent-tree
+descendants; on Windows it performs an equivalent parent-tree check through the
+OS process table. If descendant enumeration is unavailable, or a producer leaves
+a detached process behind, the pending marker remains and release/recovery fail
+closed.
+
 When `locks/active` exists, normal startup reports its descriptor and stops.
 It does not delete the lock on an expired timestamp or a dead-looking PID. A
 separate operator-only break-glass command must:

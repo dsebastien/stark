@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +16,7 @@ import {
 	validateGenerationAt
 } from "./build-local-packages.mjs";
 
+process.env.STARK_LOCAL_PACKAGE_TEST_MODE = "1";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), "stark-local-package-state-"));
@@ -79,6 +81,18 @@ function runChild(planFile) {
 	return spawn("bash", [path.join(projectRoot, "scripts", "with-project-node.sh"), "--repo", projectRoot, "--", "node", "-e", script, planFile], { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"] });
 }
 
+test("process identity wrapper records a stable wrapper and command boundary", () => {
+	const result = spawnSync(process.execPath, [path.join(scriptDirectory, "run-with-process-identity.mjs"), "--identity-fd", "3", "--cwd", projectRoot, "--", process.execPath, "-e", "process.stdout.write('identity-ok\\n')"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe", "pipe"] });
+	assert.equal(result.status, 0, result.stderr);
+	const identityLines = result.output[3].toString("utf8").trim().split(/\r?\n/u).filter(Boolean);
+	const identity = JSON.parse(identityLines.at(-1));
+	assert.equal(identity.schemaVersion, 1);
+	assert.ok(Number.isSafeInteger(identity.wrapper.pid) && identity.wrapper.pid > 0);
+	assert.ok(typeof identity.wrapper.processStartToken === "string" && identity.wrapper.processStartToken.length > 0);
+	assert.ok(Number.isSafeInteger(identity.child.pid) && identity.child.pid > 0);
+	assert.ok(typeof identity.child.processStartToken === "string" && identity.child.processStartToken.length > 0);
+});
+
 beforeEach(() => {
 	// Each test receives a unique fixture; this hook intentionally keeps the root only for cleanup.
 });
@@ -100,6 +114,20 @@ test("publishes one immutable generation with checksums and exact returned path"
 	assert.equal(proof.treeSha256, descriptor.treeSha256);
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "current")), false);
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "local-packages")), false);
+});
+
+test("records a verifiable producer identity in the released lock evidence", () => {
+	const fixture = createFixture("child-identity");
+	runPipeline(fixture.plan);
+	const releasedRoot = path.join(fixture.stateRoot, "locks", "released");
+	const releasedPath = fs.readdirSync(releasedRoot).find((name) => name.endsWith(".complete"));
+	assert.ok(releasedPath);
+	const childrenRoot = path.join(releasedRoot, releasedPath, "children");
+	const childPath = path.join(childrenRoot, fs.readdirSync(childrenRoot).find((name) => name.endsWith(".complete") && !name.endsWith(".proof.complete")));
+	const child = JSON.parse(fs.readFileSync(childPath, "utf8"));
+	assert.equal(child.schemaVersion, 1);
+	assert.ok(Number.isSafeInteger(child.child.pid) && child.child.pid > 0);
+	assert.ok(typeof child.child.processStartToken === "string" && child.child.processStartToken.length > 0);
 });
 
 test("does not treat an incomplete generation as published authority", () => {
@@ -241,7 +269,7 @@ function writeBreakGlassDescriptor(fixture, owner, extra = {}) {
 		schemaVersion: 1,
 		lockId: "stale-lock",
 		workspace: workspaceRecord(fixture.workspaceRoot),
-		owner,
+		owner: { plannedChildren: [], ...owner },
 		...extra
 	}));
 }
@@ -273,6 +301,58 @@ test("break-glass refuses a live descendant of an absent owner", () => {
 			processEnumerator: () => [{ pid: ownerPid + 1, parentPid: ownerPid, startToken: "child" }]
 		}),
 		/owner or a recorded descendant is still alive/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+});
+
+test("break-glass refuses a live recorded child identity", () => {
+	const fixture = createFixture("break-glass-recorded-child");
+	const ownerPid = 2147483647;
+	const childPid = ownerPid + 1;
+	writeBreakGlassDescriptor(fixture, { pid: ownerPid, processStartToken: "stale-owner", plannedChildren: [{ repository: "fixture", phase: "build-and-pack" }] });
+	const childrenRoot = path.join(fixture.stateRoot, "locks", "active", "children");
+	fs.mkdirSync(childrenRoot, { recursive: true });
+	const childRecordPath = path.join(childrenRoot, "0123456789abcdef0123456789abcdef.complete");
+	const childRecord = JSON.stringify({
+		schemaVersion: 1,
+		state: "COMPLETE",
+		lockId: "stale-lock",
+		workspace: workspaceRecord(fixture.workspaceRoot),
+		repository: "fixture",
+		phase: "build-and-pack",
+		command: { cwd: ".", argv: ["node", "build.mjs"] },
+		wrapper: { pid: ownerPid, parentPid: 1, processStartToken: "wrapper", platform: "linux" },
+		child: { pid: childPid, parentPid: ownerPid, processStartToken: "child", platform: "linux", kind: "direct", boundary: { kind: "process-group", id: childPid } }
+	});
+	fs.writeFileSync(childRecordPath, childRecord);
+	fs.writeFileSync(path.join(childrenRoot, "0123456789abcdef0123456789abcdef.proof.complete"), JSON.stringify({ schemaVersion: 1, state: "PROOF", childId: "0123456789abcdef0123456789abcdef", recordSha256: createHash("sha256").update(childRecord).digest("hex") }));
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, {
+			processEnumerator: () => [{ pid: childPid, parentPid: ownerPid, startToken: "child" }]
+		}),
+		/owner or a recorded descendant is still alive/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+});
+
+test("break-glass refuses a pending child identity", () => {
+	const fixture = createFixture("break-glass-pending-child");
+	const ownerPid = 2147483647;
+	writeBreakGlassDescriptor(fixture, { pid: ownerPid, processStartToken: "stale-owner", plannedChildren: [{ repository: "fixture", phase: "build-and-pack" }] });
+	const childrenRoot = path.join(fixture.stateRoot, "locks", "active", "children");
+	fs.mkdirSync(childrenRoot, { recursive: true });
+	fs.writeFileSync(path.join(childrenRoot, "fedcba9876543210fedcba9876543210.incomplete"), JSON.stringify({
+		schemaVersion: 1,
+		state: "PENDING",
+		lockId: "stale-lock",
+		workspace: workspaceRecord(fixture.workspaceRoot),
+		repository: "fixture",
+		phase: "build-and-pack",
+		command: { cwd: ".", argv: ["node", "build.mjs"] }
+	}));
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, { processEnumerator: () => [] }),
+		/pending child identity records remain/u
 	);
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
 });
