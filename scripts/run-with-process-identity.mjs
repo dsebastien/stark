@@ -16,7 +16,7 @@ function startToken(pid) {
 		}
 	}
 	if (process.platform === "win32") {
-		const command = `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`;
+		const command = `$ErrorActionPreference='Stop'; $target=${pid}; if ($target -eq $PID) { exit 1 }; (Get-Process -Id $target).StartTime.ToUniversalTime().Ticks`;
 		const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" });
 		const token = result.status === 0 ? result.stdout.trim() : "";
 		return /^\d+$/u.test(token) ? token : null;

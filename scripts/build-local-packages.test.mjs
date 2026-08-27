@@ -104,9 +104,51 @@ function runWithGenerationPublicationMutation(fixture, mutate) {
 	}
 }
 
-function runChild(planFile) {
+function runChild(planFile, environment = {}) {
 	const script = `import fs from "node:fs"; import { runPipeline } from ${JSON.stringify(pathToFileURL(path.join(scriptDirectory, "build-local-packages.mjs")).href)}; runPipeline(JSON.parse(fs.readFileSync(process.argv[1], "utf8")));`;
-	return spawn("bash", [path.join(projectRoot, "scripts", "with-project-node.sh"), "--repo", projectRoot, "--", "node", "-e", script, planFile], { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"] });
+	return spawn("bash", [path.join(projectRoot, "scripts", "with-project-node.sh"), "--repo", projectRoot, "--", "node", "-e", script, planFile], {
+		cwd: projectRoot,
+		stdio: ["ignore", "pipe", "pipe"],
+		env: { ...process.env, ...environment }
+	});
+}
+
+function waitForChildMarker(child, marker) {
+	return new Promise((resolve, reject) => {
+		let output = "";
+		const cleanup = () => {
+			child.stdout.off("data", onData);
+			child.off("close", onClose);
+			child.off("error", onError);
+		};
+		const onData = (chunk) => {
+			output += chunk.toString("utf8");
+			if (output.includes(marker)) {
+				cleanup();
+				resolve(output);
+			}
+		};
+		const onClose = (status) => {
+			cleanup();
+			reject(new Error(`child exited before emitting ${marker} (status ${status}): ${output}`));
+		};
+		const onError = (error) => {
+			cleanup();
+			reject(error);
+		};
+		child.stdout.on("data", onData);
+		child.once("close", onClose);
+		child.once("error", onError);
+	});
+}
+
+function collectChildResult(child) {
+	let stderr = "";
+	child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
+	return new Promise((resolve, reject) => {
+		child.once("error", reject);
+		child.once("close", (status) => resolve({ status, stderr }));
+	});
 }
 
 test("process identity wrapper records a stable wrapper and command boundary", () => {
@@ -322,23 +364,56 @@ test("publishes immutable state files without overwriting a collision", () => {
 
 test("two real child producers contend on one atomic workspace lock", async () => {
 	const fixture = createFixture("contention");
+	const readyPath = path.join(fixture.workspaceRoot, "contention.ready");
+	const releasePath = path.join(fixture.workspaceRoot, "contention.release");
 	fs.writeFileSync(
 		path.join(fixture.repositoryDirectory, "build.mjs"),
-		`import fs from "node:fs"; fs.mkdirSync("dist", { recursive: true }); await new Promise((resolve) => setTimeout(resolve, 500)); fs.writeFileSync("dist/fixture-package-1.0.0.tgz", "contention");\n`
+		`import fs from "node:fs"; import path from "node:path";
+const readyPath = process.env.STARK_CONTENTION_READY;
+const releasePath = process.env.STARK_CONTENTION_RELEASE;
+if (readyPath) {
+	fs.writeFileSync(readyPath, "ready\\n");
+	process.stdout.write("CONTENTION_READY\\n");
+}
+if (releasePath) {
+	if (!fs.existsSync(releasePath)) await new Promise((resolve, reject) => {
+		const watcher = fs.watch(path.dirname(releasePath), (_event, filename) => {
+			if (filename !== null && String(filename) === path.basename(releasePath) && fs.existsSync(releasePath)) {
+				watcher.close();
+				resolve();
+			}
+		});
+		watcher.on("error", (error) => {
+			watcher.close();
+			reject(error);
+		});
+	});
+}
+fs.mkdirSync("dist", { recursive: true });
+fs.writeFileSync("dist/fixture-package-1.0.0.tgz", "contention");\n`
 	);
 	run("git", ["add", "build.mjs"], fixture.repositoryDirectory);
 	run("git", ["commit", "--quiet", "-m", "slow-build"], fixture.repositoryDirectory);
 	const planFile = path.join(fixture.workspaceRoot, "plan.json");
 	fs.writeFileSync(planFile, JSON.stringify({ plan: fixture.plan }));
-	const children = [runChild(planFile), runChild(planFile)];
-	const results = await Promise.all(children.map((child) => new Promise((resolve) => {
-		let stderr = "";
-		child.stderr.on("data", (chunk) => { stderr += chunk; });
-		child.on("close", (status) => resolve({ status, stderr }));
-	})));
-	assert.equal(results.filter((result) => result.status === 0).length, 1);
-	assert.equal(results.filter((result) => result.status !== 0).length, 1);
-	assert.match(results.find((result) => result.status !== 0).stderr, /locked|lock/u);
+	const owner = runChild(planFile, { STARK_CONTENTION_READY: readyPath, STARK_CONTENTION_RELEASE: releasePath });
+	const ownerResult = collectChildResult(owner);
+	let contender;
+	try {
+		await waitForChildMarker(owner, "CONTENTION_READY");
+		contender = runChild(planFile);
+		const contenderResult = collectChildResult(contender);
+		const contenderOutcome = await contenderResult;
+		fs.writeFileSync(releasePath, "release\\n");
+		const results = await Promise.all([ownerResult, Promise.resolve(contenderOutcome)]);
+		assert.equal(results.filter((result) => result.status === 0).length, 1);
+		assert.equal(results.filter((result) => result.status !== 0).length, 1);
+		assert.match(results.find((result) => result.status !== 0).stderr, /locked|lock/u);
+	} finally {
+		if (!fs.existsSync(releasePath)) fs.writeFileSync(releasePath, "release\\n");
+		if (contender?.exitCode === null) contender.kill();
+		if (owner.exitCode === null) owner.kill();
+	}
 });
 
 test("does not permit automatic break-glass recovery while the owner is alive", () => {
