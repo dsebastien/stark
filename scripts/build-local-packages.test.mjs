@@ -76,6 +76,34 @@ function generationDirectories(fixture) {
 	return fs.existsSync(root) ? fs.readdirSync(root).map((name) => path.join(root, name)) : [];
 }
 
+function childIdentityFiles(childrenRoot) {
+	const names = fs.readdirSync(childrenRoot);
+	return {
+		record: path.join(childrenRoot, names.find((name) => /^[a-f0-9]{32}\.complete$/u.test(name))),
+		proof: path.join(childrenRoot, names.find((name) => /^[a-f0-9]{32}\.proof\.complete$/u.test(name)))
+	};
+}
+
+function runWithGenerationPublicationMutation(fixture, mutate) {
+	const originalRenameSync = fs.renameSync;
+	const generationsRoot = path.join(fixture.stateRoot, "generations");
+	let mutationApplied = false;
+	fs.renameSync = (source, destination) => {
+		const result = originalRenameSync(source, destination);
+		if (!mutationApplied && path.dirname(source) === generationsRoot && source.endsWith(".incomplete") && destination.endsWith(".complete")) {
+			mutationApplied = true;
+			mutate(path.join(fixture.stateRoot, "locks", "active", "children"));
+		}
+		return result;
+	};
+	try {
+		return runPipeline(fixture.plan);
+	} finally {
+		fs.renameSync = originalRenameSync;
+		assert.equal(mutationApplied, true, "generation publication mutation was not reached");
+	}
+}
+
 function runChild(planFile) {
 	const script = `import fs from "node:fs"; import { runPipeline } from ${JSON.stringify(pathToFileURL(path.join(scriptDirectory, "build-local-packages.mjs")).href)}; runPipeline(JSON.parse(fs.readFileSync(process.argv[1], "utf8")));`;
 	return spawn("bash", [path.join(projectRoot, "scripts", "with-project-node.sh"), "--repo", projectRoot, "--", "node", "-e", script, planFile], { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"] });
@@ -128,6 +156,31 @@ test("records a verifiable producer identity in the released lock evidence", () 
 	assert.equal(child.schemaVersion, 1);
 	assert.ok(Number.isSafeInteger(child.child.pid) && child.child.pid > 0);
 	assert.ok(typeof child.child.processStartToken === "string" && child.child.processStartToken.length > 0);
+});
+
+test("release refuses a child identity whose proof is missing", () => {
+	const fixture = createFixture("release-missing-child-proof");
+	assert.throws(
+		() => runWithGenerationPublicationMutation(fixture, (childrenRoot) => {
+			fs.unlinkSync(childIdentityFiles(childrenRoot).proof);
+		}),
+		/missing child identity proof/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+	assert.deepEqual(fs.readdirSync(path.join(fixture.stateRoot, "locks", "release-receipts")), []);
+});
+
+test("release refuses a pending child identity before writing its receipt", () => {
+	const fixture = createFixture("release-pending-child");
+	assert.throws(
+		() => runWithGenerationPublicationMutation(fixture, (childrenRoot) => {
+			const complete = JSON.parse(fs.readFileSync(childIdentityFiles(childrenRoot).record, "utf8"));
+			fs.writeFileSync(path.join(childrenRoot, "ffffffffffffffffffffffffffffffff.incomplete"), JSON.stringify({ ...complete, state: "PENDING" }));
+		}),
+		/pending child identity records remain/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+	assert.deepEqual(fs.readdirSync(path.join(fixture.stateRoot, "locks", "release-receipts")), []);
 });
 
 test("does not treat an incomplete generation as published authority", () => {
@@ -197,6 +250,49 @@ test("composes command failure with tracked-file invariant failure", () => {
 			return /command failed \(17\)/u.test(formatted) && /Secondary failure/u.test(formatted) && /invariants changed/u.test(formatted);
 		}
 	);
+});
+
+test("a failed partial run releases only the child identities named by its terminal marker", () => {
+	const fixture = createFixture("terminal-partial-run");
+	const sentinel = path.join(fixture.repositoryDirectory, "second-command-ran.txt");
+	fixture.plan.repositories[0].commands = [
+		{ phase: "fail-first", cwd: ".", argv: ["node", "-e", "process.exit(23)"] },
+		{ phase: "must-not-run", cwd: ".", argv: ["node", "-e", `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'unexpected')`] }
+	];
+	assert.throws(() => runPipeline(fixture.plan), /command failed \(23\)/u);
+	assert.equal(fs.existsSync(sentinel), false);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), false);
+	const releasedRoot = path.join(fixture.stateRoot, "locks", "released");
+	const releasedPath = path.join(releasedRoot, fs.readdirSync(releasedRoot).find((name) => name.endsWith(".complete")));
+	const childrenRoot = path.join(releasedPath, "children");
+	const terminal = JSON.parse(fs.readFileSync(path.join(childrenRoot, "terminal.failed.complete"), "utf8"));
+	assert.deepEqual(terminal.started, [{ repository: "fixture", phase: "fail-first" }]);
+	assert.equal(fs.readdirSync(childrenRoot).filter((name) => /^[a-f0-9]{32}\.complete$/u.test(name)).length, 1);
+	assert.equal(fs.readdirSync(childrenRoot).filter((name) => /^[a-f0-9]{32}\.proof\.complete$/u.test(name)).length, 1);
+});
+
+test("a terminal marker collision remains secondary to the command failure", () => {
+	const fixture = createFixture("terminal-marker-collision");
+	const collisionScript = [
+		"const fs = require('node:fs');",
+		"const path = require('node:path');",
+		"const active = path.resolve(process.cwd(), '..', 'tmp', 'local-package-state', 'locks', 'active');",
+		"const descriptor = JSON.parse(fs.readFileSync(path.join(active, 'descriptor.json'), 'utf8'));",
+		"fs.writeFileSync(path.join(active, 'children', 'terminal.failed.complete'), JSON.stringify({ schemaVersion: 1, state: 'FAILED', lockId: descriptor.lockId, workspace: descriptor.workspace, started: [{ repository: 'fixture', phase: 'collide-terminal' }] }));",
+		"process.exit(29);"
+	].join(" ");
+	fixture.plan.repositories[0].commands = [{ phase: "collide-terminal", cwd: ".", argv: ["node", "-e", collisionScript] }];
+	assert.throws(
+		() => runPipeline(fixture.plan),
+		(error) => {
+			const formatted = formatPipelineError(error);
+			const primary = formatted.indexOf("command failed (29)");
+			const secondary = formatted.indexOf("Secondary failure (persist child terminal marker)");
+			const collision = formatted.indexOf("atomic destination already exists");
+			return primary === 0 && secondary > primary && collision > secondary;
+		}
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), false);
 });
 
 test("quarantines abandoned candidates before any producer command", () => {
@@ -274,6 +370,45 @@ function writeBreakGlassDescriptor(fixture, owner, extra = {}) {
 	}));
 }
 
+function writeBreakGlassChildIdentity(fixture, ownerPid, options = {}) {
+	writeBreakGlassDescriptor(fixture, {
+		pid: ownerPid,
+		processStartToken: "stale-owner",
+		plannedChildren: [{ repository: "fixture", phase: "build-and-pack" }]
+	});
+	const childId = "0123456789abcdef0123456789abcdef";
+	const childrenRoot = path.join(fixture.stateRoot, "locks", "active", "children");
+	fs.mkdirSync(childrenRoot, { recursive: true });
+	const record = {
+		schemaVersion: 1,
+		state: "COMPLETE",
+		lockId: "stale-lock",
+		workspace: workspaceRecord(fixture.workspaceRoot),
+		repository: "fixture",
+		phase: "build-and-pack",
+		command: { cwd: ".", argv: ["node", "build.mjs"] },
+		wrapper: { pid: ownerPid, parentPid: 1, processStartToken: "wrapper", platform: "linux" },
+		child: {
+			pid: ownerPid + 1,
+			parentPid: ownerPid,
+			processStartToken: "child",
+			platform: "linux",
+			kind: "direct",
+			...(options.omitBoundary ? {} : { boundary: { kind: "process-group", id: ownerPid + 1 } })
+		}
+	};
+	const recordPath = path.join(childrenRoot, `${childId}.complete`);
+	const recordJson = JSON.stringify(record);
+	fs.writeFileSync(recordPath, recordJson);
+	fs.writeFileSync(path.join(childrenRoot, `${childId}.proof.complete`), JSON.stringify({
+		schemaVersion: 1,
+		state: "PROOF",
+		childId,
+		recordSha256: options.forgedProof ? "0".repeat(64) : createHash("sha256").update(recordJson).digest("hex")
+	}));
+	return { childPid: record.child.pid };
+}
+
 test("break-glass quarantines an owner that is absent with no live descendants", () => {
 	const fixture = createFixture("break-glass-stale");
 	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
@@ -308,29 +443,32 @@ test("break-glass refuses a live descendant of an absent owner", () => {
 test("break-glass refuses a live recorded child identity", () => {
 	const fixture = createFixture("break-glass-recorded-child");
 	const ownerPid = 2147483647;
-	const childPid = ownerPid + 1;
-	writeBreakGlassDescriptor(fixture, { pid: ownerPid, processStartToken: "stale-owner", plannedChildren: [{ repository: "fixture", phase: "build-and-pack" }] });
-	const childrenRoot = path.join(fixture.stateRoot, "locks", "active", "children");
-	fs.mkdirSync(childrenRoot, { recursive: true });
-	const childRecordPath = path.join(childrenRoot, "0123456789abcdef0123456789abcdef.complete");
-	const childRecord = JSON.stringify({
-		schemaVersion: 1,
-		state: "COMPLETE",
-		lockId: "stale-lock",
-		workspace: workspaceRecord(fixture.workspaceRoot),
-		repository: "fixture",
-		phase: "build-and-pack",
-		command: { cwd: ".", argv: ["node", "build.mjs"] },
-		wrapper: { pid: ownerPid, parentPid: 1, processStartToken: "wrapper", platform: "linux" },
-		child: { pid: childPid, parentPid: ownerPid, processStartToken: "child", platform: "linux", kind: "direct", boundary: { kind: "process-group", id: childPid } }
-	});
-	fs.writeFileSync(childRecordPath, childRecord);
-	fs.writeFileSync(path.join(childrenRoot, "0123456789abcdef0123456789abcdef.proof.complete"), JSON.stringify({ schemaVersion: 1, state: "PROOF", childId: "0123456789abcdef0123456789abcdef", recordSha256: createHash("sha256").update(childRecord).digest("hex") }));
+	const { childPid } = writeBreakGlassChildIdentity(fixture, ownerPid);
 	assert.throws(
 		() => breakGlassActiveLock(fixture.stateRoot, {
 			processEnumerator: () => [{ pid: childPid, parentPid: ownerPid, startToken: "child" }]
 		}),
 		/owner or a recorded descendant is still alive/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+});
+
+test("break-glass refuses a forged child identity proof", () => {
+	const fixture = createFixture("break-glass-forged-child-proof");
+	writeBreakGlassChildIdentity(fixture, 2147483647, { forgedProof: true });
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, { processEnumerator: () => [] }),
+		/child identity record digest mismatch/u
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+});
+
+test("break-glass reports an invalid child boundary before accepting its proof", () => {
+	const fixture = createFixture("break-glass-missing-child-boundary");
+	writeBreakGlassChildIdentity(fixture, 2147483647, { omitBoundary: true });
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, { processEnumerator: () => [] }),
+		/child identity boundary is not verifiable/u
 	);
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
 });
