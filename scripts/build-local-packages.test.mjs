@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -225,10 +226,12 @@ function runChild(planFile, environment = {}) {
 	});
 }
 
-function waitForChildMarker(child, marker) {
+function waitForChildMarker(child, marker, timeoutMilliseconds = 180_000) {
 	return new Promise((resolve, reject) => {
 		let output = "";
+		let timeout;
 		const cleanup = () => {
+			clearTimeout(timeout);
 			child.stdout.off("data", onData);
 			child.off("close", onClose);
 			child.off("error", onError);
@@ -248,6 +251,10 @@ function waitForChildMarker(child, marker) {
 			cleanup();
 			reject(error);
 		};
+		timeout = setTimeout(() => {
+			cleanup();
+			reject(new Error(`child did not emit ${marker} within ${timeoutMilliseconds}ms: ${output}`));
+		}, timeoutMilliseconds);
 		child.stdout.on("data", onData);
 		child.once("close", onClose);
 		child.once("error", onError);
@@ -256,11 +263,87 @@ function waitForChildMarker(child, marker) {
 
 function collectChildResult(child) {
 	let stderr = "";
-	child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
-	return new Promise((resolve, reject) => {
-		child.once("error", reject);
-		child.once("close", (status) => resolve({ status, stderr }));
+	let onClose;
+	let onError;
+	const onStderr = (chunk) => { stderr += chunk.toString("utf8"); };
+	const cleanup = () => {
+		child.stderr.off("data", onStderr);
+		child.off("close", onClose);
+		child.off("error", onError);
+	};
+	const promise = new Promise((resolve, reject) => {
+		onClose = (status) => { cleanup(); resolve({ status, stderr }); };
+		onError = (error) => { cleanup(); reject(error); };
+		child.stderr.on("data", onStderr);
+		child.once("close", onClose);
+		child.once("error", onError);
 	});
+	return { promise, cancel: cleanup };
+}
+
+function detachChild(child) {
+	for (const stream of [child.stdout, child.stderr, child.stdin]) {
+		try {
+			stream?.destroy?.();
+		} catch {
+			// Best-effort cleanup must continue across every inherited stream.
+		}
+	}
+	try {
+		child.unref?.();
+	} catch {
+		// The child is already terminal or termination has timed out.
+	}
+}
+
+function terminateChild(child, timeoutMilliseconds) {
+	if (child.exitCode !== null || child.signalCode !== null) {
+		detachChild(child);
+		return Promise.resolve();
+	}
+	return new Promise((resolve, reject) => {
+		let timeout;
+		const cleanup = () => {
+			clearTimeout(timeout);
+			child.off("close", onClose);
+			child.off("error", onError);
+		};
+		const onClose = () => { cleanup(); resolve(); };
+		const onError = (error) => { cleanup(); reject(error); };
+		child.once("close", onClose);
+		child.once("error", onError);
+		timeout = setTimeout(() => {
+			cleanup();
+			detachChild(child);
+			reject(new Error(`child termination did not complete within ${timeoutMilliseconds}ms`));
+		}, timeoutMilliseconds);
+		try {
+			child.kill();
+		} catch (error) {
+			cleanup();
+			reject(error);
+		}
+	});
+}
+
+async function boundedChildResult(child, observation, resultTimeoutMilliseconds = 240_000, terminationTimeoutMilliseconds = 10_000) {
+	let timeout;
+	const deadline = new Promise((_, reject) => {
+		timeout = setTimeout(() => reject(new Error(`child did not exit within ${resultTimeoutMilliseconds}ms`)), resultTimeoutMilliseconds);
+	});
+	try {
+		return await Promise.race([observation.promise, deadline]);
+	} catch (error) {
+		observation.cancel();
+		try {
+			await terminateChild(child, terminationTimeoutMilliseconds);
+		} catch (terminationError) {
+			throw new AggregateError([error, terminationError], `${error.message}; ${terminationError.message}`);
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
 }
 
 test("process identity wrapper records a stable wrapper and command boundary", () => {
@@ -297,6 +380,99 @@ test("Windows rename retries validate immediately before every attempt", () => {
 
 	assert.equal(attempts, 3);
 	assert.deepEqual(events, ["validate-1", "rename", "wait", "validate-2", "rename", "wait", "validate-3", "rename"]);
+});
+
+test("persistent Windows rename contention exhausts the exact bounded attempt count", () => {
+	const persistentError = new Error("persistent rename contention");
+	persistentError.code = "EBUSY";
+	let renameAttempts = 0;
+	let waits = 0;
+	const validations = [];
+	assert.throws(
+		() => renameWithWindowsRetry("source", "destination", {
+			renameSync() {
+				renameAttempts += 1;
+				throw persistentError;
+			}
+		}, {
+			platform: "win32",
+			maximumAttempts: 4,
+			retryDelay: 0,
+			beforeAttempt: ({ attempt }) => validations.push(attempt),
+			wait: () => { waits += 1; }
+		}),
+		(error) => error === persistentError
+	);
+	assert.equal(renameAttempts, 4);
+	assert.equal(waits, 3);
+	assert.deepEqual(validations, [1, 2, 3, 4]);
+	assert.equal(formatPipelineError(persistentError), "persistent rename contention (after 4 attempts)");
+});
+
+test("bounded child cleanup rejects deterministically when a child never closes", async () => {
+	const stdout = new EventEmitter();
+	const stderr = new EventEmitter();
+	const stdin = new EventEmitter();
+	let killCalls = 0;
+	let destroyedStreams = 0;
+	let unrefCalls = 0;
+	for (const stream of [stdout, stderr, stdin]) stream.destroy = () => { destroyedStreams += 1; };
+	const child = new EventEmitter();
+	Object.assign(child, {
+		stdout,
+		stderr,
+		stdin,
+		exitCode: null,
+		signalCode: null,
+		kill: () => { killCalls += 1; return true; },
+		unref: () => { unrefCalls += 1; }
+	});
+	const observation = collectChildResult(child);
+
+	await assert.rejects(
+		boundedChildResult(child, observation, 10, 10),
+		(error) => error instanceof AggregateError
+			&& error.errors[0]?.message === "child did not exit within 10ms"
+			&& error.errors[1]?.message === "child termination did not complete within 10ms"
+	);
+	assert.equal(killCalls, 1);
+	assert.equal(destroyedStreams, 3);
+	assert.equal(unrefCalls, 1);
+	assert.equal(child.listenerCount("close"), 0);
+	assert.equal(child.listenerCount("error"), 0);
+	assert.equal(stderr.listenerCount("data"), 0);
+});
+
+test("bounded child cleanup detaches an exited child whose pipes never close", async () => {
+	const stdout = new EventEmitter();
+	const stderr = new EventEmitter();
+	const stdin = new EventEmitter();
+	let killCalls = 0;
+	let destroyedStreams = 0;
+	let unrefCalls = 0;
+	for (const stream of [stdout, stderr, stdin]) stream.destroy = () => { destroyedStreams += 1; };
+	const child = new EventEmitter();
+	Object.assign(child, {
+		stdout,
+		stderr,
+		stdin,
+		exitCode: 0,
+		signalCode: null,
+		kill: () => { killCalls += 1; return true; },
+		unref: () => { unrefCalls += 1; }
+	});
+	const observation = collectChildResult(child);
+
+	await assert.rejects(
+		boundedChildResult(child, observation, 10, 10),
+		(error) => error.message === "child did not exit within 10ms"
+	);
+	assert.equal(killCalls, 0);
+	assert.equal(destroyedStreams, 3);
+	assert.equal(unrefCalls, 1);
+	assert.equal(child.listenerCount("close"), 0);
+	assert.equal(child.listenerCount("error"), 0);
+	assert.equal(stderr.listenerCount("data"), 0);
 });
 
 beforeEach(() => {
@@ -611,6 +787,64 @@ test("publishes immutable state files without overwriting a collision", () => {
 	assert.equal(fs.readFileSync(filePath, "utf8"), "first\n");
 });
 
+function configureReleaseCollisionCommand(fixture, kind, exitCode) {
+	const collisionContents = `pre-existing-${kind}-collision\n`;
+	const collisionScript = [
+		'import fs from "node:fs";',
+		'import path from "node:path";',
+		'const active = path.resolve(process.cwd(), "..", "tmp", "local-package-state", "locks", "active");',
+		'const descriptor = JSON.parse(fs.readFileSync(path.join(active, "descriptor.json"), "utf8"));',
+		'const locks = path.dirname(active);',
+		kind === "release-receipt"
+			? 'const collision = path.join(locks, "release-receipts", `${descriptor.lockId}.complete`); fs.writeFileSync(collision, "pre-existing-release-receipt-collision\\n", { flag: "wx" });'
+			: 'const collision = path.join(locks, "released", `${descriptor.lockId}.complete`); fs.mkdirSync(collision); fs.writeFileSync(path.join(collision, "collision.txt"), "pre-existing-released-lock-collision\\n");',
+		exitCode === undefined
+			? 'fs.mkdirSync("dist", { recursive: true }); fs.writeFileSync("dist/fixture-package-1.0.0.tgz", "collision-build");'
+			: `process.exit(${exitCode});`
+	].join("\n");
+	fs.writeFileSync(path.join(fixture.repositoryDirectory, "build.mjs"), collisionScript);
+	run("git", ["add", "build.mjs"], fixture.repositoryDirectory);
+	run("git", ["commit", "--quiet", "-m", `${kind}-collision`], fixture.repositoryDirectory);
+	return collisionContents;
+}
+
+test("release-receipt collision remains primary and preserves the existing receipt", () => {
+	const fixture = createFixture("release-receipt-collision");
+	const collisionContents = configureReleaseCollisionCommand(fixture, "release-receipt");
+	let error;
+	assert.throws(() => runPipeline(fixture.plan), (caught) => { error = caught; return true; });
+	const activeDescriptor = JSON.parse(fs.readFileSync(path.join(fixture.stateRoot, "locks", "active", "descriptor.json"), "utf8"));
+	const collisionPath = path.join(fixture.stateRoot, "locks", "release-receipts", `${activeDescriptor.lockId}.complete`);
+
+	assert.equal(error.message, `atomic destination already exists: ${collisionPath}`);
+	assert.equal(formatPipelineError(error), error.message);
+	assert.equal(fs.readFileSync(collisionPath, "utf8"), collisionContents);
+	assert.deepEqual(lockEvidenceEntries(fixture, "released"), []);
+	const published = publishedGenerationPaths(fixture);
+	assert.equal(published.length, 1);
+	validateGenerationAt(published[0], { generationId: path.basename(published[0], ".complete") });
+});
+
+test("released-lock collision remains secondary to the producer failure and preserves evidence", () => {
+	const fixture = createFixture("released-lock-collision");
+	const collisionContents = configureReleaseCollisionCommand(fixture, "released-lock", 31);
+	let error;
+	assert.throws(() => runPipeline(fixture.plan), (caught) => { error = caught; return true; });
+	const activeDescriptor = JSON.parse(fs.readFileSync(path.join(fixture.stateRoot, "locks", "active", "descriptor.json"), "utf8"));
+	const collisionPath = path.join(fixture.stateRoot, "locks", "released", `${activeDescriptor.lockId}.complete`);
+	const formatted = formatPipelineError(error);
+	const lines = formatted.split("\n");
+
+	assert.equal(error.status, 31);
+	assert.equal(error.phase, "repository[fixture].command[build-and-pack]");
+	assert.equal(lines[0], error.message);
+	assert.equal(lines[1], `Secondary failure (release workspace lock): released lock destination collision: ${collisionPath}`);
+	assert.equal(fs.readFileSync(path.join(collisionPath, "collision.txt"), "utf8"), collisionContents);
+	assert.deepEqual(lockEvidenceEntries(fixture, "release-receipts"), []);
+	assert.equal(publishedGenerationPaths(fixture).length, 0);
+	assert.ok(stateEntries(fixture, "quarantine").some((name) => name.includes("failed-generation")));
+});
+
 test("two real child producers contend on one atomic workspace lock", async () => {
 	const fixture = createFixture("contention");
 	const readyPath = path.join(fixture.workspaceRoot, "contention.ready");
@@ -620,24 +854,32 @@ test("two real child producers contend on one atomic workspace lock", async () =
 		`import fs from "node:fs"; import path from "node:path";
 const readyPath = process.env.STARK_CONTENTION_READY;
 const releasePath = process.env.STARK_CONTENTION_RELEASE;
+let releaseBarrier = Promise.resolve();
+if (releasePath && !fs.existsSync(releasePath)) {
+		releaseBarrier = new Promise((resolve, reject) => {
+		let settled = false;
+		let timeout;
+		let watcher;
+		const finish = (error) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			watcher?.close();
+			error ? reject(error) : resolve();
+		};
+		watcher = fs.watch(path.dirname(releasePath), (_event, filename) => {
+			if (fs.existsSync(releasePath) && (filename === null || String(filename) === path.basename(releasePath))) finish();
+		});
+		watcher.on("error", finish);
+		timeout = setTimeout(() => finish(new Error("contention release barrier timed out")), 180000);
+		if (fs.existsSync(releasePath)) finish();
+	});
+}
 if (readyPath) {
 	fs.writeFileSync(readyPath, "ready\\n");
 	process.stdout.write("CONTENTION_READY\\n");
 }
-if (releasePath) {
-	if (!fs.existsSync(releasePath)) await new Promise((resolve, reject) => {
-		const watcher = fs.watch(path.dirname(releasePath), (_event, filename) => {
-			if (filename !== null && String(filename) === path.basename(releasePath) && fs.existsSync(releasePath)) {
-				watcher.close();
-				resolve();
-			}
-		});
-		watcher.on("error", (error) => {
-			watcher.close();
-			reject(error);
-		});
-	});
-}
+await releaseBarrier;
 fs.mkdirSync("dist", { recursive: true });
 fs.writeFileSync("dist/fixture-package-1.0.0.tgz", "contention");\n`
 	);
@@ -648,33 +890,72 @@ fs.writeFileSync("dist/fixture-package-1.0.0.tgz", "contention");\n`
 	const owner = runChild(planFile, { STARK_CONTENTION_READY: readyPath, STARK_CONTENTION_RELEASE: releasePath });
 	const ownerResult = collectChildResult(owner);
 	let contender;
+	let contenderResult;
+	let ownerHandled = false;
+	let contenderHandled = false;
 	try {
 		await waitForChildMarker(owner, "CONTENTION_READY");
+		const activeDescriptorPath = path.join(fixture.stateRoot, "locks", "active", "descriptor.json");
+		const winningDescriptorBytes = fs.readFileSync(activeDescriptorPath);
+		const winningDescriptor = JSON.parse(winningDescriptorBytes.toString("utf8"));
 		contender = runChild(planFile);
-		const contenderResult = collectChildResult(contender);
-		const contenderOutcome = await contenderResult;
+		contenderResult = collectChildResult(contender);
+		let contenderOutcome;
+		try {
+			contenderOutcome = await boundedChildResult(contender, contenderResult);
+		} finally {
+			contenderHandled = true;
+		}
+		assert.notEqual(contenderOutcome.status, 0);
+		const candidateNames = stateEntries(fixture, "locks/candidates").filter((name) => name.endsWith(".incomplete"));
+		assert.equal(candidateNames.length, 1, "losing producer did not preserve exactly one lock candidate");
+		const candidatePath = path.join(fixture.stateRoot, "locks", "candidates", candidateNames[0]);
+		const candidateDescriptor = JSON.parse(fs.readFileSync(path.join(candidatePath, "descriptor.json"), "utf8"));
+		assert.notEqual(candidateDescriptor.lockId, winningDescriptor.lockId);
+		assert.equal(candidateNames[0], `${candidateDescriptor.lockId}.incomplete`);
+		assert.equal(contenderOutcome.stderr.includes(JSON.stringify(winningDescriptor)), true, "loser did not report the exact winning descriptor");
+		assert.equal(contenderOutcome.stderr.includes(candidatePath), true, "loser did not report its preserved candidate path");
 		fs.writeFileSync(releasePath, "release\\n");
-		const results = await Promise.all([ownerResult, Promise.resolve(contenderOutcome)]);
+		let ownerOutcome;
+		try {
+			ownerOutcome = await boundedChildResult(owner, ownerResult);
+		} finally {
+			ownerHandled = true;
+		}
+		const results = [ownerOutcome, contenderOutcome];
+		assert.equal(results[0].status, 0, results[0].stderr);
+		assert.notEqual(results[1].status, 0);
 		assert.equal(results.filter((result) => result.status === 0).length, 1);
 		assert.equal(results.filter((result) => result.status !== 0).length, 1);
-		assert.match(results.find((result) => result.status !== 0).stderr, /locked|lock/u);
+		const releasedDescriptorPath = path.join(fixture.stateRoot, "locks", "released", `${winningDescriptor.lockId}.complete`, "descriptor.json");
+		assert.deepEqual(fs.readFileSync(releasedDescriptorPath), winningDescriptorBytes);
+		assert.equal(fs.existsSync(candidatePath), true);
 	} finally {
 		if (!fs.existsSync(releasePath)) fs.writeFileSync(releasePath, "release\\n");
-		if (contender?.exitCode === null) contender.kill();
-		if (owner.exitCode === null) owner.kill();
+		const pendingChildren = [
+			...(!ownerHandled ? [{ child: owner, observation: ownerResult }] : []),
+			...(contender && contenderResult && !contenderHandled ? [{ child: contender, observation: contenderResult }] : [])
+		];
+		const cleanupResults = await Promise.allSettled(
+			pendingChildren.map(({ child, observation }) => boundedChildResult(child, observation, 30_000, 5_000))
+		);
+		const cleanupErrors = cleanupResults.filter(({ status }) => status === "rejected").map(({ reason }) => reason);
+		if (cleanupErrors.length > 0) throw new AggregateError(cleanupErrors, "contention child cleanup failed");
 	}
 });
 
-test("does not permit automatic break-glass recovery while the owner is alive", () => {
-	const fixture = createFixture("break-glass");
-	fs.mkdirSync(path.join(fixture.stateRoot, "locks", "active"), { recursive: true });
-	fs.writeFileSync(path.join(fixture.stateRoot, "locks", "active", "descriptor.json"), JSON.stringify({
-		schemaVersion: 1,
-		lockId: "active",
-		workspace: { realPath: fs.realpathSync(fixture.workspaceRoot), volumeId: "0", directoryId: "0" },
-		owner: { pid: process.pid, processStartToken: "wrong" }
-	}));
-	assert.throws(() => breakGlassActiveLock(fixture.stateRoot), /PID was reused|canonical workspace|alive|identity/u);
+test("break-glass rejects owner PID reuse after validating lock identities", () => {
+	const fixture = createFixture("break-glass-owner-pid-reuse");
+	const ownerPid = 2147483647;
+	writeBreakGlassDescriptor(fixture, { pid: ownerPid, processStartToken: "recorded-owner-token" });
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, {
+			processEnumerator: () => [{ pid: ownerPid, parentPid: 0, startToken: "reused-owner-token" }]
+		}),
+		(error) => error.phase === "break-glass" && error.message === "active lock owner PID was reused; break-glass recovery is refused"
+	);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active", "break-glass-evidence.json")), false);
 });
 
 function workspaceRecord(directory) {

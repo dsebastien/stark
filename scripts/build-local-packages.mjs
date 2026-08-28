@@ -900,13 +900,6 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 	const locksRoot = statePath(stateRoot, "locks", "locks root");
 	const candidatesRoot = statePath(stateRoot, "locks/candidates", "lock candidates");
 	const activePath = statePath(stateRoot, "locks/active", "active lock");
-	if (fs.existsSync(activePath)) {
-		const activeStat = fs.lstatSync(activePath);
-		if (!activeStat.isDirectory() || isReparsePoint(activeStat)) fail(`active lock is unsafe: ${activePath}`, "lock");
-		const activeDescriptorPath = path.join(activePath, "descriptor.json");
-		const descriptor = fs.existsSync(activeDescriptorPath) ? readJson(activeDescriptorPath, "active lock descriptor") : { malformed: true };
-		fail(`workspace is already locked by ${JSON.stringify(descriptor)}`, "lock", { activeDescriptor: descriptor });
-	}
 	const lockId = randomToken(16);
 	const candidate = path.join(candidatesRoot, `${lockId}.incomplete`);
 	if (fs.existsSync(candidate)) fail(`lock candidate collision: ${candidate}`, "lock");
@@ -927,6 +920,13 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 	writeAtomic(path.join(candidate, "descriptor.json"), stableJson(descriptor));
 	const candidateDescriptor = readJson(path.join(candidate, "descriptor.json"), "lock candidate descriptor");
 	if (!sameRecords(candidateDescriptor, descriptor)) fail("lock candidate descriptor changed before publication", "lock");
+	if (fs.existsSync(activePath)) {
+		const activeStat = fs.lstatSync(activePath);
+		if (!activeStat.isDirectory() || isReparsePoint(activeStat)) fail(`active lock is unsafe: ${activePath}`, "lock");
+		const activeDescriptorPath = path.join(activePath, "descriptor.json");
+		const activeDescriptor = fs.existsSync(activeDescriptorPath) ? readJson(activeDescriptorPath, "active lock descriptor") : { malformed: true };
+		fail(`workspace is already locked by ${JSON.stringify(activeDescriptor)}; candidate preserved at ${candidate}`, "lock", { candidate, activeDescriptor });
+	}
 	faultIfRequested(faultPlan, "lock.publish.rename");
 	try {
 		const rename = assertRenamePaths(stateRoot, candidate, activePath, {
