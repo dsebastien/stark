@@ -72,6 +72,7 @@
     "test:visual:candidate": "node e2e/visual/scripts/run-visual.mjs candidate",
     "test:visual:install": "playwright install chromium",
     "test:visual:legacy:update": "node e2e/visual/scripts/run-visual.mjs legacy-update",
+    "test:visual:manifest": "node e2e/visual/scripts/run-visual.mjs candidate e2e/visual/specs/route-manifest.spec.ts",
     "test:visual:smoke": "node e2e/visual/scripts/run-visual.mjs candidate e2e/visual/specs/smoke.spec.ts",
     "tsc": "tsc",
     "version": "npm run build",
