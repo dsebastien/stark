@@ -1,4 +1,4 @@
-import { expect, test as base } from "@playwright/test";
+import { expect, stabilizeVisualPage, test as base } from "./visual-test";
 import { openRouteFromShowcaseShell } from "../support/navigation";
 import type { VisualComparison } from "../support/visual-manifest";
 
@@ -11,9 +11,7 @@ export const test = base.extend<VisualFixtures>({
 		await use(async (comparison) => {
 			await openRouteFromShowcaseShell(page, comparison.route);
 			await expect(page.locator("ui-view h1").first()).toBeVisible();
-			await page.evaluate(async () => {
-				await document.fonts.ready;
-			});
+			await stabilizeVisualPage(page);
 
 			await expect(page).toHaveScreenshot(comparison.snapshotName, {
 				animations: "disabled",
