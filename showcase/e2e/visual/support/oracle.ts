@@ -1,3 +1,5 @@
+import { isSnapshotUpdateOption } from "./snapshot-update.mjs";
+
 export const legacyOracle = {
 	baseHref: "/showcase/latest/",
 	baseUrl: "https://stark.nbb.be/showcase/latest/",
@@ -39,7 +41,7 @@ export function isBaselineUpdateRequested(
 	argumentsList: readonly string[] = process.argv,
 	environment: NodeJS.ProcessEnv = process.env
 ): boolean {
-	const hasUpdateFlag = argumentsList.some((argument) => argument === "--update-snapshots" || argument.startsWith("--update-snapshots="));
+	const hasUpdateFlag = argumentsList.some(isSnapshotUpdateOption);
 	const isPrivileged = environment.STARK_VISUAL_BASELINE_UPDATE === "1";
 
 	if (isPrivileged && getVisualTarget(environment) !== "legacy") {
