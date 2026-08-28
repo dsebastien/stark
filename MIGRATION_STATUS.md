@@ -34,19 +34,20 @@ This is the human-readable checkpoint. Beads remains the authoritative task grap
 
 ## Active work
 
-| Bead              | Owner               | State   | Current evidence                                                                                       |
-| ----------------- | ------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
-| `stark-4sp.2.5`   | Orchestrator        | Active  | Handoff script, Codex hooks, Copilot hooks, pinned Node launcher, and focused tests are integrated.    |
-| `stark-4sp.3.2`   | Orchestrator/worker | Blocked | Runner, axe dependency, legacy smoke, and candidate smoke pass; graph awaits `.9.8`/`.1.4`.            |
-| `stark-4sp.10.1`  | Orchestrator/worker | Closed  | Public UI-Router 22.0.0 manifests/locks integrated; fork references removed.                           |
-| `stark-4sp.10.2`  | Orchestrator/worker | Closed  | Package and browser routing journeys pass; published-package docs replace the retired fork workaround. |
-| `stark-4sp.3.11`  | Orchestrator/worker | Closed  | Legacy oracle build metadata is pinned; shell transitions and privileged artifact capture pass.        |
-| `stark-4sp.9.4.1` | Orchestrator/worker | Closed  | Immutable local-package publication state machine and adversarial test matrix are designed.            |
-| `stark-4sp.7.1`   | Unassigned          | Blocked | The initial run used remote companion archives and is not accepted; resume after `.9.8`.               |
+| Bead                | Owner               | State   | Current evidence                                                                                       |
+| ------------------- | ------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `stark-4sp.9.4.5.2` | Orchestrator/worker | Active  | Lock, recovery, and contention matrix implementation is under independent review.                      |
+| `stark-4sp.9.4.6`   | Orchestrator/worker | Closed  | Node/npm launcher verification and observed build provenance are integrated.                           |
+| `stark-4sp.3.2`     | Orchestrator/worker | Blocked | Runner, axe dependency, legacy smoke, and candidate smoke pass; graph awaits `.9.8`/`.1.4`.            |
+| `stark-4sp.10.1`    | Orchestrator/worker | Closed  | Public UI-Router 22.0.0 manifests/locks integrated; fork references removed.                           |
+| `stark-4sp.10.2`    | Orchestrator/worker | Closed  | Package and browser routing journeys pass; published-package docs replace the retired fork workaround. |
+| `stark-4sp.3.11`    | Orchestrator/worker | Closed  | Legacy oracle build metadata is pinned; shell transitions and privileged artifact capture pass.        |
+| `stark-4sp.9.4.1`   | Orchestrator/worker | Closed  | Immutable local-package publication state machine and adversarial test matrix are designed.            |
+| `stark-4sp.7.1`     | Unassigned          | Blocked | The initial run used remote companion archives and is not accepted; resume after `.9.8`.               |
 
 ## Current work queue
 
-1. Implement and verify the immutable local-package state machine through `.9.4`, `.9.5`, and `.9.8` without bypassing dependency guards.
+1. Finish the remaining adversarial state-machine tests, then complete `.9.5`, `.9.6`, and `.9.8` without bypassing dependency guards.
 2. Complete the prerequisite `.9.8`/`.1.4` stack validation so the browser foundation beads can close.
 3. Resume `stark-4sp.3.4`/`.3.5`, then complete all 48 routes/52 surfaces in the visual baseline matrix.
 
@@ -54,10 +55,10 @@ No package release, version bump, npm publication, or release-guard work is in s
 
 ## Next decisions and actions
 
-1. Integrate the reviewed Playwright runner and deterministic fixtures without auto-updating goldens.
-2. Implement the state machine in `scripts/build-local-packages.mjs` and its fault/concurrency tests.
-3. Build local tarballs for code-style, eslint-config, ngx-form-errors, and Stark packages.
-4. Implement reversible local dependency switching and the upstream-PR path guard.
+1. Complete the remaining lock, source/containment, and output/error adversarial matrices.
+2. Build local tarballs for code-style, eslint-config, ngx-form-errors, and Stark packages.
+3. Implement reversible local dependency switching and the upstream-PR path guard.
+4. Run the complete local/canonical cycle and unblock the Playwright visual matrix.
 5. Synchronize WIP branches only after a separate exact-hash approval; later upstream changes use pull requests.
 
 ## Update contract
