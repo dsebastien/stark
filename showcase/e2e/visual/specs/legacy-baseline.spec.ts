@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { captureVisualScreenshot, expect, test } from "../fixtures/visual-test";
 import { getVisualTarget } from "../support/oracle";
 import { openRouteFromShowcaseShell, representativeRoutes } from "../support/navigation";
 
@@ -14,7 +14,7 @@ test("captures reviewed legacy representative-route artifacts", async ({ page },
 		await expect(page.locator("ui-view h1").first()).toBeVisible();
 		capturedRoutes.push(route.id);
 		await testInfo.attach(`legacy-${route.id}.png`, {
-			body: await page.screenshot({ fullPage: true }),
+			body: await captureVisualScreenshot(page),
 			contentType: "image/png"
 		});
 	}
