@@ -1389,7 +1389,13 @@ export function validateGenerationAt(generationPath, expected = {}) {
 		if (typeof record.artifact !== "string" || !record.artifact.startsWith("artifacts/") || artifactNames.has(record.artifact)) fail("invalid or duplicate artifact record", "output.validation");
 		artifactNames.add(record.artifact);
 		const artifactPath = resolveContained(generationPath, record.artifact, "generated artifact");
-		const artifactStat = fs.lstatSync(artifactPath);
+		let artifactStat;
+		try {
+			artifactStat = fs.lstatSync(artifactPath);
+		} catch (error) {
+			if (error?.code === "ENOENT") throw new PipelineError(`missing generated artifact: ${record.artifact}`, "output.validation", { cause: error });
+			throw new PipelineError(`could not inspect generated artifact ${record.artifact}: ${error.message}`, "output.validation", { cause: error });
+		}
 		if (!artifactStat.isFile() || isReparsePoint(artifactStat) || artifactStat.nlink > 1) fail(`generated artifact is not uniquely identified: ${record.artifact}`, "output.validation");
 		const artifactPathIdentity = fileIdentity(artifactStat, artifactPath, "generated artifact");
 		if (record.outputIdentity !== artifactPathIdentity) fail(`generated artifact identity mismatch: ${record.artifact}`, "output.validation");

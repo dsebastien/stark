@@ -168,6 +168,7 @@
     "test": "npm run test:ci:all",
     "test:local-packages": "node --test ./scripts/build-local-packages.test.mjs ./scripts/build-local-packages.source-containment.test.mjs",
     "test:local-packages:source-containment": "node --test ./scripts/build-local-packages.source-containment.test.mjs",
+    "test:local-packages:output-errors": "node --test ./scripts/build-local-packages.output-errors.test.mjs",
     "test:all": "npm run test:stark-core && npm run test:stark-ui && npm run test:stark-rbac && npm run test:starter && npm run test:showcase",
     "test:packages": "npm run test:stark-core && npm run test:stark-ui && npm run test:stark-rbac",
     "test:stark-core": "ng test stark-core",

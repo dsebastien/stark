@@ -237,10 +237,12 @@ particular:
 - a quarantine/cleanup failure preserves the candidate as evidence and is
   secondary when another error already exists;
 - a pre-production reconciliation failure prevents all producer commands;
-- after a valid `.complete` rename, disposable audit cleanup cannot revoke
-  authority. It is returned as a warning and persisted in the descriptor; if
-  the descriptor or tree proof itself fails, publication fails and the new
-  directory is quarantined before release.
+- after a valid `.complete` rename, lock release is still required. A release
+  failure remains fatal and no descriptor is returned; the complete directory
+  is preserved so a later reconciliation can validate it. If the descriptor or
+  tree proof itself fails, publication fails and the new directory is
+  quarantined before release. The producer has no disposable post-publication
+  cleanup operation and does not fabricate a cleanup warning.
 
 The CLI prints the structured error tree and the paths that were preserved.
 
@@ -262,7 +264,7 @@ secondary error report.
 | Source artifacts | Missing, duplicate, stale, unexpected, linked, hard-linked, or wrong-version tarballs. A stale source cleanup fault occurs before producer execution and cannot remove a prior complete generation. |
 | Containment | POSIX/Windows/UNC absolute paths, traversal, drive-relative paths, ADS, reserved names, control characters, trailing dot/space, case-folded escapes, symlink/junction/reparse ancestors, workspace alias, and canonical identity changes. Recovery refuses a changed source before rename. |
 | Output proof | Missing/extra artifact, corrupt bytes, checksum/provenance mismatch, duplicate artifact identity, incomplete tree, and tree digest change after validation. A post-rename proof failure quarantines the new generation without deleting it. |
-| Error handling | Command + invariant failure; command + quarantine failure; publication + quarantine failure; release + cleanup failure; cleanup-only warning after valid publication. Assert primary error identity/message, secondary ordering, preserved paths, and exit behavior. |
+| Error handling | Command + invariant failure; command + quarantine failure; publication + quarantine failure; release failure after publication. Assert primary error identity/message, secondary ordering, preserved paths, and exit behavior. |
 | Concurrency/Windows | Real child-process lock contention and retryable rename contention on Windows; persistent contention is bounded. No test relies on sleep, PID alone, or a pre-existing mutable output directory. |
 
 Implementation is ready only when every row is covered and a review confirms
