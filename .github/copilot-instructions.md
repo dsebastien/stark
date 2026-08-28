@@ -28,11 +28,3 @@ This repository uses **Beads (bd)** for issue tracking.
 ## Context Loading
 
 Run `bd prime` for the full workflow context.
-
-The Beads Copilot plugin runs the repository's `session-handoff --resume` command on
-session start and persists a keyed Beads checkpoint before compaction. Codex uses the
-parallel project hooks in `.codex/hooks.json`; both clients call the same script and
-memory key. A failed PreCompact command is an incomplete handoff; retry it after
-classifying dirty work and recording current test evidence. Supported Codex clients
-stop automatic compaction when the hook returns exit code 2; a host that ignores hook
-exit codes cannot be controlled by repository code.

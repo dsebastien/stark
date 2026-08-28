@@ -25,7 +25,7 @@ The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral or
 - Use Codex agents when the session host provides them, with the same isolated-worktree and worker-report contract as other configured clients. Do not install a separate Beads Codex integration; the orchestrator writes Beads through the repository CLI.
 - The orchestrator is the only process allowed to claim, update, or close Beads issues.
 - Workers receive an immutable issue snapshot and return code, validation evidence, and discovered follow-up work.
-- Initialize Beads and its Copilot integration in `05-agent-context`.
+- Use Beads as the durable migration work tracker in `05-agent-context`.
 - Version immutable legacy golden screenshots in Git.
 - Keep videos, traces, HTML reports, console logs, network logs, and accessibility details as CI artifacts rather than Git-tracked files.
 - Run all repository commands through profile-independent Git Bash and the repository launcher, which activates fnm and verifies the target repository's `.nvmrc` before invoking Node or npm.
@@ -35,25 +35,10 @@ The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral or
 - Never push to the `upstream` remote (`NationalBankBelgium/stark`). Synchronize migration branches only to the personal `origin` fork after explicit approval.
 - Preserve the documented one-commit-per-layer migration stack.
 
-## Session continuity and compaction
+## Work continuity
 
-The repository command `npm run session-handoff` persists one compact JSON checkpoint
-under the Beads memory key `migration-session-handoff`. It records the active and ready
-issues, branch/HEAD, dirty files and their classification, worktrees, test evidence,
-blockers, and next action. The workspace-level `AGENTS.md` is the handoff contract for
-Codex and other agents.
-
-Before a worker boundary, session end, or compaction, the orchestrator runs:
-
-```bash
-bash scripts/with-project-node.sh -- npm run session-handoff -- --hook precompact --require-active --evidence "<latest command and result>" --dirty-note "<classification>"
-```
-
-The command fails closed when Beads is unavailable, no active issue exists, a lease is
-stale, or dirty work is not classified. SessionStart runs `--resume` and injects only a
-small bounded Beads memory set. Hook success guarantees a durable checkpoint only when
-the host honors the hook; no repository command can veto a host that ignores hook exit
-codes. A failed checkpoint is never reported as a successful handoff.
+Beads is the durable source of truth for active work, validation evidence, blockers,
+and next actions. Agents load that state directly with `bd prime` and `bd show`.
 
 ## Tech Stack
 
@@ -172,14 +157,11 @@ npm run deps:check
 
 ```text
 .beads/                                      Beads workspace and tracked interchange data
-.copilot-plugin/plugin.json                  Copilot CLI Beads hooks
 .github/copilot-instructions.md              Repository and Beads workflow instructions
 MIGRATION_EXECUTION_SPEC.md                  This specification
 IMPROVEMENT_PLAN.md                          Review status, decisions, and validation results
 scripts/
   with-project-node.sh                       Profile-free Git Bash/fnm command launcher
-  session-handoff.mjs                        Beads-backed session checkpoint and resume command
-  session-handoff.test.mjs                   Focused checkpoint contract tests
   manage-workspace-dependencies.mjs          Local/canonical dependency-mode switch
   workspace-dependencies.json                Sibling repositories, build order, and canonical refs
 tmp/local-packages/                          Ignored generated sibling tarballs and checksums

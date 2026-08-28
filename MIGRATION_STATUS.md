@@ -28,7 +28,7 @@ This is the human-readable checkpoint. Beads remains the authoritative task grap
 - Repository guidance now gives every worker the same copy-paste launcher and local-tarball-only contract.
 - The public `@uirouter/angular@22.0.0` package replaced the Angular 22 fork in the root, Showcase, and Starter manifests and locks; no fork references remain.
 - UI-Router 22 routing is validated in package tests and the Showcase: initial home/otherwise redirects, lazy-loaded states, `uiView`/`uiSref`, route-search, session, and RBAC journeys pass in the supported browser paths. Root, Showcase, and Starter installs resolve `@uirouter/angular@22.0.0` with `@uirouter/core@6.1.2` and `@uirouter/rx@1.0.0`.
-- Codex and GitHub Copilot now share a tested Beads-backed session handoff and PreCompact checkpoint flow.
+- Codex and GitHub Copilot use Beads directly as the durable migration work tracker.
 - The pinned Chromium Playwright/axe runner, pinned legacy oracle metadata, shell-driven route transitions, and privileged legacy artifact capture are integrated; candidate and legacy representative journeys pass. Beads retains the full browser matrix as blocked by prerequisite stack-validation beads.
 - The immutable local-package publication design is recorded in `docs/LOCAL_PACKAGE_PUBLICATION_STATE.md`; implementation remains gated behind that design and precedes the full visual matrix.
 
