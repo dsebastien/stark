@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
 	breakGlassActiveLock,
 	formatPipelineError,
+	renameWithWindowsRetry,
 	resolveContained,
 	runPipeline,
 	writeAtomic,
@@ -27,15 +28,16 @@ function run(command, arguments_, cwd) {
 	if (result.status !== 0) throw new Error(`${command} ${arguments_.join(" ")} failed: ${result.stderr}`);
 }
 
-function createFixture(name = "fixture") {
+function createFixture(name = "fixture", options = {}) {
 	const workspaceRoot = path.join(testRoot, `${name}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 	const repositoryDirectory = path.join(workspaceRoot, "fixture-repository");
+	const producerSentinel = options.producerSentinel === true ? 'fs.writeFileSync("producer-ran.txt", "ran\\n");\n' : "";
 	fs.mkdirSync(repositoryDirectory, { recursive: true });
 	fs.writeFileSync(path.join(repositoryDirectory, ".nvmrc"), `${nodeVersion}\n`);
 	fs.writeFileSync(path.join(repositoryDirectory, "package.json"), JSON.stringify({ name: "@fixture/package", version: "1.0.0" }, null, 2) + "\n");
 	fs.writeFileSync(
 		path.join(repositoryDirectory, "build.mjs"),
-		`import fs from "node:fs";\nconst mode = fs.existsSync("mode.txt") ? fs.readFileSync("mode.txt", "utf8").trim() : "success";\nif (mode === "mutate-fail") { fs.appendFileSync("package.json", " "); process.exit(17); }\nif (mode === "fail") process.exit(19);\nfs.mkdirSync("dist", { recursive: true });\nfs.writeFileSync("dist/fixture-package-1.0.0.tgz", Buffer.from("fixture-" + Date.now()));\n`
+		`import fs from "node:fs";\nconst mode = fs.existsSync("mode.txt") ? fs.readFileSync("mode.txt", "utf8").trim() : "success";\n${producerSentinel}if (mode === "mutate-fail") { fs.appendFileSync("package.json", " "); process.exit(17); }\nif (mode === "fail") process.exit(19);\nfs.mkdirSync("dist", { recursive: true });\nfs.writeFileSync("dist/fixture-package-1.0.0.tgz", Buffer.from("fixture-" + Date.now()));\n`
 	);
 	fs.writeFileSync(path.join(repositoryDirectory, "mode.txt"), "success\n");
 	run("git", ["init", "--quiet"], repositoryDirectory);
@@ -74,6 +76,69 @@ function createFixture(name = "fixture") {
 function generationDirectories(fixture) {
 	const root = path.join(fixture.stateRoot, "generations");
 	return fs.existsSync(root) ? fs.readdirSync(root).map((name) => path.join(root, name)) : [];
+}
+
+function stateEntries(fixture, relativePath) {
+	const directory = path.join(fixture.stateRoot, relativePath);
+	return fs.existsSync(directory) ? fs.readdirSync(directory) : [];
+}
+
+function publishedGenerationPaths(fixture) {
+	return generationDirectories(fixture).filter((directory) => directory.endsWith(".complete"));
+}
+
+function snapshotTree(directory) {
+	const files = new Map();
+	const visit = (current, relativeDirectory = "") => {
+		for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+			const absolutePath = path.join(current, entry.name);
+			const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+			if (entry.isDirectory()) visit(absolutePath, relativePath);
+			else files.set(relativePath, fs.readFileSync(absolutePath).toString("base64"));
+		}
+	};
+	visit(directory);
+	return [...files.entries()].sort(([left], [right]) => left.localeCompare(right));
+}
+
+function assertTreeSnapshot(directory, expected) {
+	assert.deepEqual(snapshotTree(directory), expected);
+}
+
+function lockEvidenceEntries(fixture, kind) {
+	return stateEntries(fixture, `locks/${kind}`).filter((name) => name.endsWith(".complete")).sort();
+}
+
+function assertLockEvidenceIsSelfIdentifying(fixture) {
+	for (const name of lockEvidenceEntries(fixture, "release-receipts")) {
+		const lockId = name.slice(0, -".complete".length);
+		const receipt = JSON.parse(fs.readFileSync(path.join(fixture.stateRoot, "locks", "release-receipts", name), "utf8"));
+		assert.equal(receipt.lockId, lockId, `${name}: release receipt lock identity`);
+	}
+	for (const name of lockEvidenceEntries(fixture, "released")) {
+		const lockId = name.slice(0, -".complete".length);
+		const descriptor = JSON.parse(fs.readFileSync(path.join(fixture.stateRoot, "locks", "released", name, "descriptor.json"), "utf8"));
+		assert.equal(descriptor.lockId, lockId, `${name}: released lock identity`);
+	}
+}
+
+function captureFault(fixture, failAt) {
+	const operations = Array.isArray(failAt) ? failAt : [failAt];
+	let error;
+	assert.throws(
+		() => runPipeline({ plan: fixture.plan, faultPlan: { failAt } }),
+		(caught) => {
+			error = caught;
+			return true;
+		},
+		`fault plan unexpectedly completed: ${operations.join(", ")}`
+	);
+	const formatted = formatPipelineError(error);
+	return { error, formatted };
+}
+
+function producerMarker(fixture) {
+	return path.join(fixture.repositoryDirectory, "producer-ran.txt");
 }
 
 function childIdentityFiles(childrenRoot) {
@@ -161,6 +226,30 @@ test("process identity wrapper records a stable wrapper and command boundary", (
 	assert.ok(typeof identity.wrapper.processStartToken === "string" && identity.wrapper.processStartToken.length > 0);
 	assert.ok(Number.isSafeInteger(identity.child.pid) && identity.child.pid > 0);
 	assert.ok(typeof identity.child.processStartToken === "string" && identity.child.processStartToken.length > 0);
+});
+
+test("Windows rename retries validate immediately before every attempt", () => {
+	const events = [];
+	const fileSystem = {
+		renameSync() {
+			events.push("rename");
+			if (events.filter((event) => event === "rename").length < 3) {
+				const error = new Error("transient contention");
+				error.code = "EBUSY";
+				throw error;
+			}
+		}
+	};
+	const attempts = renameWithWindowsRetry("source", "destination", fileSystem, {
+		platform: "win32",
+		maximumAttempts: 3,
+		retryDelay: 0,
+		beforeAttempt: ({ attempt }) => events.push(`validate-${attempt}`),
+		wait: () => events.push("wait")
+	});
+
+	assert.equal(attempts, 3);
+	assert.deepEqual(events, ["validate-1", "rename", "wait", "validate-2", "rename", "wait", "validate-3", "rename"]);
 });
 
 beforeEach(() => {
@@ -440,6 +529,7 @@ function writeBreakGlassDescriptor(fixture, owner, extra = {}) {
 		schemaVersion: 1,
 		lockId: "stale-lock",
 		workspace: workspaceRecord(fixture.workspaceRoot),
+		stateRoot: workspaceRecord(fixture.stateRoot),
 		owner: { plannedChildren: [], ...owner },
 		...extra
 	}));
@@ -490,6 +580,177 @@ test("break-glass quarantines an owner that is absent with no live descendants",
 	const destination = breakGlassActiveLock(fixture.stateRoot, { processEnumerator: () => [] });
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), false);
 	assert.equal(JSON.parse(fs.readFileSync(path.join(destination, "break-glass-evidence.json"), "utf8")).lockId, "stale-lock");
+});
+
+test("break-glass rename faults preserve the active lock and its recovery evidence", () => {
+	const fixture = createFixture("break-glass-rename-fault");
+	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+	const activePath = path.join(fixture.stateRoot, "locks", "active");
+
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, {
+			processEnumerator: () => [],
+			faultPlan: { failAt: "break-glass.rename" }
+		}),
+		(error) => error.message === "declarative fault requested at break-glass.rename"
+	);
+	assert.equal(fs.existsSync(activePath), true);
+	assert.equal(JSON.parse(fs.readFileSync(path.join(activePath, "break-glass-evidence.json"), "utf8")).lockId, "stale-lock");
+	assert.deepEqual(stateEntries(fixture, "quarantine"), []);
+});
+
+test("break-glass refuses an active-directory replacement before writing evidence", () => {
+	const fixture = createFixture("break-glass-active-replacement");
+	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+	const activePath = path.join(fixture.stateRoot, "locks", "active");
+	const displacedPath = path.join(fixture.stateRoot, "locks", "displaced-active");
+
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, {
+			processEnumerator: () => {
+				fs.renameSync(activePath, displacedPath);
+				fs.cpSync(displacedPath, activePath, { recursive: true });
+				return [];
+			}
+		}),
+		/active lock identity changed/u
+	);
+	assert.equal(fs.existsSync(path.join(activePath, "break-glass-evidence.json")), false);
+	assert.equal(fs.existsSync(path.join(displacedPath, "break-glass-evidence.json")), false);
+});
+
+test("break-glass refuses descriptor tampering before writing evidence", () => {
+	const fixture = createFixture("break-glass-descriptor-tamper");
+	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+	const activePath = path.join(fixture.stateRoot, "locks", "active");
+	const descriptorPath = path.join(activePath, "descriptor.json");
+
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, {
+			processEnumerator: () => {
+				const changed = JSON.parse(fs.readFileSync(descriptorPath, "utf8"));
+				changed.lockId = "replacement-lock";
+				fs.writeFileSync(descriptorPath, JSON.stringify(changed));
+				return [];
+			}
+		}),
+		/active lock descriptor changed/u
+	);
+	assert.equal(fs.existsSync(path.join(activePath, "break-glass-evidence.json")), false);
+});
+
+test("break-glass retry preserves the first valid evidence byte-for-byte", () => {
+	const fixture = createFixture("break-glass-retry-evidence");
+	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+	const activePath = path.join(fixture.stateRoot, "locks", "active");
+	const evidencePath = path.join(activePath, "break-glass-evidence.json");
+
+	assert.throws(
+		() => breakGlassActiveLock(fixture.stateRoot, {
+			processEnumerator: () => [],
+			faultPlan: { failAt: "break-glass.rename" }
+		}),
+		(error) => error.message === "declarative fault requested at break-glass.rename"
+	);
+	const firstEvidence = fs.readFileSync(evidencePath);
+	const destination = breakGlassActiveLock(fixture.stateRoot, {
+		processEnumerator: () => [{ pid: 2147483646, parentPid: 0, startToken: "unrelated" }]
+	});
+	assert.deepEqual(fs.readFileSync(path.join(destination, "break-glass-evidence.json")), firstEvidence);
+});
+
+function windowsRenameRetry(mutate) {
+	let attempts = 0;
+	return {
+		fileSystem: {
+			renameSync(source, destination) {
+				attempts += 1;
+				if (attempts === 1) {
+					const error = new Error("transient rename contention");
+					error.code = "EBUSY";
+					throw error;
+				}
+				fs.renameSync(source, destination);
+			}
+		},
+		options: { platform: "win32", maximumAttempts: 2, retryDelay: 0, wait: mutate },
+		attempts: () => attempts
+	};
+}
+
+const breakGlassRetryMutations = [
+	{
+		name: "active directory replacement",
+		expected: /active lock identity changed/u,
+		mutate(fixture) {
+			const activePath = path.join(fixture.stateRoot, "locks", "active");
+			const displacedPath = path.join(fixture.stateRoot, "locks", "displaced-active");
+			fs.renameSync(activePath, displacedPath);
+			fs.cpSync(displacedPath, activePath, { recursive: true });
+		}
+	},
+	{
+		name: "state-root replacement",
+		expected: /canonical state-root identity changed/u,
+		mutate(fixture) {
+			const displacedPath = `${fixture.stateRoot}-displaced`;
+			fs.renameSync(fixture.stateRoot, displacedPath);
+			fs.cpSync(displacedPath, fixture.stateRoot, { recursive: true });
+		}
+	},
+	{
+		name: "descriptor tampering",
+		expected: /active lock descriptor changed/u,
+		mutate(fixture) {
+			const descriptorPath = path.join(fixture.stateRoot, "locks", "active", "descriptor.json");
+			const changed = JSON.parse(fs.readFileSync(descriptorPath, "utf8"));
+			changed.lockId = "retry-replacement-lock";
+			fs.writeFileSync(descriptorPath, JSON.stringify(changed));
+		}
+	},
+	{
+		name: "evidence tampering",
+		expected: /break-glass evidence changed/u,
+		mutate(fixture) {
+			fs.appendFileSync(path.join(fixture.stateRoot, "locks", "active", "break-glass-evidence.json"), "tampered");
+		}
+	}
+];
+
+for (const { name, expected, mutate } of breakGlassRetryMutations) {
+	test(`break-glass Windows retry rejects ${name} before a second rename`, () => {
+		const fixture = createFixture(`break-glass-retry-${name.replaceAll(" ", "-")}`);
+		writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+		const retry = windowsRenameRetry(() => mutate(fixture));
+
+		assert.throws(
+			() => breakGlassActiveLock(fixture.stateRoot, {
+				processEnumerator: () => [],
+				renameFileSystem: retry.fileSystem,
+				renameOptions: retry.options
+			}),
+			expected
+		);
+		assert.equal(retry.attempts(), 1);
+		assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+		assert.deepEqual(stateEntries(fixture, "quarantine"), []);
+	});
+}
+
+test("break-glass Windows retry preserves exact evidence during normal contention", () => {
+	const fixture = createFixture("break-glass-retry-normal");
+	writeBreakGlassDescriptor(fixture, { pid: 2147483647, processStartToken: "stale-owner" });
+	const evidencePath = path.join(fixture.stateRoot, "locks", "active", "break-glass-evidence.json");
+	let firstEvidence;
+	const retry = windowsRenameRetry(() => { firstEvidence = fs.readFileSync(evidencePath); });
+	const destination = breakGlassActiveLock(fixture.stateRoot, {
+		processEnumerator: () => [],
+		renameFileSystem: retry.fileSystem,
+		renameOptions: retry.options
+	});
+
+	assert.equal(retry.attempts(), 2);
+	assert.deepEqual(fs.readFileSync(path.join(destination, "break-glass-evidence.json")), firstEvidence);
 });
 
 test("break-glass refuses an unverifiable process enumeration", () => {
@@ -569,3 +830,181 @@ test("break-glass refuses a pending child identity", () => {
 	);
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
 });
+
+const faultMatrix = [
+	{ operation: "source.cleanup.before", producerRan: false, lockReleased: true, candidate: "failed-generation", preservePriorGeneration: true, sourceMustSurvive: true },
+	{ operation: "source.cleanup.remove", producerRan: false, lockReleased: true, candidate: "failed-generation", preservePriorGeneration: true, sourceMustSurvive: true },
+	{ operation: "recovery.quarantine", producerRan: false, lockReleased: true, candidate: "abandoned-generation" },
+	{ operation: "lock.candidate.write", producerRan: false, lockReleased: false, candidate: "lock-candidate" },
+	{ operation: "lock.publish.rename", producerRan: false, lockReleased: false, candidate: "lock-candidate" },
+	{ operation: "generation.create", producerRan: false, lockReleased: true, candidate: "none" },
+	{ operation: "descriptor.write", producerRan: false, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "repository[fixture].command[build-and-pack].before", producerRan: false, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "repository[fixture].post-command-snapshot", producerRan: true, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "artifact.copy", producerRan: true, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "result.write", producerRan: true, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "checksums.write", producerRan: true, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "provenance.write", producerRan: true, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "marker.write", producerRan: true, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "publish.rename", producerRan: true, lockReleased: true, candidate: "failed-generation" },
+	{ operation: "publish.post-rename-validation", producerRan: true, lockReleased: true, candidate: "invalid-complete-generation" }
+];
+
+for (const { operation, producerRan, lockReleased, candidate, preservePriorGeneration, sourceMustSurvive } of faultMatrix) {
+	test(`faultPlan matrix: ${operation}`, () => {
+		const fixture = createFixture(`fault-matrix-${operation.replace(/[^a-z0-9]+/giu, "-")}`, { producerSentinel: true });
+		const baseline = preservePriorGeneration ? runPipeline(fixture.plan) : undefined;
+		const baselineSnapshot = baseline ? snapshotTree(baseline.generationPath) : undefined;
+		if (baseline) fs.rmSync(producerMarker(fixture), { force: true });
+		if (operation === "recovery.quarantine") {
+			fs.mkdirSync(path.join(fixture.stateRoot, "generations", "0123456789abcdef0123456789abcdef.incomplete"), { recursive: true });
+		}
+		const sourceArtifact = path.join(fixture.repositoryDirectory, "dist", "fixture-package-1.0.0.tgz");
+		if (sourceMustSurvive && !fs.existsSync(sourceArtifact)) {
+			fs.mkdirSync(path.dirname(sourceArtifact), { recursive: true });
+			fs.writeFileSync(sourceArtifact, "pre-existing-source-artifact\n");
+		}
+		const sourceBefore = sourceMustSurvive ? fs.readFileSync(sourceArtifact) : undefined;
+		const { error, formatted } = captureFault(fixture, operation);
+
+		assert.equal(error.message, `declarative fault requested at ${operation}`);
+		assert.equal(error.phase, operation);
+		assert.equal(formatted.split("\n", 1)[0], `declarative fault requested at ${operation}`);
+		assert.equal(fs.existsSync(producerMarker(fixture)), producerRan, `${operation}: producer execution evidence`);
+		if (sourceMustSurvive) assert.deepEqual(fs.readFileSync(sourceArtifact), sourceBefore, `${operation}: source artifact was removed`);
+		assert.equal(publishedGenerationPaths(fixture).length, baseline ? 1 : 0, `${operation}: unexpected published generation`);
+		if (baseline) assertTreeSnapshot(baseline.generationPath, baselineSnapshot);
+		assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), false, `${operation}: active lock evidence`);
+		assert.equal(
+			stateEntries(fixture, "locks/released").filter((name) => name.endsWith(".complete")).length,
+			(baseline ? 1 : 0) + (lockReleased ? 1 : 0),
+			`${operation}: released lock evidence`
+		);
+
+		if (candidate === "lock-candidate") {
+			assert.ok(stateEntries(fixture, "locks/candidates").some((name) => name.endsWith(".incomplete")), `${operation}: lock candidate evidence`);
+		} else if (candidate === "none") {
+			assert.equal(stateEntries(fixture, "generations").some((name) => name.endsWith(".incomplete")), false, `${operation}: unexpected generation candidate`);
+		} else if (candidate === "abandoned-generation") {
+			assert.ok(stateEntries(fixture, "generations").includes("0123456789abcdef0123456789abcdef.incomplete"), `${operation}: abandoned candidate was removed`);
+		} else {
+			assert.equal(stateEntries(fixture, "generations").some((name) => name.endsWith(".incomplete")), false, `${operation}: failed candidate was not quarantined`);
+			const expectedQuarantineLabel = candidate === "invalid-complete-generation" ? "invalid-complete-generation" : "failed-generation";
+			assert.ok(stateEntries(fixture, "quarantine").some((name) => name.includes(expectedQuarantineLabel)), `${operation}: preserved quarantine evidence`);
+		}
+	});
+}
+
+test("faultPlan preserves primary errors and orders secondary quarantine/invariant failures", () => {
+	{
+		const fixture = createFixture("fault-secondary-descriptor", { producerSentinel: true });
+		const baseline = runPipeline(fixture.plan);
+		const baselineSnapshot = snapshotTree(baseline.generationPath);
+		fs.rmSync(producerMarker(fixture), { force: true });
+		const { error, formatted } = captureFault(fixture, ["descriptor.write", "failure.quarantine"]);
+		const secondary = formatted.indexOf("Secondary failure");
+		assert.equal(error.message, "declarative fault requested at descriptor.write");
+		assert.equal(formatted.split("\n", 1)[0], "declarative fault requested at descriptor.write");
+		assert.ok(secondary > 0 && formatted.indexOf("failure.quarantine") > secondary);
+		assert.equal(fs.existsSync(producerMarker(fixture)), false);
+		assertTreeSnapshot(baseline.generationPath, baselineSnapshot);
+		assert.ok(stateEntries(fixture, "generations").some((name) => name.endsWith(".incomplete")));
+		assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), false);
+	}
+
+	{
+		const fixture = createFixture("fault-secondary-command", { producerSentinel: true });
+		const baseline = runPipeline(fixture.plan);
+		const baselineSnapshot = snapshotTree(baseline.generationPath);
+		fs.rmSync(producerMarker(fixture), { force: true });
+		fs.writeFileSync(path.join(fixture.repositoryDirectory, "mode.txt"), "mutate-fail\n");
+		const operation = "repository[fixture].post-command-snapshot";
+		const { error, formatted } = captureFault(fixture, operation);
+		const secondary = formatted.indexOf("Secondary failure");
+		assert.match(error.message, /^command failed \(17\): /u);
+		assert.equal(formatted.split("\n", 1)[0], error.message);
+		assert.ok(secondary > 0 && formatted.indexOf(operation) > secondary);
+		assert.equal(fs.existsSync(producerMarker(fixture)), true);
+		assertTreeSnapshot(baseline.generationPath, baselineSnapshot);
+		assert.ok(stateEntries(fixture, "quarantine").some((name) => name.includes("failed-generation")));
+	}
+
+	{
+		const fixture = createFixture("fault-secondary-publication", { producerSentinel: true });
+		const baseline = runPipeline(fixture.plan);
+		const baselineSnapshot = snapshotTree(baseline.generationPath);
+		fs.rmSync(producerMarker(fixture), { force: true });
+		const { error, formatted } = captureFault(fixture, ["publish.rename", "failure.quarantine"]);
+		const secondary = formatted.indexOf("Secondary failure");
+		assert.equal(error.message, "declarative fault requested at publish.rename");
+		assert.equal(formatted.split("\n", 1)[0], "declarative fault requested at publish.rename");
+		assert.ok(secondary > 0 && formatted.indexOf("failure.quarantine") > secondary);
+		assert.equal(fs.existsSync(producerMarker(fixture)), true);
+		assertTreeSnapshot(baseline.generationPath, baselineSnapshot);
+		assert.ok(stateEntries(fixture, "generations").some((name) => name.endsWith(".incomplete")));
+	}
+});
+
+test("faultPlan orders release failure after preserved quarantine evidence", () => {
+	const fixture = createFixture("fault-secondary-release", { producerSentinel: true });
+	const baseline = runPipeline(fixture.plan);
+	const baselineSnapshot = snapshotTree(baseline.generationPath);
+	fs.rmSync(producerMarker(fixture), { force: true });
+	const { error, formatted } = captureFault(fixture, ["result.write", "failure.quarantine", "lock.release.receipt"]);
+	const quarantine = formatted.indexOf("failure.quarantine");
+	const release = formatted.indexOf("lock.release.receipt");
+	assert.equal(error.message, "declarative fault requested at result.write");
+	assert.equal(formatted.split("\n", 1)[0], "declarative fault requested at result.write");
+	assert.ok(quarantine > 0 && release > quarantine);
+	assert.equal(fs.existsSync(producerMarker(fixture)), true);
+	assertTreeSnapshot(baseline.generationPath, baselineSnapshot);
+	assert.ok(stateEntries(fixture, "generations").some((name) => name.endsWith(".incomplete")));
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "active")), true);
+	assert.equal(lockEvidenceEntries(fixture, "release-receipts").length, 1);
+	assert.equal(lockEvidenceEntries(fixture, "released").length, 1);
+	assertLockEvidenceIsSelfIdentifying(fixture);
+});
+
+for (const operation of ["lock.release.receipt", "lock.release.rename"]) {
+	test(`faultPlan ${operation} preserves published authority and active evidence`, () => {
+		const fixture = createFixture(`fault-${operation}`, { producerSentinel: true });
+		const baseline = runPipeline(fixture.plan);
+		const baselineSnapshot = snapshotTree(baseline.generationPath);
+		const baselineReleasedName = lockEvidenceEntries(fixture, "released")[0];
+		const baselineReleasedPath = path.join(fixture.stateRoot, "locks", "released", baselineReleasedName);
+		const baselineReleasedSnapshot = snapshotTree(baselineReleasedPath);
+		const baselineReceiptName = lockEvidenceEntries(fixture, "release-receipts")[0];
+		const baselineReceiptPath = path.join(fixture.stateRoot, "locks", "release-receipts", baselineReceiptName);
+		const baselineReceipt = fs.readFileSync(baselineReceiptPath);
+		fs.rmSync(producerMarker(fixture), { force: true });
+		const { error, formatted } = captureFault(fixture, operation);
+
+		assert.equal(error.message, `declarative fault requested at ${operation}`);
+		assert.equal(error.phase, operation);
+		assert.equal(formatted.split("\n", 1)[0], `declarative fault requested at ${operation}`);
+		assert.equal(fs.existsSync(producerMarker(fixture)), true);
+		const published = publishedGenerationPaths(fixture);
+		assert.equal(published.length, 2, `${operation}: published generation was revoked`);
+		assertTreeSnapshot(baseline.generationPath, baselineSnapshot);
+		assertTreeSnapshot(baselineReleasedPath, baselineReleasedSnapshot);
+		assert.deepEqual(fs.readFileSync(baselineReceiptPath), baselineReceipt);
+
+		const currentGeneration = published.find((generationPath) => generationPath !== baseline.generationPath);
+		const generationId = path.basename(currentGeneration, ".complete");
+		validateGenerationAt(currentGeneration, {
+			generationId,
+			stateRoot: fixture.stateRoot,
+			workspace: workspaceRecord(fixture.workspaceRoot)
+		});
+
+		const activePath = path.join(fixture.stateRoot, "locks", "active");
+		assert.equal(fs.existsSync(activePath), true, `${operation}: active evidence was removed`);
+		const activeDescriptor = JSON.parse(fs.readFileSync(path.join(activePath, "descriptor.json"), "utf8"));
+		const activeEvidenceName = `${activeDescriptor.lockId}.complete`;
+		assert.equal(lockEvidenceEntries(fixture, "released").includes(activeEvidenceName), false);
+		assert.equal(lockEvidenceEntries(fixture, "release-receipts").includes(activeEvidenceName), operation === "lock.release.rename");
+		assert.equal(lockEvidenceEntries(fixture, "released").length, 1);
+		assert.equal(lockEvidenceEntries(fixture, "release-receipts").length, operation === "lock.release.rename" ? 2 : 1);
+		assertLockEvidenceIsSelfIdentifying(fixture);
+	});
+}

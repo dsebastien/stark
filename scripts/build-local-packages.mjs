@@ -317,6 +317,7 @@ export function renameWithWindowsRetry(source, destination, fileSystem = fs, opt
 	const retryDelay = options.retryDelay ?? 20;
 	const waitFunction = options.wait ?? wait;
 	for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+		options.beforeAttempt?.({ attempt, source, destination });
 		try {
 			fileSystem.renameSync(source, destination);
 			return attempt;
@@ -771,6 +772,7 @@ function assertRenamePaths(stateRoot, sourcePath, destinationPath, options = {})
 		if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed before rename", "containment", { expected: options.stateRootIdentity, actual: actualState });
 	}
 	const source = assertStateSource(stateRoot, sourcePath, "rename source");
+	if (options.sourceIdentity !== undefined && source.identity !== options.sourceIdentity) fail(`rename source identity changed: ${source.path}`, "containment");
 	const destination = resolveContained(stateRoot, path.relative(stateRoot, destinationPath), "rename destination");
 	const destinationParent = canonicalExistingPath(path.dirname(destination), "rename destination parent");
 	if (!isPathInside(canonicalExistingPath(stateRoot, "state root"), destinationParent)) fail(`rename destination is outside state root: ${destination}`, "containment");
@@ -797,7 +799,10 @@ function quarantinePath(stateRoot, sourcePath, stateLabel, faultPlan, operation 
 			const actualState = assertStateRootIdentity(stateRoot, options.workspace ?? workspaceIdentity(options.workspaceRoot));
 			if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed immediately before quarantine", "containment", { expected: options.stateRootIdentity, actual: actualState });
 		}
-		renameWithWindowsRetry(rename.source, rename.destination);
+		renameWithWindowsRetry(rename.source, rename.destination, options.renameFileSystem ?? fs, {
+			...(options.renameOptions ?? {}),
+			beforeAttempt: options.beforeRenameAttempt
+		});
 	} catch (error) {
 		throw new PipelineError(`could not quarantine ${sourcePath}: ${error.message}`, "recovery", { source: sourcePath, destination, cause: error });
 	}
@@ -1597,11 +1602,14 @@ function createGenerationCandidate(plan, initialStates, faultPlan) {
 	faultIfRequested(faultPlan, "generation.create");
 	ensureDirectory(incompletePath, "generation candidate");
 	const descriptor = generationDescriptor(plan, generationId, initialStates);
-	faultIfRequested(faultPlan, "descriptor.write");
-	writeAtomic(path.join(incompletePath, descriptorName), stableJson(descriptor));
-	const persisted = readJson(path.join(incompletePath, descriptorName), "generation descriptor");
-	if (!sameRecords(persisted, descriptor)) fail("generation descriptor changed before production", "generation");
 	return { generationId, incompletePath, completePath, descriptor };
+}
+
+function persistGenerationDescriptor(candidate, faultPlan) {
+	faultIfRequested(faultPlan, "descriptor.write");
+	writeAtomic(path.join(candidate.incompletePath, descriptorName), stableJson(candidate.descriptor));
+	const persisted = readJson(path.join(candidate.incompletePath, descriptorName), "generation descriptor");
+	if (!sameRecords(persisted, candidate.descriptor)) fail("generation descriptor changed before production", "generation");
 }
 
 function liveProcessPids() {
@@ -1653,16 +1661,87 @@ function liveProcessPids() {
 	return pids;
 }
 
+function readBreakGlassActiveLock(root, activePath) {
+	const active = assertStateSource(root, activePath, "active lock");
+	const activeStat = fs.lstatSync(active.path);
+	if (!activeStat.isDirectory() || isReparsePoint(activeStat)) fail(`active lock is not a safe directory: ${active.path}`, "break-glass");
+	const descriptorPath = path.join(active.path, "descriptor.json");
+	const descriptorFile = assertStateSource(root, descriptorPath, "active lock descriptor");
+	const descriptorStat = fs.lstatSync(descriptorFile.path);
+	if (!descriptorStat.isFile() || isReparsePoint(descriptorStat)) fail(`active lock descriptor is not a safe file: ${descriptorPath}`, "break-glass");
+	const descriptorContents = fs.readFileSync(descriptorPath);
+	const descriptor = readJson(descriptorPath, "active lock descriptor");
+	const activeAfterRead = assertStateSource(root, activePath, "active lock");
+	const descriptorAfterRead = assertStateSource(root, descriptorPath, "active lock descriptor");
+	if (activeAfterRead.identity !== active.identity || descriptorAfterRead.identity !== descriptorFile.identity) {
+		fail("active lock identity changed while reading its descriptor", "break-glass");
+	}
+	return { active, descriptorFile, descriptorContents, descriptor };
+}
+
+function assertBreakGlassWriteBoundary(root, activePath, proof) {
+	const stateRootIdentity = assertStateRootIdentity(root, proof.descriptor.workspace);
+	if (!sameRecords(stateRootIdentity, proof.descriptor.stateRoot)) fail("canonical state-root identity changed before break-glass evidence", "break-glass");
+	const active = assertStateSource(root, activePath, "active lock");
+	if (active.identity !== proof.active.identity || !samePath(active.realPath, proof.active.realPath)) fail("active lock identity changed before break-glass evidence", "break-glass");
+	const descriptorPath = path.join(activePath, "descriptor.json");
+	const descriptorFile = assertStateSource(root, descriptorPath, "active lock descriptor");
+	if (descriptorFile.identity !== proof.descriptorFile.identity || !fs.readFileSync(descriptorPath).equals(proof.descriptorContents)) {
+		fail("active lock descriptor changed before break-glass evidence", "break-glass");
+	}
+	const descriptor = readJson(descriptorPath, "active lock descriptor");
+	if (!sameRecords(descriptor, proof.descriptor)) fail("active lock descriptor changed before break-glass evidence", "break-glass");
+	const activeAfterRead = assertStateSource(root, activePath, "active lock");
+	const descriptorAfterRead = assertStateSource(root, descriptorPath, "active lock descriptor");
+	if (activeAfterRead.identity !== proof.active.identity || descriptorAfterRead.identity !== proof.descriptorFile.identity) {
+		fail("active lock identity changed at the break-glass evidence boundary", "break-glass");
+	}
+}
+
+function readBreakGlassEvidence(root, evidencePath, expected, proof) {
+	const evidenceFile = assertStateSource(root, evidencePath, "break-glass evidence");
+	const evidenceStat = fs.lstatSync(evidenceFile.path);
+	if (!evidenceStat.isFile() || isReparsePoint(evidenceStat)) fail(`break-glass evidence is not a safe file: ${evidencePath}`, "break-glass");
+	const contents = fs.readFileSync(evidencePath);
+	if (proof && (evidenceFile.identity !== proof.file.identity || !contents.equals(proof.contents))) {
+		fail("break-glass evidence changed before rename", "break-glass");
+	}
+	let evidence;
+	try {
+		evidence = JSON.parse(contents.toString("utf8"));
+	} catch (error) {
+		fail(`invalid break-glass evidence ${evidencePath}: ${error.message}`, "break-glass");
+	}
+	if (
+		evidence.schemaVersion !== lockSchemaVersion ||
+		evidence.lockId !== expected.lockId ||
+		!sameRecords(evidence.workspace, expected.workspace) ||
+		!sameRecords(evidence.owner, expected.owner) ||
+		!sameRecords(evidence.children, expected.children) ||
+		!Array.isArray(evidence.processes) ||
+		typeof evidence.enumeratedAt !== "string"
+	) {
+		fail(`existing break-glass evidence does not belong to the active lock: ${evidencePath}`, "break-glass");
+	}
+	const evidenceAfterRead = assertStateSource(root, evidencePath, "break-glass evidence");
+	if (evidenceAfterRead.identity !== evidenceFile.identity) fail(`break-glass evidence identity changed while reading: ${evidencePath}`, "break-glass");
+	return { file: evidenceFile, contents };
+}
+
 export function breakGlassActiveLock(stateRoot, options = {}) {
 	const root = path.resolve(stateRoot);
 	ensureStateLayout(root);
 	const activePath = statePath(root, "locks/active", "active lock");
 	if (!fs.existsSync(activePath)) fail(`no active lock exists: ${activePath}`, "break-glass");
-	const descriptor = readJson(path.join(activePath, "descriptor.json"), "active lock descriptor");
+	const activeProof = readBreakGlassActiveLock(root, activePath);
+	const descriptor = activeProof.descriptor;
 	const expectedWorkspace = descriptor.workspace?.realPath;
 	if (typeof expectedWorkspace !== "string") fail("active lock has no canonical workspace identity", "break-glass");
 	assertWorkspaceIdentity(descriptor.workspace, expectedWorkspace);
-	if (options.processEnumerator !== undefined && process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1") fail("custom process enumeration is test-only", "break-glass");
+	assertBreakGlassWriteBoundary(root, activePath, activeProof);
+	if ((options.processEnumerator !== undefined || options.faultPlan !== undefined || options.renameFileSystem !== undefined || options.renameOptions !== undefined) && process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1") {
+		fail("custom break-glass options are test-only", "break-glass");
+	}
 	const enumerateProcesses = options.processEnumerator ?? liveProcessPids;
 	let processes;
 	try {
@@ -1709,12 +1788,9 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 	const liveRecordedChild = childRecords.complete.some((record) => processes.some((entry) => entry.pid === record.child.pid));
 	const liveProcessGroupMember = processes.some((entry) => entry.groupId !== undefined && processGroups.has(entry.groupId) && !childPids.has(entry.pid));
 	if (owner || liveRecordedChild || liveProcessGroupMember || descendants.size > roots.size) fail("active lock owner or a recorded descendant is still alive; break-glass recovery is refused", "break-glass");
-	const destination = quarantinePath(root, activePath, "break-glass-active-lock", undefined, "break-glass.rename", {
-		workspace: descriptor.workspace,
-		workspaceRoot: descriptor.workspace.realPath,
-		stateRootIdentity: descriptor.stateRoot
-	});
-	writeAtomic(path.join(destination, "break-glass-evidence.json"), stableJson({
+	const assertWriteBoundary = () => assertBreakGlassWriteBoundary(root, activePath, activeProof);
+	const evidencePath = path.join(activePath, "break-glass-evidence.json");
+	const evidence = {
 		schemaVersion: lockSchemaVersion,
 		lockId: descriptor.lockId,
 		workspace: descriptor.workspace,
@@ -1722,7 +1798,30 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 		children: childRecords.complete,
 		enumeratedAt: new Date().toISOString(),
 		processes
-	}));
+	};
+	assertWriteBoundary();
+	let evidenceProof;
+	if (fs.existsSync(evidencePath)) {
+		evidenceProof = readBreakGlassEvidence(root, evidencePath, evidence);
+		assertWriteBoundary();
+	} else {
+		writeAtomic(evidencePath, stableJson(evidence), { noReplace: true, beforeMutation: assertWriteBoundary });
+		evidenceProof = readBreakGlassEvidence(root, evidencePath, evidence);
+	}
+	const assertRenameBoundary = () => {
+		assertWriteBoundary();
+		readBreakGlassEvidence(root, evidencePath, evidence, evidenceProof);
+		assertWriteBoundary();
+	};
+	const destination = quarantinePath(root, activePath, "break-glass-active-lock", options.faultPlan, "break-glass.rename", {
+		workspace: descriptor.workspace,
+		workspaceRoot: descriptor.workspace.realPath,
+		stateRootIdentity: descriptor.stateRoot,
+		sourceIdentity: activeProof.active.identity,
+		beforeRenameAttempt: assertRenameBoundary,
+		renameFileSystem: options.renameFileSystem,
+		renameOptions: options.renameOptions
+	});
 	return destination;
 }
 
@@ -1745,6 +1844,7 @@ function runPipelineInternal(planInput, options = {}) {
 		assertWorkspaceIdentity(plan.workspace, plan.workspaceRoot);
 		const initialStates = plan.repositories.map((repository) => initialRepositoryState(repository, plan, faultPlan));
 		candidate = createGenerationCandidate(plan, initialStates, faultPlan);
+		persistGenerationDescriptor(candidate, faultPlan);
 		const built = buildGeneration(plan, candidate.incompletePath, candidate.descriptor, initialStates, faultPlan, lock);
 		faultIfRequested(faultPlan, "publish.rename");
 		const publishRename = assertRenamePaths(plan.stateRoot, candidate.incompletePath, candidate.completePath, {
