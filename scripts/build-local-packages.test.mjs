@@ -1122,7 +1122,7 @@ function windowsRenameRetry(mutate) {
 const breakGlassRetryMutations = [
 	{
 		name: "active directory replacement",
-		expected: /active lock identity changed/u,
+		expected: /rename source identity changed/u,
 		mutate(fixture) {
 			const activePath = path.join(fixture.stateRoot, "locks", "active");
 			const displacedPath = path.join(fixture.stateRoot, "locks", "displaced-active");
