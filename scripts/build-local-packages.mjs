@@ -527,6 +527,7 @@ function trackedEntries(repositoryDirectory, repository) {
 function snapshotTrackedFiles(repositoryDirectory, repository, entries = trackedEntries(repositoryDirectory, repository)) {
 	const identities = new Map();
 	return entries.map((entry) => {
+		if (!["100644", "100755"].includes(entry.mode)) fail(`tracked path has unsupported Git mode ${entry.mode}: ${entry.path}`, "repository.snapshot");
 		const filePath = resolveContained(repositoryDirectory, entry.path, "tracked path");
 		if (!fs.existsSync(filePath)) fail(`tracked path is missing: ${filePath}`, "repository.snapshot");
 		const stat = fs.lstatSync(filePath);
@@ -587,6 +588,13 @@ function compareRepositorySnapshot(repositoryDirectory, repository, before, cont
 		});
 	}
 	return after;
+}
+
+export function repositorySnapshotForTest(repositoryDirectory, repository, before, context = "test snapshot") {
+	if (process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1") fail("repository snapshot seam is available only in test mode", "plan");
+	return before === undefined
+		? inspectRepository(repositoryDirectory, repository)
+		: compareRepositorySnapshot(repositoryDirectory, repository, before, context);
 }
 
 function artifactMatcher(pattern) {
@@ -873,7 +881,13 @@ function quarantinePath(stateRoot, sourcePath, stateLabel, faultPlan, operation 
 		}
 		renameWithWindowsRetry(rename.source, rename.destination, options.renameFileSystem ?? fs, {
 			...(options.renameOptions ?? {}),
-			beforeAttempt: options.beforeRenameAttempt
+			beforeAttempt: (attempt) => {
+				assertRenamePaths(stateRoot, rename.source, rename.destination, {
+					...options,
+					sourceIdentity: rename.sourceIdentity
+				});
+				options.beforeRenameAttempt?.(attempt);
+			}
 		});
 	} catch (error) {
 		throw new PipelineError(`could not quarantine ${sourcePath}: ${error.message}`, "recovery", { source: sourcePath, destination, cause: error });
