@@ -11,7 +11,7 @@ descriptor that its consumer must use:
 
 ```ts
 type LocalPackageGeneration = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   workspace: { realPath: string; volumeId: string; directoryId: string };
   generationId: string;
   generationPath: string; // the `.complete` directory, never a reconstructed path
@@ -24,6 +24,10 @@ type LocalPackageGeneration = {
     commit: string;
     trackedStatus: string;
     trackedFilesSha256: string;
+    nodeVersion: string;
+    npmVersion: string;
+    nodeExecutable: string;
+    npmExecutable: string;
   }>;
   warnings: Array<{ phase: string; message: string }>;
 };
@@ -34,6 +38,19 @@ The next consumer (including 9.5) receives this value; it must not infer a
 `current`, `previous`, `backup`, `rollback`, or `cleanup` directory. Existing
 complete generations are immutable history and are not authority for a new
 invocation. The returned descriptor is the only authority for that invocation.
+
+Each repository entry persisted in `result.json` and `provenance.json` records
+the launcher-observed `nodeVersion`, `npmVersion`, `nodeExecutable`, and
+`npmExecutable`. The producer observes these values immediately before and
+after that repository's command sequence and requires an exact match. The map
+records the evidence sources and observation points, but deliberately does not
+impose one npm version across sibling repositories.
+
+Schema-2 complete generations do not contain this required runtime evidence.
+Recovery and reconciliation therefore treat them as invalid complete
+generations and atomically move them to quarantine before any new producer
+command runs. They are retained only as audit evidence and never remain
+publication authority.
 
 The state root is an ignored directory inside the canonical workspace:
 

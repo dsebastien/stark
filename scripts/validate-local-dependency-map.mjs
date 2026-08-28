@@ -7,6 +7,13 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const mapPath = path.join(scriptDirectory, "local-dependency-map.json");
 const dependencySections = ["dependencies", "devDependencies"];
 const ignoredDirectories = new Set([".angular", ".git", "coverage", "dist", "node_modules", "reports", "tmp"]);
+const runtimeEvidenceFields = new Map([
+	["nodeVersion", "STARK_PROJECT_NODE_VERSION"],
+	["npmVersion", "STARK_PROJECT_NPM_VERSION"],
+	["nodeExecutable", "STARK_PROJECT_NODE_EXECUTABLE"],
+	["npmExecutable", "STARK_PROJECT_NPM_EXECUTABLE"]
+]);
+const runtimeObservationPoints = ["before-producer-sequence", "after-producer-sequence"];
 
 function clone(value) {
 	return JSON.parse(JSON.stringify(value));
@@ -66,8 +73,8 @@ function listSourceManifests(repositoryDirectory) {
 
 export function validateMap(map, workspaceRoot) {
 	const errors = [];
-	if (map?.schemaVersion !== 1) {
-		errors.push(`schemaVersion must be 1, received ${JSON.stringify(map?.schemaVersion)}`);
+	if (map?.schemaVersion !== 2) {
+		errors.push(`schemaVersion must be 2, received ${JSON.stringify(map?.schemaVersion)}`);
 	}
 	if (!Array.isArray(map?.repositories) || !Array.isArray(map?.consumers)) {
 		errors.push("repositories and consumers must be arrays");
@@ -75,6 +82,17 @@ export function validateMap(map, workspaceRoot) {
 	}
 	if (!map.runtimeEvidence?.sourceCommit || !map.runtimeEvidence?.tarballIntegrity) {
 		errors.push("runtimeEvidence must define sourceCommit and tarballIntegrity");
+	}
+	for (const [field, source] of runtimeEvidenceFields) {
+		const evidence = map.runtimeEvidence?.[field];
+		if (
+			evidence?.source !== source ||
+			!Array.isArray(evidence.recordAt) ||
+			JSON.stringify(evidence.recordAt) !== JSON.stringify(runtimeObservationPoints) ||
+			evidence.requireStable !== true
+		) {
+			errors.push(`runtimeEvidence.${field} must use ${source} before and after each producer sequence and require stability`);
+		}
 	}
 
 	const repositories = new Map();
@@ -317,7 +335,7 @@ function runSelfTests(map, workspaceRoot) {
 	}
 
 	expectInvalid("malformed-map", (invalidMap) => {
-		invalidMap.schemaVersion = 2;
+		invalidMap.schemaVersion = 3;
 	}, /schemaVersion/u);
 	expectInvalid("dependency-cycle", (invalidMap) => {
 		invalidMap.repositories[0].packages[0].dependencies = ["@nationalbankbelgium/eslint-config"];
@@ -339,6 +357,9 @@ function runSelfTests(map, workspaceRoot) {
 	expectInvalid("non-exact-node-fallback", (invalidMap) => {
 		invalidMap.repositories.find((repository) => repository.id === "ui-router-angular").node.fallback.version = ">=22";
 	}, /exact major\.minor\.patch Node fallback/u);
+	expectInvalid("missing-npm-runtime-evidence", (invalidMap) => {
+		delete invalidMap.runtimeEvidence.npmVersion;
+	}, /runtimeEvidence.*npmVersion/u);
 
 	assert.deepEqual(reachedCases, [
 		"malformed-map",
@@ -347,7 +368,8 @@ function runSelfTests(map, workspaceRoot) {
 		"absolute-path",
 		"missing-consumer",
 		"unmapped-dependency",
-		"non-exact-node-fallback"
+		"non-exact-node-fallback",
+		"missing-npm-runtime-evidence"
 	]);
 	process.stdout.write(`Local dependency map validator self-tests passed (${reachedCases.length}/${reachedCases.length} negative cases reached).\n`);
 }

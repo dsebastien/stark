@@ -13,7 +13,7 @@ const defaultMapPath = path.join(scriptDirectory, "local-dependency-map.json");
 const launcherPath = path.join(scriptDirectory, "with-project-node.sh");
 const processIdentityRunnerPath = path.join(scriptDirectory, "run-with-process-identity.mjs");
 const stateDirectoryName = "local-package-state";
-const stateSchemaVersion = 2;
+const stateSchemaVersion = 3;
 const lockSchemaVersion = 1;
 const completionMarkerName = "complete.marker.json";
 const treeManifestName = "tree.manifest.json";
@@ -26,6 +26,8 @@ const windowsRenameCodes = new Set(["EBUSY", "EPERM"]);
 const waitSignal = new Int32Array(new SharedArrayBuffer(4));
 const secondaryFailures = new WeakMap();
 const renameAttempts = new WeakMap();
+const runtimeEvidenceFields = ["nodeVersion", "npmVersion", "nodeExecutable", "npmExecutable"];
+const fullRuntimeVersion = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/u;
 let captureSequence = 0;
 
 export class PipelineError extends Error {
@@ -424,6 +426,76 @@ function runInRepository(repositoryDirectory, repository, command, arguments_, o
 		{ cwd: projectRoot, capture: true, phase: options.phase }
 	);
 	return extractCommandOutput(output, marker);
+}
+
+function runtimePathModule(value) {
+	return path.win32.isAbsolute(value) ? path.win32 : path;
+}
+
+function sameRuntimePath(left, right, platform = process.platform) {
+	return platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+
+function validateRuntimeEvidence(evidence, context, options = {}) {
+	if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) fail(`${context} must be an object`, "repository.runtime");
+	for (const field of ["nodeVersion", "npmVersion"]) {
+		if (typeof evidence[field] !== "string" || !fullRuntimeVersion.test(evidence[field])) {
+			fail(`${context} has invalid ${field}`, "repository.runtime", { field, value: evidence[field] });
+		}
+	}
+	for (const field of ["nodeExecutable", "npmExecutable"]) {
+		const value = evidence[field];
+		if (typeof value !== "string" || value.length === 0 || (!path.isAbsolute(value) && !path.win32.isAbsolute(value))) {
+			fail(`${context} has invalid ${field}`, "repository.runtime", { field, value });
+		}
+		if (options.requireExisting === true) {
+			let canonical;
+			try {
+				canonical = fs.realpathSync(value);
+			} catch (error) {
+				fail(`${context} has unreadable ${field}: ${error.message}`, "repository.runtime", { field, value });
+			}
+			if (!sameRuntimePath(canonical, value)) fail(`${context} has non-canonical ${field}`, "repository.runtime", { field, value, canonical });
+		}
+	}
+	const nodeParent = runtimePathModule(evidence.nodeExecutable).dirname(evidence.nodeExecutable);
+	const npmParent = runtimePathModule(evidence.npmExecutable).dirname(evidence.npmExecutable);
+	if (!sameRuntimePath(nodeParent, npmParent)) fail(`${context} has executables from different installations`, "repository.runtime");
+	return Object.fromEntries(runtimeEvidenceFields.map((field) => [field, evidence[field]]));
+}
+
+function observeRepositoryRuntime(repositoryDirectory, repository, moment) {
+	const output = runInRepository(
+		repositoryDirectory,
+		repository,
+		"node",
+		["-e", `
+			const fields = ["nodeVersion", "npmVersion", "nodeExecutable", "npmExecutable"];
+			const variables = {
+				nodeVersion: "STARK_PROJECT_NODE_VERSION",
+				npmVersion: "STARK_PROJECT_NPM_VERSION",
+				nodeExecutable: "STARK_PROJECT_NODE_EXECUTABLE",
+				npmExecutable: "STARK_PROJECT_NPM_EXECUTABLE"
+			};
+			process.stdout.write(JSON.stringify(Object.fromEntries(fields.map((field) => [field, process.env[variables[field]]]))));
+		`],
+		{ capture: true, phase: "repository.runtime" }
+	);
+	let evidence;
+	try {
+		evidence = JSON.parse(output);
+	} catch (error) {
+		fail(`${repository.id} runtime evidence ${moment} is not valid JSON: ${error.message}`, "repository.runtime");
+	}
+	return evidence;
+}
+
+export function runtimeEvidenceChanges(before, after, platform = process.platform) {
+	return runtimeEvidenceFields.filter((field) => (
+		field.endsWith("Executable")
+			? !sameRuntimePath(before[field], after[field], platform)
+			: before[field] !== after[field]
+	));
 }
 
 function runGit(repositoryDirectory, repository, ...arguments_) {
@@ -1295,6 +1367,7 @@ export function validateGenerationAt(generationPath, expected = {}) {
 	if (plannedRepositories.length !== resultRepositories.length) fail("generation repository set mismatch", "output.validation");
 	for (const planned of plannedRepositories) {
 		const actual = resultRepositories.find((entry) => entry.repository === planned.id);
+		if (actual) validateRuntimeEvidence(actual, `generation repository runtime evidence for ${planned.id}`);
 		if (!actual || !samePath(actual.realPath, planned.realPath) || actual.branch !== planned.branch || actual.commit !== planned.commit || actual.trackedStatus !== planned.trackedStatus || actual.trackedFilesSha256 !== planned.trackedFilesSha256) fail(`generation repository provenance mismatch: ${planned.id}`, "output.validation");
 	}
 	const artifactNames = new Set();
@@ -1394,15 +1467,6 @@ function reconcileState(plan, faultPlan, lock) {
 	}
 }
 
-function expectedNodeVersion(repository, repositoryDirectory) {
-	const versionFile = repository.node?.versionFile;
-	if (typeof versionFile === "string") {
-		const versionPath = resolveContained(repositoryDirectory, versionFile, `${repository.id} Node version file`);
-		if (fs.existsSync(versionPath)) return fs.readFileSync(versionPath, "utf8").trim();
-	}
-	return repository.node?.fallback?.version ?? null;
-}
-
 function sourceArtifactRecord(sourcePath, sourceProof, packageEntry, repositoryEntry, version, outputPath) {
 	const outputStat = fs.lstatSync(outputPath);
 	if (isReparsePoint(outputStat) || !outputStat.isFile()) fail(`artifact is not a regular file: ${sourcePath}`, "artifact.validation");
@@ -1432,7 +1496,7 @@ function sourceArtifactRecord(sourcePath, sourceProof, packageEntry, repositoryE
 	};
 }
 
-function buildGeneration(plan, generationPath, descriptor, initialStates, faultPlan, lock) {
+function buildGeneration(plan, generationPath, descriptor, initialStates, faultPlan, lock, runtimeProbe) {
 	const artifactOutput = path.join(generationPath, "artifacts");
 	assertPipelineIdentity(plan);
 	ensureDirectory(artifactOutput, "generation artifacts");
@@ -1448,6 +1512,11 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 		const buildStartedAt = Date.now();
 		cleanMappedArtifacts(state.directory, packageEntries, faultPlan);
 		state.buildStartedAt = buildStartedAt;
+		const runtimeBefore = validateRuntimeEvidence(
+			runtimeProbe(state.directory, repository, "before producer sequence"),
+			`${repository.id} runtime evidence before producer sequence`,
+			{ requireExisting: true }
+		);
 		let currentSnapshot = state.snapshot;
 		let commandFailure;
 		for (const command of repository.commands) {
@@ -1476,8 +1545,26 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 				if (commandFailure) attachSecondaryFailure(commandFailure, `repository invariant after ${repository.id}/${command.phase}`, invariantError);
 				else commandFailure = invariantError;
 			}
-			if (commandFailure) throw commandFailure;
+			if (commandFailure) break;
 		}
+		let runtimeAfter;
+		let runtimeFailure;
+		try {
+			runtimeAfter = validateRuntimeEvidence(
+				runtimeProbe(state.directory, repository, "after producer sequence"),
+				`${repository.id} runtime evidence after producer sequence`,
+				{ requireExisting: true }
+			);
+			const changed = runtimeEvidenceChanges(runtimeBefore, runtimeAfter);
+			if (changed.length > 0) fail(`${repository.id} runtime evidence changed across producer sequence (${changed.join(", ")})`, "repository.runtime", { before: runtimeBefore, after: runtimeAfter, changed });
+		} catch (error) {
+			runtimeFailure = asError(error, "repository.runtime");
+		}
+		if (commandFailure) {
+			if (runtimeFailure) attachSecondaryFailure(commandFailure, `runtime evidence after ${repository.id} producer sequence`, runtimeFailure);
+			throw commandFailure;
+		}
+		if (runtimeFailure) throw runtimeFailure;
 		for (const packageEntry of packageEntries) {
 			assertPipelineIdentity(plan);
 			const version = state.packageVersions.get(packageEntry.name);
@@ -1509,7 +1596,7 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 			commit: finalSnapshot.commit,
 			trackedStatus: finalSnapshot.trackedStatus,
 			trackedFilesSha256: finalSnapshot.trackedFilesSha256,
-			nodeVersion: expectedNodeVersion(repository, state.directory),
+			...runtimeAfter,
 			commandSequence: repository.commands.map(({ phase, cwd, argv }) => ({ phase, cwd, argv }))
 		});
 	}
@@ -1578,7 +1665,11 @@ function normalizeReturnedDescriptor(plan, generationPath, built) {
 			branch: record.branch,
 			commit: record.commit,
 			trackedStatus: record.trackedStatus,
-			trackedFilesSha256: record.trackedFilesSha256
+			trackedFilesSha256: record.trackedFilesSha256,
+			nodeVersion: record.nodeVersion,
+			npmVersion: record.npmVersion,
+			nodeExecutable: record.nodeExecutable,
+			npmExecutable: record.npmExecutable
 		})),
 		warnings: built.result.warnings ?? []
 	};
@@ -1826,6 +1917,10 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 }
 
 function runPipelineInternal(planInput, options = {}) {
+	if (options.runtimeProbe !== undefined && (process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1" || typeof options.runtimeProbe !== "function")) {
+		fail("runtime probe injection is available only in test mode", "plan");
+	}
+	const runtimeProbe = options.runtimeProbe ?? observeRepositoryRuntime;
 	const plan = normalizePlan(planInput);
 	assertWorkspaceIdentity(plan.workspace, plan.workspaceRoot);
 	assertPipelineIdentity(plan);
@@ -1845,7 +1940,7 @@ function runPipelineInternal(planInput, options = {}) {
 		const initialStates = plan.repositories.map((repository) => initialRepositoryState(repository, plan, faultPlan));
 		candidate = createGenerationCandidate(plan, initialStates, faultPlan);
 		persistGenerationDescriptor(candidate, faultPlan);
-		const built = buildGeneration(plan, candidate.incompletePath, candidate.descriptor, initialStates, faultPlan, lock);
+		const built = buildGeneration(plan, candidate.incompletePath, candidate.descriptor, initialStates, faultPlan, lock, runtimeProbe);
 		faultIfRequested(faultPlan, "publish.rename");
 		const publishRename = assertRenamePaths(plan.stateRoot, candidate.incompletePath, candidate.completePath, {
 			workspace: plan.workspace,

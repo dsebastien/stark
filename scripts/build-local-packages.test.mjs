@@ -12,6 +12,7 @@ import {
 	formatPipelineError,
 	renameWithWindowsRetry,
 	resolveContained,
+	runtimeEvidenceChanges,
 	runPipeline,
 	writeAtomic,
 	validateGenerationAt
@@ -32,8 +33,9 @@ function createFixture(name = "fixture", options = {}) {
 	const workspaceRoot = path.join(testRoot, `${name}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 	const repositoryDirectory = path.join(workspaceRoot, "fixture-repository");
 	const producerSentinel = options.producerSentinel === true ? 'fs.writeFileSync("producer-ran.txt", "ran\\n");\n' : "";
+	const requestedNodeVersion = options.nvmrc ?? nodeVersion;
 	fs.mkdirSync(repositoryDirectory, { recursive: true });
-	fs.writeFileSync(path.join(repositoryDirectory, ".nvmrc"), `${nodeVersion}\n`);
+	fs.writeFileSync(path.join(repositoryDirectory, ".nvmrc"), `${requestedNodeVersion}\n`);
 	fs.writeFileSync(path.join(repositoryDirectory, "package.json"), JSON.stringify({ name: "@fixture/package", version: "1.0.0" }, null, 2) + "\n");
 	fs.writeFileSync(
 		path.join(repositoryDirectory, "build.mjs"),
@@ -52,7 +54,7 @@ function createFixture(name = "fixture", options = {}) {
 			{
 				id: "fixture",
 				directory: "fixture-repository",
-				node: { versionFile: ".nvmrc", required: true, requirement: nodeVersion },
+				node: { versionFile: ".nvmrc", required: true, requirement: requestedNodeVersion },
 				commands: [{ phase: "build-and-pack", cwd: ".", argv: ["node", "build.mjs"] }],
 				packages: [
 					{
@@ -103,6 +105,51 @@ function snapshotTree(directory) {
 
 function assertTreeSnapshot(directory, expected) {
 	assert.deepEqual(snapshotTree(directory), expected);
+}
+
+function stableJson(value) {
+	return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function sha256(contents) {
+	return createHash("sha256").update(contents).digest("hex");
+}
+
+function resealGeneration(generationPath, mutateRepository) {
+	for (const fileName of ["result.json", "provenance.json"]) {
+		const filePath = path.join(generationPath, fileName);
+		const document = JSON.parse(fs.readFileSync(filePath, "utf8"));
+		mutateRepository(document.repositories[0]);
+		fs.writeFileSync(filePath, stableJson(document));
+	}
+	const manifestPath = path.join(generationPath, "tree.manifest.json");
+	const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+	for (const entry of manifest.entries) {
+		const filePath = path.join(generationPath, ...entry.path.split("/"));
+		const stat = fs.lstatSync(filePath);
+		entry.identity = `${stat.dev}:${stat.ino}`;
+		entry.mode = stat.mode & 0o777;
+		entry.size = stat.size;
+		entry.sha256 = sha256(fs.readFileSync(filePath));
+	}
+	manifest.treeSha256 = sha256(stableJson({ schemaVersion: manifest.schemaVersion, entries: manifest.entries }));
+	fs.writeFileSync(manifestPath, stableJson(manifest));
+	const markerPath = path.join(generationPath, "complete.marker.json");
+	const marker = JSON.parse(fs.readFileSync(markerPath, "utf8"));
+	marker.treeSha256 = manifest.treeSha256;
+	marker.resultSha256 = sha256(fs.readFileSync(path.join(generationPath, "result.json")));
+	fs.writeFileSync(markerPath, stableJson(marker));
+}
+
+function currentRuntimeEvidence() {
+	const evidence = {
+		nodeVersion: process.env.STARK_PROJECT_NODE_VERSION,
+		npmVersion: process.env.STARK_PROJECT_NPM_VERSION,
+		nodeExecutable: process.env.STARK_PROJECT_NODE_EXECUTABLE,
+		npmExecutable: process.env.STARK_PROJECT_NPM_EXECUTABLE
+	};
+	for (const [field, value] of Object.entries(evidence)) assert.ok(value, `test process is missing ${field}`);
+	return evidence;
 }
 
 function lockEvidenceEntries(fixture, kind) {
@@ -273,6 +320,119 @@ test("publishes one immutable generation with checksums and exact returned path"
 	assert.equal(proof.treeSha256, descriptor.treeSha256);
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "current")), false);
 	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "local-packages")), false);
+});
+
+test("records observed launcher runtime provenance instead of a partial .nvmrc expectation", () => {
+	const fixture = createFixture("runtime-provenance", { nvmrc: "22" });
+	const descriptor = runPipeline(fixture.plan);
+	const expected = currentRuntimeEvidence();
+	const result = JSON.parse(fs.readFileSync(path.join(descriptor.generationPath, "result.json"), "utf8"));
+	const provenance = JSON.parse(fs.readFileSync(path.join(descriptor.generationPath, "provenance.json"), "utf8"));
+
+	assert.notEqual(expected.nodeVersion, "22");
+	assert.deepEqual(Object.fromEntries(Object.keys(expected).map((field) => [field, result.repositories[0][field]])), expected);
+	assert.deepEqual(provenance.repositories[0], result.repositories[0]);
+	assert.deepEqual(Object.fromEntries(Object.keys(expected).map((field) => [field, descriptor.repositories[0][field]])), expected);
+});
+
+test("treats Windows executable case aliases as stable while detecting a real runtime path change", () => {
+	const before = {
+		nodeVersion: "22.22.3",
+		npmVersion: "10.9.8",
+		nodeExecutable: "C:\\fnm\\v22.22.3\\installation\\node.exe",
+		npmExecutable: "C:\\fnm\\v22.22.3\\installation\\npm"
+	};
+	const caseAlias = {
+		...before,
+		nodeExecutable: "c:\\FNM\\V22.22.3\\INSTALLATION\\NODE.EXE",
+		npmExecutable: "c:\\FNM\\V22.22.3\\INSTALLATION\\NPM"
+	};
+	assert.deepEqual(runtimeEvidenceChanges(before, caseAlias, "win32"), []);
+	assert.deepEqual(runtimeEvidenceChanges(before, { ...caseAlias, npmExecutable: "C:\\fnm\\other\\npm" }, "win32"), ["npmExecutable"]);
+	assert.deepEqual(runtimeEvidenceChanges(before, caseAlias, "linux"), ["nodeExecutable", "npmExecutable"]);
+});
+
+test("rejects missing preflight runtime evidence before running a producer", () => {
+	const fixture = createFixture("runtime-missing", { producerSentinel: true });
+	const incomplete = { ...currentRuntimeEvidence() };
+	delete incomplete.npmVersion;
+
+	assert.throws(() => runPipeline(fixture.plan, { runtimeProbe: () => incomplete }), /runtime evidence.*npmVersion/u);
+	assert.equal(fs.existsSync(producerMarker(fixture)), false);
+	assert.equal(publishedGenerationPaths(fixture).length, 0);
+});
+
+test("rejects pre/post runtime drift without publishing the produced candidate", () => {
+	const fixture = createFixture("runtime-drift", { producerSentinel: true });
+	const before = currentRuntimeEvidence();
+	let probes = 0;
+
+	assert.throws(
+		() => runPipeline(fixture.plan, {
+			runtimeProbe: () => {
+				probes += 1;
+				return probes === 1 ? before : { ...before, npmVersion: "99.0.0" };
+			}
+		}),
+		/runtime evidence changed.*npmVersion/u
+	);
+	assert.equal(probes, 2);
+	assert.equal(fs.existsSync(producerMarker(fixture)), true);
+	assert.equal(publishedGenerationPaths(fixture).length, 0);
+});
+
+test("keeps a producer failure primary when the after-sequence runtime probe also fails", () => {
+	const fixture = createFixture("runtime-after-failed-producer", { producerSentinel: true });
+	fs.writeFileSync(path.join(fixture.repositoryDirectory, "mode.txt"), "fail\n");
+	const before = currentRuntimeEvidence();
+	let probes = 0;
+	let error;
+
+	assert.throws(
+		() => runPipeline(fixture.plan, {
+			runtimeProbe: () => {
+				probes += 1;
+				if (probes === 2) throw new Error("injected after-sequence runtime probe failure");
+				return before;
+			}
+		}),
+		(caught) => {
+			error = caught;
+			return true;
+		}
+	);
+	const formatted = formatPipelineError(error);
+	assert.equal(probes, 2);
+	assert.match(formatted.split("\n", 1)[0], /^command failed \(19\):/u);
+	assert.match(formatted, /Secondary failure \(runtime evidence after fixture producer sequence\): injected after-sequence runtime probe failure/u);
+	assert.equal(fs.existsSync(producerMarker(fixture)), true);
+	assert.equal(publishedGenerationPaths(fixture).length, 0);
+	assert.equal(stateEntries(fixture, "generations").some((name) => name.endsWith(".incomplete")), false);
+	assert.ok(stateEntries(fixture, "quarantine").some((name) => name.includes("failed-generation")));
+	const released = stateEntries(fixture, "locks/released").filter((name) => name.endsWith(".complete"));
+	assert.equal(released.length, 1);
+	assert.equal(fs.existsSync(path.join(fixture.stateRoot, "locks", "released", released[0], "children", "terminal.failed.complete")), true);
+});
+
+test("rejects correctly resealed generations with missing or corrupt runtime provenance", () => {
+	const fixture = createFixture("runtime-generation-validation");
+	const descriptor = runPipeline(fixture.plan);
+	const proof = validateGenerationAt(descriptor.generationPath, { generationId: descriptor.generationId });
+	const originalRuntime = Object.fromEntries(["nodeVersion", "npmVersion", "nodeExecutable", "npmExecutable"].map((field) => [field, proof.result.repositories[0][field]]));
+
+	resealGeneration(descriptor.generationPath, (repository) => { delete repository.npmVersion; });
+	assert.throws(
+		() => validateGenerationAt(descriptor.generationPath, { generationId: descriptor.generationId }),
+		/generation repository runtime evidence.*npmVersion/u
+	);
+
+	resealGeneration(descriptor.generationPath, (repository) => {
+		Object.assign(repository, originalRuntime, { nodeVersion: "22" });
+	});
+	assert.throws(
+		() => validateGenerationAt(descriptor.generationPath, { generationId: descriptor.generationId }),
+		/generation repository runtime evidence.*nodeVersion/u
+	);
 });
 
 test("records a verifiable producer identity in the released lock evidence", () => {

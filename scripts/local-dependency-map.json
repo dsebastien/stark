@@ -1,13 +1,29 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "runtimeEvidence": {
     "sourceCommit": {
       "command": ["git", "rev-parse", "HEAD"],
       "recordAt": "build"
     },
     "nodeVersion": {
-      "command": ["node", "--version"],
-      "recordAt": "build"
+      "source": "STARK_PROJECT_NODE_VERSION",
+      "recordAt": ["before-producer-sequence", "after-producer-sequence"],
+      "requireStable": true
+    },
+    "npmVersion": {
+      "source": "STARK_PROJECT_NPM_VERSION",
+      "recordAt": ["before-producer-sequence", "after-producer-sequence"],
+      "requireStable": true
+    },
+    "nodeExecutable": {
+      "source": "STARK_PROJECT_NODE_EXECUTABLE",
+      "recordAt": ["before-producer-sequence", "after-producer-sequence"],
+      "requireStable": true
+    },
+    "npmExecutable": {
+      "source": "STARK_PROJECT_NPM_EXECUTABLE",
+      "recordAt": ["before-producer-sequence", "after-producer-sequence"],
+      "requireStable": true
     },
     "packageVersion": {
       "source": "repository package.json#version",
