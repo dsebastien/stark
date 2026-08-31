@@ -10,13 +10,17 @@ import {
 	type VisualSurfaceType
 } from "../manifests/surfaces";
 import {
+	executableScenariosForRunner,
+	executableVisualScenarios,
 	reviewedCoverageBaseline,
 	sourceBackedStates,
 	stateAxisReviews,
 	stateRequirements,
 	validateVisualCoverage,
+	type ExecutableVisualScenario,
 	type StateAxisReview,
-	type StateRequirement
+	type StateRequirement,
+	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
 import { visualRouteManifest } from "../manifests/routes";
 
@@ -157,9 +161,10 @@ const readEvidence = ({ path }: SourceEvidence): string | undefined => {
 function validate(
 	surfaces: readonly VisualSurface[] = visualSurfaceManifest,
 	requirements: readonly StateRequirement[] = stateRequirements,
-	reviews: readonly StateAxisReview[] = stateAxisReviews
+	reviews: readonly StateAxisReview[] = stateAxisReviews,
+	executableScenarios: readonly ExecutableVisualScenario[] = executableVisualScenarios
 ): string[] {
-	return validateVisualCoverage(surfaces, requirements, reviews, visualRouteManifest, readEvidence);
+	return validateVisualCoverage(surfaces, requirements, reviews, visualRouteManifest, readEvidence, executableScenarios);
 }
 
 test("accounts for exactly 36 components/pages, 10 directives, and 6 behavior services", () => {
@@ -177,9 +182,9 @@ test("matches the concrete decorated package sources", () => {
 	expect(inventorySources).toEqual(discoveredSurfaces);
 });
 
-test("reviews all nine axes for every surface without treating requirements as executable", () => {
+test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(0);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(5);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
 		expect(reviews.map(({ axis }) => axis).sort(), surface.id).toEqual([...visualStateAxes].sort());
@@ -263,14 +268,120 @@ test("has a valid fail-closed manifest", () => {
 	expect(validate()).toEqual([]);
 });
 
-test("keeps Action Bar collapsed and expanded as requirements while reporting zero executable coverage", () => {
+test("runs every Action Bar disclosure requirement with enough scroll checkpoints to expose every action", () => {
 	const disclosure = stateRequirements.find(({ id }) => id === "action-bar-component.disclosure");
 	expect(disclosure?.states.map(({ id }) => id)).toEqual(["collapsed", "expanded"]);
 	expect(sourceBackedStates.filter(({ id }) => id.startsWith("action-bar-component.disclosure.")).map(({ id }) => id)).toEqual([
 		"action-bar-component.disclosure.collapsed",
 		"action-bar-component.disclosure.expanded"
 	]);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(0);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(5);
+	expect(executableScenariosForRunner("action-bar-disclosure")).toEqual(executableVisualScenarios);
+	expect(
+		executableVisualScenarios.map(
+			({ capture, maskSelectors, maxDiffPixels, payload, routeId, runner, sourceStateId, snapshotName, threshold }) => ({
+				capture,
+				maskSelectors,
+				maxDiffPixels,
+				payload: {
+					action: payload.action,
+					expectedVisibleActionLabels: payload.expectedVisibleActionLabels,
+					scroll: payload.scroll
+				},
+				routeId,
+				runner,
+				sourceStateId,
+				snapshotName,
+				threshold
+			})
+		)
+	).toEqual([
+		{
+			capture: { scope: "component", selector: "example-viewer#classic-full" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: { action: "initial", expectedVisibleActionLabels: [], scroll: { kind: "offset", top: 0 } },
+			routeId: "action-bar",
+			runner: "action-bar-disclosure",
+			sourceStateId: "action-bar-component.disclosure.collapsed",
+			snapshotName: "action-bar-disclosure-collapsed.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#classic-full" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: { action: "toggle", expectedVisibleActionLabels: ["Approve"], scroll: { kind: "offset", top: 0 } },
+			routeId: "action-bar",
+			runner: "action-bar-disclosure",
+			sourceStateId: "action-bar-component.disclosure.expanded",
+			snapshotName: "action-bar-disclosure-expanded.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#classic-full" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: { action: "toggle", expectedVisibleActionLabels: ["Save"], scroll: { kind: "offset", top: 40 } },
+			routeId: "action-bar",
+			runner: "action-bar-disclosure",
+			sourceStateId: "action-bar-component.disclosure.expanded",
+			snapshotName: "action-bar-disclosure-expanded-save.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#classic-full" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: { action: "toggle", expectedVisibleActionLabels: ["Delete"], scroll: { kind: "offset", top: 80 } },
+			routeId: "action-bar",
+			runner: "action-bar-disclosure",
+			sourceStateId: "action-bar-component.disclosure.expanded",
+			snapshotName: "action-bar-disclosure-expanded-delete.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#classic-full" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: { action: "toggle", expectedVisibleActionLabels: ["Close"], scroll: { kind: "end" } },
+			routeId: "action-bar",
+			runner: "action-bar-disclosure",
+			sourceStateId: "action-bar-component.disclosure.expanded",
+			snapshotName: "action-bar-disclosure-expanded-close.png",
+			threshold: 0
+		}
+	]);
+});
+
+test("fails closed when executable coverage weakens its component-only exact comparison", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "action-bar-disclosure-expanded-approve"
+				? {
+						...scenario,
+						capture: { scope: "component", selector: "body" },
+						maxDiffPixels: 10 as unknown as 0
+					}
+				: scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, weakened);
+	expect(errors).toContain("action-bar-disclosure-expanded-approve does not use audited Action Bar selectors");
+	expect(errors).toContain("action-bar-disclosure-expanded-approve weakens exact unmasked visual comparison");
+});
+
+test("fails closed for an unknown runner and pins Action Bar runner ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "action-bar-disclosure-expanded-close"
+				? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId }
+				: scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("action-bar-disclosure-expanded-close declares unknown runner unregistered");
+	expect(errors).toContain("action-bar-disclosure runner owns 4 scenarios, expected 5");
 });
 
 test("fails when Action Bar integration is remapped to a convenient route", () => {

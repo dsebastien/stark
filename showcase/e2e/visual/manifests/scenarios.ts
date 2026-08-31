@@ -52,6 +52,42 @@ export type SourceBackedState = {
 	readonly evidence: readonly [SourceEvidence, ...SourceEvidence[]];
 };
 
+export const visualScenarioRunnerIds = ["action-bar-disclosure"] as const;
+export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
+export type ExecutableVisualCapture = Readonly<{ scope: "page" }> | Readonly<{ scope: "component"; selector: string }>;
+
+export type ExecutableVisualScenarioCore<RunnerId extends VisualScenarioRunnerId, Payload> = {
+	readonly id: string;
+	readonly sourceStateId: string;
+	readonly surfaceId: VisualSurfaceId;
+	readonly axis: VisualStateAxis;
+	readonly state: string;
+	readonly ownerBead: VisualCoverageBeadId;
+	readonly routeId: VisualRouteId;
+	readonly runner: RunnerId;
+	readonly capture: ExecutableVisualCapture;
+	readonly snapshotName: `${string}.png`;
+	readonly maskSelectors: readonly [];
+	readonly maxDiffPixels: 0;
+	readonly threshold: 0;
+	readonly payload: Payload;
+};
+
+export type ActionBarDisclosureScenario = ExecutableVisualScenarioCore<
+	"action-bar-disclosure",
+	{
+		readonly componentSelector: string;
+		readonly toggleSelector: string;
+		readonly action: "initial" | "toggle";
+		readonly expectedExtended: boolean;
+		readonly expectedActionLabels: readonly string[];
+		readonly expectedVisibleActionLabels: readonly string[];
+		readonly scroll: Readonly<{ kind: "offset"; top: number }> | Readonly<{ kind: "end" }>;
+	}
+> & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
+
+export type ExecutableVisualScenario = ActionBarDisclosureScenario;
+
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
 
@@ -815,11 +851,152 @@ export const sourceBackedStates: readonly SourceBackedState[] = stateRequirement
 	)
 );
 
+const fullActionBarExampleSelector = "example-viewer#classic-full";
+const fullActionBarSelector = `${fullActionBarExampleSelector} stark-action-bar > .stark-action-bar.stark-action-bar-full`;
+const fullActionBarToggleSelector = `${fullActionBarSelector} > .alt-actions > button.extend-action-bar`;
+
+/**
+ * Runnable scenarios are added only after their route, interaction, assertion,
+ * and component-only capture selectors have been audited in both applications.
+ */
+export const executableVisualScenarios = [
+	{
+		id: "action-bar-disclosure-collapsed",
+		sourceStateId: "action-bar-component.disclosure.collapsed",
+		surfaceId: "action-bar-component",
+		axis: "disclosure",
+		state: "collapsed",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "action-bar",
+		runner: "action-bar-disclosure",
+		capture: { scope: "component", selector: fullActionBarExampleSelector },
+		snapshotName: "action-bar-disclosure-collapsed.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			componentSelector: fullActionBarSelector,
+			toggleSelector: fullActionBarToggleSelector,
+			action: "initial",
+			expectedExtended: false,
+			expectedActionLabels: [],
+			expectedVisibleActionLabels: [],
+			scroll: { kind: "offset", top: 0 }
+		}
+	},
+	{
+		id: "action-bar-disclosure-expanded-approve",
+		sourceStateId: "action-bar-component.disclosure.expanded",
+		surfaceId: "action-bar-component",
+		axis: "disclosure",
+		state: "expanded",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "action-bar",
+		runner: "action-bar-disclosure",
+		capture: { scope: "component", selector: fullActionBarExampleSelector },
+		snapshotName: "action-bar-disclosure-expanded.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			componentSelector: fullActionBarSelector,
+			toggleSelector: fullActionBarToggleSelector,
+			action: "toggle",
+			expectedExtended: true,
+			expectedActionLabels: ["Approve", "Save", "Delete", "Close"],
+			expectedVisibleActionLabels: ["Approve"],
+			scroll: { kind: "offset", top: 0 }
+		}
+	},
+	{
+		id: "action-bar-disclosure-expanded-save",
+		sourceStateId: "action-bar-component.disclosure.expanded",
+		surfaceId: "action-bar-component",
+		axis: "disclosure",
+		state: "expanded",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "action-bar",
+		runner: "action-bar-disclosure",
+		capture: { scope: "component", selector: fullActionBarExampleSelector },
+		snapshotName: "action-bar-disclosure-expanded-save.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			componentSelector: fullActionBarSelector,
+			toggleSelector: fullActionBarToggleSelector,
+			action: "toggle",
+			expectedExtended: true,
+			expectedActionLabels: ["Approve", "Save", "Delete", "Close"],
+			expectedVisibleActionLabels: ["Save"],
+			scroll: { kind: "offset", top: 40 }
+		}
+	},
+	{
+		id: "action-bar-disclosure-expanded-delete",
+		sourceStateId: "action-bar-component.disclosure.expanded",
+		surfaceId: "action-bar-component",
+		axis: "disclosure",
+		state: "expanded",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "action-bar",
+		runner: "action-bar-disclosure",
+		capture: { scope: "component", selector: fullActionBarExampleSelector },
+		snapshotName: "action-bar-disclosure-expanded-delete.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			componentSelector: fullActionBarSelector,
+			toggleSelector: fullActionBarToggleSelector,
+			action: "toggle",
+			expectedExtended: true,
+			expectedActionLabels: ["Approve", "Save", "Delete", "Close"],
+			expectedVisibleActionLabels: ["Delete"],
+			scroll: { kind: "offset", top: 80 }
+		}
+	},
+	{
+		id: "action-bar-disclosure-expanded-close",
+		sourceStateId: "action-bar-component.disclosure.expanded",
+		surfaceId: "action-bar-component",
+		axis: "disclosure",
+		state: "expanded",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "action-bar",
+		runner: "action-bar-disclosure",
+		capture: { scope: "component", selector: fullActionBarExampleSelector },
+		snapshotName: "action-bar-disclosure-expanded-close.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			componentSelector: fullActionBarSelector,
+			toggleSelector: fullActionBarToggleSelector,
+			action: "toggle",
+			expectedExtended: true,
+			expectedActionLabels: ["Approve", "Save", "Delete", "Close"],
+			expectedVisibleActionLabels: ["Close"],
+			scroll: { kind: "end" }
+		}
+	}
+] as const satisfies readonly ExecutableVisualScenario[];
+
+export function executableScenariosForRunner<RunnerId extends VisualScenarioRunnerId>(
+	runnerId: RunnerId
+): readonly Extract<ExecutableVisualScenario, { readonly runner: RunnerId }>[] {
+	return executableVisualScenarios.filter(({ runner }) => runner === runnerId) as unknown as readonly Extract<
+		ExecutableVisualScenario,
+		{ readonly runner: RunnerId }
+	>[];
+}
+
 /** Reviewed inventory baseline. Changes require an explicit source audit and review. */
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 0,
+	executableScenarios: 5,
+	executableScenariosByRunner: { "action-bar-disclosure": 5 } as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
 		"action-bar-component": "action-bar",
@@ -917,7 +1094,8 @@ export function validateVisualCoverage(
 	requirements: readonly StateRequirement[],
 	reviews: readonly StateAxisReview[],
 	routes: readonly VisualRouteManifestEntry[],
-	readEvidence: (reference: SourceEvidence) => string | undefined
+	readEvidence: (reference: SourceEvidence) => string | undefined,
+	executableScenarios: readonly ExecutableVisualScenario[] = executableVisualScenarios
 ): string[] {
 	const errors: string[] = [];
 	const routeById = new Map(routes.map((route) => [route.id, route]));
@@ -937,6 +1115,11 @@ export function validateVisualCoverage(
 	const stateCount = requirements.reduce((count, requirementEntry) => count + requirementEntry.states.length, 0);
 	if (stateCount !== reviewedCoverageBaseline.stateRequirements) {
 		errors.push(`reviewed baseline requires ${reviewedCoverageBaseline.stateRequirements} states, received ${stateCount}`);
+	}
+	if (executableScenarios.length !== reviewedCoverageBaseline.executableScenarios) {
+		errors.push(
+			`reviewed baseline requires ${reviewedCoverageBaseline.executableScenarios} executable scenarios, received ${executableScenarios.length}`
+		);
 	}
 	const requirementFingerprint = requirementContractSha256(requirements);
 	if (requirementFingerprint !== reviewedCoverageBaseline.requirementContractSha256) {
@@ -993,6 +1176,60 @@ export function validateVisualCoverage(
 
 	for (const duplicate of duplicates(requirements.map(({ id }) => id))) {
 		errors.push(`duplicate requirement ID ${duplicate}`);
+	}
+	for (const duplicate of duplicates(executableScenarios.map(({ id }) => id))) {
+		errors.push(`duplicate executable scenario ID ${duplicate}`);
+	}
+	for (const duplicate of duplicates(executableScenarios.map(({ snapshotName }) => snapshotName))) {
+		errors.push(`duplicate executable snapshot name ${duplicate}`);
+	}
+	for (const runnerId of visualScenarioRunnerIds) {
+		const actual = executableScenarios.filter(({ runner }) => runner === runnerId).length;
+		if (actual !== reviewedCoverageBaseline.executableScenariosByRunner[runnerId]) {
+			errors.push(
+				`${runnerId} runner owns ${actual} scenarios, expected ${reviewedCoverageBaseline.executableScenariosByRunner[runnerId]}`
+			);
+		}
+	}
+	for (const scenario of executableScenarios) {
+		if (!(visualScenarioRunnerIds as readonly string[]).includes(scenario.runner)) {
+			errors.push(`${scenario.id} declares unknown runner ${scenario.runner}`);
+			continue;
+		}
+		const requirementEntry = requirements.find(
+			(requirement) => requirement.surfaceId === scenario.surfaceId && requirement.axis === scenario.axis
+		);
+		const sourceStateId = `${scenario.surfaceId}.${scenario.axis}.${scenario.state}`;
+		if (!requirementEntry?.states.some(({ id }) => id === scenario.state) || scenario.sourceStateId !== sourceStateId) {
+			errors.push(`${scenario.id} does not map to source-backed state ${scenario.sourceStateId}`);
+		}
+		if (requirementEntry && scenario.ownerBead !== requirementEntry.ownerBead) {
+			errors.push(`${scenario.id} expected owner ${requirementEntry.ownerBead}, received ${scenario.ownerBead}`);
+		}
+		const surface = surfaceById.get(scenario.surfaceId);
+		if (!routes.some(({ id }) => id === scenario.routeId)) {
+			errors.push(`${scenario.id} has unknown route ${scenario.routeId}`);
+		} else if (surface?.showcase.kind !== "mounted" || surface.showcase.routeId !== scenario.routeId) {
+			errors.push(`${scenario.id} does not use its audited Showcase route ${scenario.routeId}`);
+		}
+		if (scenario.capture.scope === "component" && isBlank(scenario.capture.selector)) {
+			errors.push(`${scenario.id} has an empty component capture selector`);
+		}
+		if (scenario.maskSelectors.length !== 0 || scenario.maxDiffPixels !== 0 || scenario.threshold !== 0) {
+			errors.push(`${scenario.id} weakens exact unmasked visual comparison`);
+		}
+		if (scenario.runner === "action-bar-disclosure") {
+			if (
+				scenario.capture.scope !== "component" ||
+				!scenario.capture.selector.startsWith("example-viewer#") ||
+				isBlank(scenario.payload.componentSelector) ||
+				!scenario.payload.componentSelector.startsWith(`${scenario.capture.selector} `) ||
+				isBlank(scenario.payload.toggleSelector) ||
+				!scenario.payload.toggleSelector.startsWith(`${scenario.payload.componentSelector} `)
+			) {
+				errors.push(`${scenario.id} does not use audited Action Bar selectors`);
+			}
+		}
 	}
 	for (const requirementEntry of requirements) {
 		if (!surfaceById.has(requirementEntry.surfaceId)) {
