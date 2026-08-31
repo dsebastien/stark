@@ -184,7 +184,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(5);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(10);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
 		expect(reviews.map(({ axis }) => axis).sort(), surface.id).toEqual([...visualStateAxes].sort());
@@ -269,16 +269,16 @@ test("has a valid fail-closed manifest", () => {
 });
 
 test("runs every Action Bar disclosure requirement with enough scroll checkpoints to expose every action", () => {
+	const actionBarScenarios = executableScenariosForRunner("action-bar-disclosure");
 	const disclosure = stateRequirements.find(({ id }) => id === "action-bar-component.disclosure");
 	expect(disclosure?.states.map(({ id }) => id)).toEqual(["collapsed", "expanded"]);
 	expect(sourceBackedStates.filter(({ id }) => id.startsWith("action-bar-component.disclosure.")).map(({ id }) => id)).toEqual([
 		"action-bar-component.disclosure.collapsed",
 		"action-bar-component.disclosure.expanded"
 	]);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(5);
-	expect(executableScenariosForRunner("action-bar-disclosure")).toEqual(executableVisualScenarios);
+	expect(actionBarScenarios).toHaveLength(5);
 	expect(
-		executableVisualScenarios.map(
+		actionBarScenarios.map(
 			({ capture, maskSelectors, maxDiffPixels, payload, routeId, runner, sourceStateId, snapshotName, threshold }) => ({
 				capture,
 				maskSelectors,
@@ -352,6 +352,125 @@ test("runs every Action Bar disclosure requirement with enough scroll checkpoint
 			threshold: 0
 		}
 	]);
+});
+
+test("runs every Collapsible state that the pinned legacy fixture can honestly render", () => {
+	const collapsibleScenarios = executableScenariosForRunner("collapsible-states");
+	expect(
+		collapsibleScenarios.map(({ capture, maskSelectors, maxDiffPixels, payload, sourceStateId, snapshotName, threshold }) => ({
+			capture,
+			maskSelectors,
+			maxDiffPixels,
+			payload: {
+				action: payload.action,
+				expectedContentVisible: payload.expectedContentVisible,
+				expectedExpanded: payload.expectedExpanded,
+				expectedKeyboardFocused: payload.expectedKeyboardFocused
+			},
+			sourceStateId,
+			snapshotName,
+			threshold
+		}))
+	).toEqual([
+		{
+			capture: { scope: "component", selector: "example-viewer#default" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedContentVisible: false,
+				expectedExpanded: false,
+				expectedKeyboardFocused: false
+			},
+			sourceStateId: "collapsible-component.disclosure.collapsed",
+			snapshotName: "collapsible-disclosure-collapsed.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#default" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "toggle-header" },
+				expectedContentVisible: true,
+				expectedExpanded: true,
+				expectedKeyboardFocused: false
+			},
+			sourceStateId: "collapsible-component.disclosure.expanded",
+			snapshotName: "collapsible-disclosure-expanded.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#custom" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedContentVisible: true,
+				expectedExpanded: true,
+				expectedKeyboardFocused: false
+			},
+			sourceStateId: "collapsible-component.content.populated",
+			snapshotName: "collapsible-content-populated.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#default" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedContentVisible: false,
+				expectedExpanded: false,
+				expectedKeyboardFocused: false
+			},
+			sourceStateId: "collapsible-component.focus.rest",
+			snapshotName: "collapsible-focus-rest.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#default" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: {
+					kind: "keyboard-focus-header",
+					nextFocusableSelector: "example-viewer#default button.collapsible-demo-button"
+				},
+				expectedContentVisible: false,
+				expectedExpanded: false,
+				expectedKeyboardFocused: true
+			},
+			sourceStateId: "collapsible-component.focus.keyboard",
+			snapshotName: "collapsible-focus-keyboard.png",
+			threshold: 0
+		}
+	]);
+	expect(collapsibleScenarios.some(({ sourceStateId }) => sourceStateId === "collapsible-component.content.empty")).toBe(false);
+});
+
+test("fails closed when Collapsible coverage escapes its audited component selectors", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "collapsible-disclosure-expanded"
+				? { ...scenario, capture: { scope: "component", selector: "body" } }
+				: scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"collapsible-disclosure-expanded does not use audited Collapsible selectors"
+	);
+});
+
+test("fails closed when the Collapsible runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "collapsible-focus-keyboard" ? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId } : scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("collapsible-focus-keyboard declares unknown runner unregistered");
+	expect(errors).toContain("collapsible-states runner owns 4 scenarios, expected 5");
 });
 
 test("fails closed when executable coverage weakens its component-only exact comparison", () => {

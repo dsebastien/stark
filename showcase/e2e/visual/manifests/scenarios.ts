@@ -52,7 +52,7 @@ export type SourceBackedState = {
 	readonly evidence: readonly [SourceEvidence, ...SourceEvidence[]];
 };
 
-export const visualScenarioRunnerIds = ["action-bar-disclosure"] as const;
+export const visualScenarioRunnerIds = ["action-bar-disclosure", "collapsible-states"] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 export type ExecutableVisualCapture = Readonly<{ scope: "page" }> | Readonly<{ scope: "component"; selector: string }>;
 
@@ -86,7 +86,26 @@ export type ActionBarDisclosureScenario = ExecutableVisualScenarioCore<
 	}
 > & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
 
-export type ExecutableVisualScenario = ActionBarDisclosureScenario;
+export type CollapsibleStateScenario = ExecutableVisualScenarioCore<
+	"collapsible-states",
+	{
+		readonly componentSelector: string;
+		readonly headerSelector: string;
+		readonly contentSelector: string;
+		readonly statusSelector: string;
+		readonly action:
+			| Readonly<{ kind: "initial" }>
+			| Readonly<{ kind: "toggle-header" }>
+			| Readonly<{ kind: "keyboard-focus-header"; nextFocusableSelector: string }>;
+		readonly expectedExpanded: boolean;
+		readonly expectedContentVisible: boolean;
+		readonly expectedContentText: string;
+		readonly expectedStatus: string;
+		readonly expectedKeyboardFocused: boolean;
+	}
+> & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
+
+export type ExecutableVisualScenario = ActionBarDisclosureScenario | CollapsibleStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -854,6 +873,30 @@ export const sourceBackedStates: readonly SourceBackedState[] = stateRequirement
 const fullActionBarExampleSelector = "example-viewer#classic-full";
 const fullActionBarSelector = `${fullActionBarExampleSelector} stark-action-bar > .stark-action-bar.stark-action-bar-full`;
 const fullActionBarToggleSelector = `${fullActionBarSelector} > .alt-actions > button.extend-action-bar`;
+const defaultCollapsibleExampleSelector = "example-viewer#default";
+const defaultCollapsibleSelector = `${defaultCollapsibleExampleSelector} stark-collapsible > mat-expansion-panel#firstCollapsible.stark-collapsible`;
+const populatedCollapsibleExampleSelector = "example-viewer#custom";
+const populatedCollapsibleHostSelector = `${populatedCollapsibleExampleSelector} stark-collapsible:has(> mat-expansion-panel#fourthCollapsible)`;
+const populatedCollapsibleSelector = `${populatedCollapsibleHostSelector} > mat-expansion-panel#fourthCollapsible.stark-collapsible`;
+const collapsiblePayload = (
+	exampleSelector: string,
+	componentSelector: string,
+	action: CollapsibleStateScenario["payload"]["action"],
+	expectedExpanded: boolean,
+	expectedKeyboardFocused = false,
+	statusSelector = `${exampleSelector} span.collapsible-demo-status`
+): CollapsibleStateScenario["payload"] => ({
+	componentSelector,
+	headerSelector: `${componentSelector} > mat-expansion-panel-header`,
+	contentSelector: `${componentSelector} [role="region"]`,
+	statusSelector,
+	action,
+	expectedExpanded,
+	expectedContentVisible: expectedExpanded,
+	expectedContentText: "Any HTML content",
+	expectedStatus: expectedExpanded ? "Open" : "Closed",
+	expectedKeyboardFocused
+});
 
 /**
  * Runnable scenarios are added only after their route, interaction, assertion,
@@ -979,6 +1022,105 @@ export const executableVisualScenarios = [
 			expectedVisibleActionLabels: ["Close"],
 			scroll: { kind: "end" }
 		}
+	},
+	{
+		id: "collapsible-disclosure-collapsed",
+		sourceStateId: "collapsible-component.disclosure.collapsed",
+		surfaceId: "collapsible-component",
+		axis: "disclosure",
+		state: "collapsed",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "collapsible",
+		runner: "collapsible-states",
+		capture: { scope: "component", selector: defaultCollapsibleExampleSelector },
+		snapshotName: "collapsible-disclosure-collapsed.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: collapsiblePayload(defaultCollapsibleExampleSelector, defaultCollapsibleSelector, { kind: "initial" }, false)
+	},
+	{
+		id: "collapsible-disclosure-expanded",
+		sourceStateId: "collapsible-component.disclosure.expanded",
+		surfaceId: "collapsible-component",
+		axis: "disclosure",
+		state: "expanded",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "collapsible",
+		runner: "collapsible-states",
+		capture: { scope: "component", selector: defaultCollapsibleExampleSelector },
+		snapshotName: "collapsible-disclosure-expanded.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			...collapsiblePayload(defaultCollapsibleExampleSelector, defaultCollapsibleSelector, { kind: "toggle-header" }, true),
+			expectedStatus: "SHOWCASE.DEMO.COLLAPSIBLE.OPEN"
+		}
+	},
+	{
+		id: "collapsible-content-populated",
+		sourceStateId: "collapsible-component.content.populated",
+		surfaceId: "collapsible-component",
+		axis: "content",
+		state: "populated",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "collapsible",
+		runner: "collapsible-states",
+		capture: { scope: "component", selector: populatedCollapsibleExampleSelector },
+		snapshotName: "collapsible-content-populated.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: collapsiblePayload(
+			populatedCollapsibleExampleSelector,
+			populatedCollapsibleSelector,
+			{ kind: "initial" },
+			true,
+			false,
+			`${populatedCollapsibleHostSelector} + button.collapsible-demo-button + span.collapsible-demo-status`
+		)
+	},
+	{
+		id: "collapsible-focus-rest",
+		sourceStateId: "collapsible-component.focus.rest",
+		surfaceId: "collapsible-component",
+		axis: "focus",
+		state: "rest",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "collapsible",
+		runner: "collapsible-states",
+		capture: { scope: "component", selector: defaultCollapsibleExampleSelector },
+		snapshotName: "collapsible-focus-rest.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: collapsiblePayload(defaultCollapsibleExampleSelector, defaultCollapsibleSelector, { kind: "initial" }, false)
+	},
+	{
+		id: "collapsible-focus-keyboard",
+		sourceStateId: "collapsible-component.focus.keyboard",
+		surfaceId: "collapsible-component",
+		axis: "focus",
+		state: "keyboard",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "collapsible",
+		runner: "collapsible-states",
+		capture: { scope: "component", selector: defaultCollapsibleExampleSelector },
+		snapshotName: "collapsible-focus-keyboard.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: collapsiblePayload(
+			defaultCollapsibleExampleSelector,
+			defaultCollapsibleSelector,
+			{
+				kind: "keyboard-focus-header",
+				nextFocusableSelector: `${defaultCollapsibleExampleSelector} button.collapsible-demo-button`
+			},
+			false,
+			true
+		)
 	}
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -995,8 +1137,11 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 5,
-	executableScenariosByRunner: { "action-bar-disclosure": 5 } as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
+	executableScenarios: 10,
+	executableScenariosByRunner: {
+		"action-bar-disclosure": 5,
+		"collapsible-states": 5
+	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
 		"action-bar-component": "action-bar",
@@ -1228,6 +1373,25 @@ export function validateVisualCoverage(
 				!scenario.payload.toggleSelector.startsWith(`${scenario.payload.componentSelector} `)
 			) {
 				errors.push(`${scenario.id} does not use audited Action Bar selectors`);
+			}
+		} else if (scenario.runner === "collapsible-states") {
+			const { action, componentSelector, contentSelector, headerSelector, statusSelector } = scenario.payload;
+			if (
+				scenario.surfaceId !== "collapsible-component" ||
+				scenario.capture.scope !== "component" ||
+				!scenario.capture.selector.startsWith("example-viewer#") ||
+				isBlank(componentSelector) ||
+				!componentSelector.startsWith(`${scenario.capture.selector} `) ||
+				isBlank(headerSelector) ||
+				!headerSelector.startsWith(`${componentSelector} `) ||
+				isBlank(contentSelector) ||
+				!contentSelector.startsWith(`${componentSelector} `) ||
+				isBlank(statusSelector) ||
+				!statusSelector.startsWith(`${scenario.capture.selector} `) ||
+				(action.kind === "keyboard-focus-header" &&
+					(isBlank(action.nextFocusableSelector) || !action.nextFocusableSelector.startsWith(`${scenario.capture.selector} `)))
+			) {
+				errors.push(`${scenario.id} does not use audited Collapsible selectors`);
 			}
 		}
 	}
