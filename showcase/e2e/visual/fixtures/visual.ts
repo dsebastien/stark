@@ -7,7 +7,7 @@ type VisualFixtures = {
 	compareToLegacy: (comparison: VisualComparison) => Promise<void>;
 };
 
-async function assertShellContentDoesNotOverlapNavigation(page: Page): Promise<void> {
+export async function assertShellContentDoesNotOverlapNavigation(page: Page): Promise<void> {
 	const navigation = page.locator("mat-sidenav.stark-app-sidenav-left");
 	const content = page.locator("main.stark-main-container");
 	await expect(navigation).toBeVisible();

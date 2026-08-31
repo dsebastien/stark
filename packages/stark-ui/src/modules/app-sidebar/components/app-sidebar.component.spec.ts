@@ -65,6 +65,10 @@ let mockStarkRoutingService: RoutingServiceMock;
 let mockBreakPointObserver: BreakpointObserverMock;
 
 describe("AppSidebarComponent", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	beforeEach(() => {
 		_fakeBreakPointObservable = new Subject<BreakpointState>();
 		mockStarkLoggingService = {
@@ -234,6 +238,71 @@ function sidebarEventsHandlingTests(): void {
 }
 
 function screenSizeChangeHandlingTests(): void {
+	it("should refresh the content margin once when an initially zero-width side menu becomes measurable", () => {
+		const updateContentMarginsSpy = vi.spyOn(component.appSidenavContainer, "updateContentMargins");
+		const observeSpy = vi.fn<(target: Element) => void>();
+		const disconnectSpy = vi.fn<() => void>();
+		let resizeCallback!: ResizeObserverCallback;
+		const resizeObserver = { disconnect: disconnectSpy, observe: observeSpy, unobserve: vi.fn<(target: Element) => void>() };
+		class ResizeObserverMock {
+			public constructor(callback: ResizeObserverCallback) {
+				resizeCallback = callback;
+			}
+
+			public disconnect = resizeObserver.disconnect;
+			public observe = resizeObserver.observe;
+			public unobserve = resizeObserver.unobserve;
+		}
+		vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+		const sidenav: HTMLElement = fixture.nativeElement.querySelector(".stark-app-sidenav-left");
+		let sidenavWidth = 0;
+		Object.defineProperty(sidenav, "offsetWidth", { configurable: true, get: () => sidenavWidth });
+		component.sidenavLeftMode = "side";
+
+		component.toggleClassesOnOpen(true);
+		component.toggleClassesOnOpen(true);
+		expect(observeSpy).toHaveBeenCalledTimes(1);
+		expect(observeSpy).toHaveBeenCalledWith(sidenav);
+		expect(updateContentMarginsSpy).not.toHaveBeenCalled();
+
+		sidenavWidth = 280;
+		resizeCallback([], resizeObserver);
+		resizeCallback([], resizeObserver);
+		component.toggleClassesOnOpen(true);
+
+		expect(updateContentMarginsSpy).toHaveBeenCalledTimes(1);
+		expect(disconnectSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("should disconnect the initial content margin observer when destroyed", () => {
+		const disconnectSpy = vi.fn<() => void>();
+		class ResizeObserverMock {
+			public disconnect = disconnectSpy;
+			public observe = vi.fn<(target: Element) => void>();
+			public unobserve = vi.fn<(target: Element) => void>();
+		}
+		vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+		const sidenav: HTMLElement = fixture.nativeElement.querySelector(".stark-app-sidenav-left");
+		Object.defineProperty(sidenav, "offsetWidth", { configurable: true, value: 0 });
+		component.sidenavLeftMode = "side";
+		component.toggleClassesOnOpen(true);
+
+		component.ngOnDestroy();
+
+		expect(disconnectSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("should initialize an open menu in side mode on a large desktop", () => {
+		fixture.destroy();
+		mockBreakPointObserver.isMatched.mockReturnValue(true);
+		fixture = TestBed.createComponent(StarkAppSidebarComponent);
+		component = fixture.componentInstance;
+		fixture.detectChanges();
+
+		expect(component.sidenavLeftOpened).toBe(true);
+		expect(component.sidenavLeftMode).toBe("side");
+	});
+
 	describe("from large desktop screen to smaller", () => {
 		const state: BreakpointState = {
 			matches: false,

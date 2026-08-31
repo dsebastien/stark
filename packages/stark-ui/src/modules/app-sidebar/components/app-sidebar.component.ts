@@ -114,6 +114,10 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 	 */
 	public deregisterTransitionHook!: VoidFunction;
 
+	private initialContentMarginRefreshCompleted = false;
+
+	private initialContentMarginResizeObserver?: ResizeObserver;
+
 	/**
 	 * Class constructor
 	 * @param logger - The `StarkLoggingService` instance of the application.
@@ -142,6 +146,7 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 		this.logger.debug(componentName + ": component initialized");
 
 		this.sidenavLeftOpened = this.breakpointObserver.isMatched([this.mediaQueryGtLg]);
+		this.sidenavLeftMode = this.sidenavLeftOpened ? "side" : "over";
 
 		this.openSidebarSubscription = this.sidebarService.openSidebar$.subscribe((event: StarkAppSidebarOpenEvent) => {
 			this.onOpenSidenav(event);
@@ -174,6 +179,8 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 		this.openSidebarSubscription.unsubscribe();
 		this.closeSidebarSubscription.unsubscribe();
 		this.toggleSidebarSubscription.unsubscribe();
+		this.initialContentMarginResizeObserver?.disconnect();
+		this.initialContentMarginResizeObserver = undefined;
 
 		this.breakpointObserver.ngOnDestroy();
 		this.deregisterTransitionHook();
@@ -316,10 +323,48 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 			this.renderer.addClass(this.elementRef.nativeElement, "sidebar-open");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-open-start");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-close");
+			if (this.sidenavLeftMode === "side") {
+				this.refreshInitialContentMarginWhenReady();
+			}
 		} else {
 			this.renderer.addClass(this.elementRef.nativeElement, "sidebar-close");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-close-start");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-open");
+		}
+	}
+
+	private refreshInitialContentMarginWhenReady(): void {
+		if (this.initialContentMarginRefreshCompleted || this.initialContentMarginResizeObserver) {
+			return;
+		}
+
+		// Material can measure projected menu content before it has a width during initial rendering.
+		// Observe only until that first measurable layout, then let Material manage subsequent changes.
+		const sidenav = (this.elementRef.nativeElement as HTMLElement).querySelector<HTMLElement>(".stark-app-sidenav-left");
+		if (!sidenav) {
+			return;
+		}
+
+		const refreshContentMargin = (): boolean => {
+			if (this.initialContentMarginRefreshCompleted || sidenav.offsetWidth <= 0) {
+				return false;
+			}
+
+			this.initialContentMarginRefreshCompleted = true;
+			this.initialContentMarginResizeObserver?.disconnect();
+			this.initialContentMarginResizeObserver = undefined;
+			this.appSidenavContainer.updateContentMargins();
+			return true;
+		};
+
+		if (refreshContentMargin()) {
+			return;
+		}
+
+		const ResizeObserverConstructor = sidenav.ownerDocument.defaultView?.ResizeObserver;
+		if (ResizeObserverConstructor) {
+			this.initialContentMarginResizeObserver = new ResizeObserverConstructor(() => refreshContentMargin());
+			this.initialContentMarginResizeObserver.observe(sidenav);
 		}
 	}
 
