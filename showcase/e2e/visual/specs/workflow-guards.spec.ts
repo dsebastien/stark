@@ -4,7 +4,8 @@ import { pilotVisualComparisons } from "../support/visual-manifest";
 
 test("defines three unmasked pilot comparisons with stable snapshot names", () => {
 	expect(
-		pilotVisualComparisons.map(({ maskSelectors, route, scenarioId, snapshotName }) => ({
+		pilotVisualComparisons.map(({ capture, maskSelectors, route, scenarioId, snapshotName }) => ({
+			capture,
 			maskSelectors,
 			routeId: route.id,
 			scenarioId,
@@ -12,21 +13,24 @@ test("defines three unmasked pilot comparisons with stable snapshot names", () =
 		}))
 	).toEqual([
 		{
+			capture: { scope: "page" },
 			maskSelectors: [],
 			routeId: "getting-started",
-			scenarioId: "getting-started-default",
+			scenarioId: "shell-layout",
 			snapshotName: "getting-started-default.png"
 		},
 		{
+			capture: { scope: "component", selector: "example-viewer#classic-full" },
 			maskSelectors: [],
 			routeId: "action-bar",
-			scenarioId: "action-bar-default",
+			scenarioId: "action-bar-classic-full",
 			snapshotName: "action-bar-default.png"
 		},
 		{
+			capture: { scope: "component", selector: "example-viewer#basic" },
 			maskSelectors: [],
 			routeId: "styleguide-button",
-			scenarioId: "styleguide-button-default",
+			scenarioId: "styleguide-button-basic",
 			snapshotName: "styleguide-button-default.png"
 		}
 	]);

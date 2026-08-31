@@ -2,24 +2,36 @@ import { representativeRoutes, type ShowcaseNavigationTarget } from "./navigatio
 
 type RepresentativeRouteId = (typeof representativeRoutes)[number]["id"];
 
+export type VisualCapture = Readonly<{ scope: "page" }> | Readonly<{ scope: "component"; selector: string }>;
+
 export type VisualComparison = Readonly<{
+	capture: VisualCapture;
 	maskSelectors: readonly string[];
 	route: ShowcaseNavigationTarget;
 	scenarioId: string;
 	snapshotName: `${string}.png`;
 }>;
 
-function comparison(scenarioId: string, routeId: RepresentativeRouteId): VisualComparison {
+type VisualComparisonDefinition = Readonly<{
+	capture: VisualCapture;
+	routeId: RepresentativeRouteId;
+	scenarioId: string;
+	snapshotName: `${string}.png`;
+}>;
+
+function comparison(definition: VisualComparisonDefinition): VisualComparison {
+	const { capture, routeId, scenarioId, snapshotName } = definition;
 	const route = representativeRoutes.find((candidate) => candidate.id === routeId);
 	if (!route) {
 		throw new Error(`The visual comparison route ${routeId} is missing from the navigation manifest.`);
 	}
 
 	return {
+		capture,
 		maskSelectors: [],
 		route,
 		scenarioId,
-		snapshotName: `${scenarioId}.png`
+		snapshotName
 	};
 }
 
@@ -28,7 +40,22 @@ function comparison(scenarioId: string, routeId: RepresentativeRouteId): VisualC
  * explain which non-deterministic pixels it excludes; tests cannot add masks.
  */
 export const pilotVisualComparisons = [
-	comparison("getting-started-default", "getting-started"),
-	comparison("action-bar-default", "action-bar"),
-	comparison("styleguide-button-default", "styleguide-button")
+	comparison({
+		capture: { scope: "page" },
+		routeId: "getting-started",
+		scenarioId: "shell-layout",
+		snapshotName: "getting-started-default.png"
+	}),
+	comparison({
+		capture: { scope: "component", selector: "example-viewer#classic-full" },
+		routeId: "action-bar",
+		scenarioId: "action-bar-classic-full",
+		snapshotName: "action-bar-default.png"
+	}),
+	comparison({
+		capture: { scope: "component", selector: "example-viewer#basic" },
+		routeId: "styleguide-button",
+		scenarioId: "styleguide-button-basic",
+		snapshotName: "styleguide-button-default.png"
+	})
 ] as const;
