@@ -52,7 +52,7 @@ export type SourceBackedState = {
 	readonly evidence: readonly [SourceEvidence, ...SourceEvidence[]];
 };
 
-export const visualScenarioRunnerIds = ["action-bar-disclosure", "collapsible-states"] as const;
+export const visualScenarioRunnerIds = ["action-bar-disclosure", "app-logo-focus", "collapsible-states"] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 export type ExecutableVisualCapture = Readonly<{ scope: "page" }> | Readonly<{ scope: "component"; selector: string }>;
 
@@ -86,6 +86,17 @@ export type ActionBarDisclosureScenario = ExecutableVisualScenarioCore<
 	}
 > & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
 
+export type AppLogoFocusScenario = ExecutableVisualScenarioCore<
+	"app-logo-focus",
+	{
+		readonly componentSelector: string;
+		readonly focusTargetSelector: string;
+		readonly action: Readonly<{ kind: "initial" }> | Readonly<{ kind: "keyboard-tab" }>;
+		readonly expectedFocusVisible: boolean;
+		readonly capturePadding: number;
+	}
+> & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
+
 export type CollapsibleStateScenario = ExecutableVisualScenarioCore<
 	"collapsible-states",
 	{
@@ -105,7 +116,7 @@ export type CollapsibleStateScenario = ExecutableVisualScenarioCore<
 	}
 > & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
 
-export type ExecutableVisualScenario = ActionBarDisclosureScenario | CollapsibleStateScenario;
+export type ExecutableVisualScenario = ActionBarDisclosureScenario | AppLogoFocusScenario | CollapsibleStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -873,6 +884,8 @@ export const sourceBackedStates: readonly SourceBackedState[] = stateRequirement
 const fullActionBarExampleSelector = "example-viewer#classic-full";
 const fullActionBarSelector = `${fullActionBarExampleSelector} stark-action-bar > .stark-action-bar.stark-action-bar-full`;
 const fullActionBarToggleSelector = `${fullActionBarSelector} > .alt-actions > button.extend-action-bar`;
+const appLogoComponentSelector = ".stark-app-header .app-logo > stark-app-logo";
+const appLogoFocusTargetSelector = `${appLogoComponentSelector} > a[href="#"]`;
 const defaultCollapsibleExampleSelector = "example-viewer#default";
 const defaultCollapsibleSelector = `${defaultCollapsibleExampleSelector} stark-collapsible > mat-expansion-panel#firstCollapsible.stark-collapsible`;
 const populatedCollapsibleExampleSelector = "example-viewer#custom";
@@ -903,6 +916,50 @@ const collapsiblePayload = (
  * and component-only capture selectors have been audited in both applications.
  */
 export const executableVisualScenarios = [
+	{
+		id: "app-logo-focus-rest",
+		sourceStateId: "app-logo-component.focus.rest",
+		surfaceId: "app-logo-component",
+		axis: "focus",
+		state: "rest",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "app-shell",
+		runner: "app-logo-focus",
+		capture: { scope: "component", selector: appLogoComponentSelector },
+		snapshotName: "app-logo-focus-rest.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			componentSelector: appLogoComponentSelector,
+			focusTargetSelector: appLogoFocusTargetSelector,
+			action: { kind: "initial" },
+			expectedFocusVisible: false,
+			capturePadding: 2
+		}
+	},
+	{
+		id: "app-logo-focus-keyboard",
+		sourceStateId: "app-logo-component.focus.keyboard",
+		surfaceId: "app-logo-component",
+		axis: "focus",
+		state: "keyboard",
+		ownerBead: "stark-4sp.4.2",
+		routeId: "app-shell",
+		runner: "app-logo-focus",
+		capture: { scope: "component", selector: appLogoComponentSelector },
+		snapshotName: "app-logo-focus-keyboard.png",
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			componentSelector: appLogoComponentSelector,
+			focusTargetSelector: appLogoFocusTargetSelector,
+			action: { kind: "keyboard-tab" },
+			expectedFocusVisible: true,
+			capturePadding: 2
+		}
+	},
 	{
 		id: "action-bar-disclosure-collapsed",
 		sourceStateId: "action-bar-component.disclosure.collapsed",
@@ -1137,9 +1194,10 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 10,
+	executableScenarios: 12,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
+		"app-logo-focus": 2,
 		"collapsible-states": 5
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
@@ -1373,6 +1431,20 @@ export function validateVisualCoverage(
 				!scenario.payload.toggleSelector.startsWith(`${scenario.payload.componentSelector} `)
 			) {
 				errors.push(`${scenario.id} does not use audited Action Bar selectors`);
+			}
+		} else if (scenario.runner === "app-logo-focus") {
+			const { action, capturePadding, componentSelector, expectedFocusVisible, focusTargetSelector } = scenario.payload;
+			if (
+				scenario.surfaceId !== "app-logo-component" ||
+				scenario.routeId !== "app-shell" ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== appLogoComponentSelector ||
+				componentSelector !== appLogoComponentSelector ||
+				focusTargetSelector !== appLogoFocusTargetSelector ||
+				capturePadding !== 2 ||
+				expectedFocusVisible !== (action.kind === "keyboard-tab")
+			) {
+				errors.push(`${scenario.id} does not use the audited App Logo focus selectors and keyboard flow`);
 			}
 		} else if (scenario.runner === "collapsible-states") {
 			const { action, componentSelector, contentSelector, headerSelector, statusSelector } = scenario.payload;

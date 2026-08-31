@@ -184,11 +184,65 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(10);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(12);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
 		expect(reviews.map(({ axis }) => axis).sort(), surface.id).toEqual([...visualStateAxes].sort());
 	}
+});
+
+test("runs both App Logo focus states through the exact audited shell component", () => {
+	const appLogoScenarios = executableScenariosForRunner("app-logo-focus");
+	expect(
+		appLogoScenarios.map(
+			({ capture, maskSelectors, maxDiffPixels, payload, routeId, runner, sourceStateId, snapshotName, threshold }) => ({
+				capture,
+				maskSelectors,
+				maxDiffPixels,
+				payload,
+				routeId,
+				runner,
+				sourceStateId,
+				snapshotName,
+				threshold
+			})
+		)
+	).toEqual([
+		{
+			capture: { scope: "component", selector: ".stark-app-header .app-logo > stark-app-logo" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				capturePadding: 2,
+				componentSelector: ".stark-app-header .app-logo > stark-app-logo",
+				expectedFocusVisible: false,
+				focusTargetSelector: '.stark-app-header .app-logo > stark-app-logo > a[href="#"]'
+			},
+			routeId: "app-shell",
+			runner: "app-logo-focus",
+			sourceStateId: "app-logo-component.focus.rest",
+			snapshotName: "app-logo-focus-rest.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: ".stark-app-header .app-logo > stark-app-logo" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "keyboard-tab" },
+				capturePadding: 2,
+				componentSelector: ".stark-app-header .app-logo > stark-app-logo",
+				expectedFocusVisible: true,
+				focusTargetSelector: '.stark-app-header .app-logo > stark-app-logo > a[href="#"]'
+			},
+			routeId: "app-shell",
+			runner: "app-logo-focus",
+			sourceStateId: "app-logo-component.focus.keyboard",
+			snapshotName: "app-logo-focus-keyboard.png",
+			threshold: 0
+		}
+	]);
 });
 
 test("keeps source-backed states as owned requirements rather than pseudo-executable contracts", () => {
@@ -460,6 +514,33 @@ test("fails closed when Collapsible coverage escapes its audited component selec
 	expect(validate(undefined, undefined, undefined, weakened)).toContain(
 		"collapsible-disclosure-expanded does not use audited Collapsible selectors"
 	);
+});
+
+test("fails closed when App Logo focus coverage escapes its audited component boundary", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "app-logo-focus-keyboard"
+				? {
+						...scenario,
+						payload: { ...scenario.payload, capturePadding: 0, focusTargetSelector: "body > a" }
+					}
+				: scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"app-logo-focus-keyboard does not use the audited App Logo focus selectors and keyboard flow"
+	);
+});
+
+test("fails closed when the App Logo focus runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "app-logo-focus-rest" ? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId } : scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("app-logo-focus-rest declares unknown runner unregistered");
+	expect(errors).toContain("app-logo-focus runner owns 1 scenarios, expected 2");
 });
 
 test("fails closed when the Collapsible runner loses exact ownership", () => {
