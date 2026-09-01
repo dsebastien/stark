@@ -169,7 +169,7 @@
     "starter": "cd starter && npm start && cd ..",
     "stylelint-check": "stylelint-config-prettier-check",
     "test": "npm run test:ci:all",
-    "test:local-packages": "node --test --test-concurrency=1 ./scripts/build-local-packages.test.mjs ./scripts/build-local-packages.source-containment.test.mjs ./scripts/build-local-packages.output-errors.test.mjs ./scripts/manage-workspace-dependencies.check.test.mjs ./scripts/manage-workspace-dependencies.test.mjs ./scripts/workspace-command-lock.test.mjs",
+    "test:local-packages": "node --test --test-concurrency=1 ./scripts/build-local-packages.test.mjs ./scripts/build-local-packages.source-containment.test.mjs ./scripts/build-local-packages.output-errors.test.mjs ./scripts/manage-workspace-dependencies.check.test.mjs ./scripts/manage-workspace-dependencies.test.mjs ./scripts/validate-local-dependency-map.test.mjs ./scripts/workspace-command-lock.test.mjs",
     "test:local-packages:source-containment": "node --test ./scripts/build-local-packages.source-containment.test.mjs",
     "test:local-packages:output-errors": "node --test ./scripts/build-local-packages.output-errors.test.mjs",
     "test:local-packages:dependency-check": "node --test ./scripts/manage-workspace-dependencies.check.test.mjs",

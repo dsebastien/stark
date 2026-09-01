@@ -36,9 +36,13 @@ export function defaultWorkspaceRoot(map) {
 		path.resolve(scriptDirectory, "..", ".."),
 		path.resolve(scriptDirectory, "..", "..", "..")
 	];
-	return candidates.find((candidate) => (map?.repositories ?? []).every((repository) => (
-		typeof repository?.directory === "string" && fs.existsSync(path.join(candidate, repository.directory))
-	))) ?? candidates[0];
+	return (
+		candidates.find((candidate) =>
+			(map?.repositories ?? []).every(
+				(repository) => typeof repository?.directory === "string" && fs.existsSync(path.join(candidate, repository.directory))
+			)
+		) ?? candidates[0]
+	);
 }
 
 function readJsonSource(repositoryDirectory, source) {
@@ -103,11 +107,7 @@ export function validateMap(map, workspaceRoot) {
 			continue;
 		}
 		repositories.set(repository.id, repository);
-		if (
-			!isRelativePath(repository.directory) ||
-			repository.directory.includes("/") ||
-			repository.directory.includes("\\")
-		) {
+		if (!isRelativePath(repository.directory) || repository.directory.includes("/") || repository.directory.includes("\\")) {
 			errors.push(`${repository.id} directory must be a workspace-relative directory name: ${repository.directory}`);
 			continue;
 		}
@@ -150,12 +150,16 @@ export function validateMap(map, workspaceRoot) {
 		if (!Array.isArray(repository.commands) || repository.commands.length === 0) {
 			errors.push(`${repository.id} must define at least one build/pack command`);
 		}
-		for (const command of repository.commands ?? []) {
+		for (const [commandIndex, command] of (repository.commands ?? []).entries()) {
 			if (!isRelativePath(command.cwd) || !Array.isArray(command.argv) || command.argv.length === 0) {
 				errors.push(`${repository.id} has a malformed command`);
 				continue;
 			}
-			if (!fs.existsSync(path.join(repositoryDirectory, command.cwd))) {
+			const generatedPackDirectory =
+				commandIndex > 0 &&
+				command.cwd === repository.packaging?.packCwd &&
+				(repository.packages ?? []).some((packageEntry) => packageEntry.artifact?.directory === command.cwd);
+			if (!fs.existsSync(path.join(repositoryDirectory, command.cwd)) && !generatedPackDirectory) {
 				errors.push(`${repository.id} command cwd does not exist: ${command.cwd}`);
 			}
 			if (command.argv[0] === "npm" && command.argv[1] === "run" && !rootManifest.scripts?.[command.argv[2]]) {
@@ -342,35 +346,71 @@ function runSelfTests(map, workspaceRoot) {
 		process.stdout.write(`Reached negative self-test: ${name}\n`);
 	}
 
-	expectInvalid("malformed-map", (invalidMap) => {
-		invalidMap.schemaVersion = 3;
-	}, /schemaVersion/u);
-	expectInvalid("dependency-cycle", (invalidMap) => {
-		invalidMap.repositories[0].packages[0].dependencies = ["@nationalbankbelgium/eslint-config"];
-	}, /dependency cycle/u);
-	expectInvalid("duplicate-package", (invalidMap) => {
-		invalidMap.repositories[0].packages.push(clone(invalidMap.repositories[0].packages[0]));
-	}, /duplicate or missing package/u);
-	expectInvalid("absolute-path", (invalidMap) => {
-		invalidMap.repositories[0].directory = "C:\\workspace\\code-style";
-	}, /workspace-relative directory/u);
-	expectInvalid("missing-consumer", (invalidMap) => {
-		invalidMap.consumers[0].field = "@nationalbankbelgium/not-present";
-	}, /consumer field does not exist/u);
-	expectInvalid("unmapped-dependency", (invalidMap) => {
-		invalidMap.consumers = invalidMap.consumers.filter(
-			(consumer) => !(consumer.repository === "eslint-config" && consumer.package === "@nationalbankbelgium/code-style")
-		);
-	}, /unmapped current cross-project dependency/u);
-	expectInvalid("non-exact-node-fallback", (invalidMap) => {
-		invalidMap.repositories.find((repository) => repository.id === "ui-router-angular").node.fallback.version = ">=22";
-	}, /exact major\.minor\.patch Node fallback/u);
-	expectInvalid("missing-npm-runtime-evidence", (invalidMap) => {
-		delete invalidMap.runtimeEvidence.npmVersion;
-	}, /runtimeEvidence.*npmVersion/u);
-	expectInvalid("missing-canonical-reference", (invalidMap) => {
-		delete invalidMap.consumers[0].canonicalReference;
-	}, /canonicalReference/u);
+	expectInvalid(
+		"malformed-map",
+		(invalidMap) => {
+			invalidMap.schemaVersion = 3;
+		},
+		/schemaVersion/u
+	);
+	expectInvalid(
+		"dependency-cycle",
+		(invalidMap) => {
+			invalidMap.repositories[0].packages[0].dependencies = ["@nationalbankbelgium/eslint-config"];
+		},
+		/dependency cycle/u
+	);
+	expectInvalid(
+		"duplicate-package",
+		(invalidMap) => {
+			invalidMap.repositories[0].packages.push(clone(invalidMap.repositories[0].packages[0]));
+		},
+		/duplicate or missing package/u
+	);
+	expectInvalid(
+		"absolute-path",
+		(invalidMap) => {
+			invalidMap.repositories[0].directory = "C:\\workspace\\code-style";
+		},
+		/workspace-relative directory/u
+	);
+	expectInvalid(
+		"missing-consumer",
+		(invalidMap) => {
+			invalidMap.consumers[0].field = "@nationalbankbelgium/not-present";
+		},
+		/consumer field does not exist/u
+	);
+	expectInvalid(
+		"unmapped-dependency",
+		(invalidMap) => {
+			invalidMap.consumers = invalidMap.consumers.filter(
+				(consumer) => !(consumer.repository === "eslint-config" && consumer.package === "@nationalbankbelgium/code-style")
+			);
+		},
+		/unmapped current cross-project dependency/u
+	);
+	expectInvalid(
+		"non-exact-node-fallback",
+		(invalidMap) => {
+			invalidMap.repositories.find((repository) => repository.id === "ui-router-angular").node.fallback.version = ">=22";
+		},
+		/exact major\.minor\.patch Node fallback/u
+	);
+	expectInvalid(
+		"missing-npm-runtime-evidence",
+		(invalidMap) => {
+			delete invalidMap.runtimeEvidence.npmVersion;
+		},
+		/runtimeEvidence.*npmVersion/u
+	);
+	expectInvalid(
+		"missing-canonical-reference",
+		(invalidMap) => {
+			delete invalidMap.consumers[0].canonicalReference;
+		},
+		/canonicalReference/u
+	);
 
 	assert.deepEqual(reachedCases, [
 		"malformed-map",
@@ -383,7 +423,9 @@ function runSelfTests(map, workspaceRoot) {
 		"missing-npm-runtime-evidence",
 		"missing-canonical-reference"
 	]);
-	process.stdout.write(`Local dependency map validator self-tests passed (${reachedCases.length}/${reachedCases.length} negative cases reached).\n`);
+	process.stdout.write(
+		`Local dependency map validator self-tests passed (${reachedCases.length}/${reachedCases.length} negative cases reached).\n`
+	);
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
