@@ -16,7 +16,7 @@ function startToken(pid) {
 		}
 	}
 	if (process.platform === "win32") {
-		const command = `$ErrorActionPreference='Stop'; $target=${pid}; if ($target -eq $PID) { exit 1 }; (Get-Process -Id $target).StartTime.ToUniversalTime().Ticks`;
+		const command = `$ErrorActionPreference='Stop'; $target=${pid}; $p=Get-CimInstance Win32_Process -Filter "ProcessId = $target"; if ($null -eq $p -or $null -eq $p.CreationDate) { exit 1 }; $p.CreationDate.ToUniversalTime().Ticks`;
 		const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" });
 		const token = result.status === 0 ? result.stdout.trim() : "";
 		return /^\d+$/u.test(token) ? token : null;
@@ -124,6 +124,7 @@ function parseArguments(arguments_) {
 
 function writeDescriptor(identityFd, identity) {
 	fs.writeSync(identityFd, `${JSON.stringify(identity)}\n`, undefined, "utf8");
+	if (fs.fstatSync(identityFd).isFile()) fs.fsyncSync(identityFd);
 }
 
 const options = parseArguments(process.argv.slice(2));
@@ -172,6 +173,18 @@ if (process.platform === "linux") {
 const childIdentity = childToken
 	? { pid: child.pid, parentPid: process.pid, processStartToken: childToken, platform: process.platform, commandLine: options.command.join(" "), kind: "direct", boundary: childProcess ? { kind: "process-group", id: childProcess.groupId } : { kind: "parent-tree" } }
 	: { pid: process.pid, parentPid: process.ppid, processStartToken: wrapperToken, platform: process.platform, commandLine: options.command.join(" "), kind: "wrapper" };
+try {
+	writeDescriptor(options.identityFd, {
+		schemaVersion: 1,
+		state: "RUNNING",
+		wrapper,
+		child: { ...childIdentity, createdAt: new Date().toISOString() }
+	});
+} catch (error) {
+	child.kill();
+	fail(`could not persist running child identity: ${error.message}`);
+	process.exit();
+}
 
 const result = await new Promise((resolve) => {
 	let settled = false;
@@ -197,8 +210,10 @@ try {
 try {
 	writeDescriptor(options.identityFd, {
 		schemaVersion: 1,
+		state: "EXITED",
 		wrapper,
-		child: { ...childIdentity, createdAt: new Date().toISOString() }
+		child: { ...childIdentity, createdAt: new Date().toISOString() },
+		exit: { status: result.status, signal: result.signal }
 	});
 } catch (error) {
 	fail(`could not persist child identity: ${error.message}`);

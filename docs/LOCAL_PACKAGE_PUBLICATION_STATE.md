@@ -65,6 +65,12 @@ The state root is an ignored directory inside the canonical workspace:
   quarantine/<opaque-id>.<original-state>.<nonce>
 ```
 
+Consumer manifests never reference a producer's mutable `dist/` tree. After a
+generation is published, `npm run deps:local` validates the returned descriptor
+and points every mapped consumer at the immutable `.complete` generation. See
+[Local dependency modes](LOCAL_DEPENDENCY_MODES.md) for switching, rollback,
+and lockfile guarantees.
+
 The producer must create and validate this root before running any sibling
 command. A pre-existing state root is not evidence that a generation is safe.
 

@@ -61,6 +61,7 @@ Do not add cleanup for one layer to an unrelated higher commit merely to avoid r
 Run these checks after restacking:
 
 ```bash
+bash scripts/with-project-node.sh -- npm run deps:check
 git merge-base --is-ancestor master migration/angular-22/01-dependencies
 git merge-base --is-ancestor migration/angular-22/01-dependencies migration/angular-22/02-build
 git merge-base --is-ancestor migration/angular-22/02-build migration/angular-22/03-testing
@@ -70,7 +71,7 @@ git diff --check master..migration/angular-22/05-agent-context
 git status --short --branch
 ```
 
-Also verify each remote branch hash after pushing and confirm the working tree is clean on the highest branch.
+Run the dependency preflight before rewriting the stack as well as after restacking. Also verify each remote branch hash after pushing and confirm the working tree is clean on the highest branch.
 
 ## Supporting documents
 

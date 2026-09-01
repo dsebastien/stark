@@ -263,6 +263,14 @@ export function validateMap(map, workspaceRoot) {
 			errors.push(`consumer ${key} has an invalid manifest or reference`);
 			continue;
 		}
+		if (typeof consumer.canonicalReference !== "string" || consumer.canonicalReference.length === 0) {
+			errors.push(`consumer ${key} must define canonicalReference`);
+		} else if (
+			consumer.canonicalReference.startsWith("file:") &&
+			!isRelativePath(consumer.canonicalReference.slice("file:".length), true)
+		) {
+			errors.push(`consumer ${key} canonicalReference must not contain an absolute path`);
+		}
 		const manifestPath = path.join(workspaceRoot, repository.directory, consumer.manifest);
 		const referencePath = consumer.reference.slice("file:".length).replace("{packageVersion}", "0.0.0");
 		if (!isRelativePath(referencePath, true)) {
@@ -360,6 +368,9 @@ function runSelfTests(map, workspaceRoot) {
 	expectInvalid("missing-npm-runtime-evidence", (invalidMap) => {
 		delete invalidMap.runtimeEvidence.npmVersion;
 	}, /runtimeEvidence.*npmVersion/u);
+	expectInvalid("missing-canonical-reference", (invalidMap) => {
+		delete invalidMap.consumers[0].canonicalReference;
+	}, /canonicalReference/u);
 
 	assert.deepEqual(reachedCases, [
 		"malformed-map",
@@ -369,7 +380,8 @@ function runSelfTests(map, workspaceRoot) {
 		"missing-consumer",
 		"unmapped-dependency",
 		"non-exact-node-fallback",
-		"missing-npm-runtime-evidence"
+		"missing-npm-runtime-evidence",
+		"missing-canonical-reference"
 	]);
 	process.stdout.write(`Local dependency map validator self-tests passed (${reachedCases.length}/${reachedCases.length} negative cases reached).\n`);
 }

@@ -83,6 +83,10 @@ for ARG in "$@"; do
 done
 logInfo "============================================="
 
+ghActionsGroupStart "canonical dependency preflight" "no-xtrace"
+npm run deps:check
+ghActionsGroupEnd "canonical dependency preflight"
+
 PROJECT_ROOT_DIR=`pwd`
 logTrace "PROJECT_ROOT_DIR: ${PROJECT_ROOT_DIR}" 1
 ROOT_PACKAGES_DIR=${PROJECT_ROOT_DIR}/dist/packages-dist

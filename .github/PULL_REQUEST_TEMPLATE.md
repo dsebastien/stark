@@ -5,6 +5,7 @@ Please check if your PR fulfills the following requirements:
 - [ ] The commit message follows our guidelines: https://github.com/NationalBankBelgium/stark/blob/master/CONTRIBUTING.md#-commit-message-guidelines
 - [ ] Tests for the changes have been added (for bug fixes / features)
 - [ ] Docs have been added / updated (for bug fixes / features)
+- [ ] `npm run deps:check` passes with canonical dependency references
 
 ## PR Type
 

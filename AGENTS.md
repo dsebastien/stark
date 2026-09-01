@@ -16,6 +16,7 @@
 - Run migration repository commands only through `C:\LocalData\DEV\Software\Git\usr\bin\bash.exe --noprofile --norc`. Do not run project Git, Node, npm, npx, build, test, package, or lockfile commands directly from PowerShell or `cmd.exe`.
 - From profile-free Git Bash, run Stark commands through `bash scripts/with-project-node.sh -- COMMAND [ARGS...]`. For sibling forks, use `bash scripts/with-project-node.sh --repo /c/LocalData/duboiss/wks/NGMigration/<repository> -- COMMAND [ARGS...]`. The launcher selects and verifies the target repository's fnm/`.nvmrc` runtime; never use ambient Windows Node/npm executables.
 - For current migration work, build sibling forks and consume their generated local `file:` tarballs for every cross-project relationship. Restore repository-appropriate non-local references only when preparing clean upstream PRs; never hand-edit dependency modes or commit machine-specific paths.
+- Run `npm run deps:check` after restoring canonical dependencies and before packaging, validating `showcase` or `starter`, rewriting migration history, or publishing. The check is read-only and must pass from a standalone Stark checkout without sibling repositories or built tarballs.
 - Do not edit generated outputs such as `dist/`, `coverage/`, `reports/`, `.angular/`, packaged tarballs, or `node_modules/`.
 - Keep public API changes deliberate. This repo is a library workspace first, so package boundaries and peer dependency boundaries matter.
 - During coordinated framework migrations, inspect sibling clones under `C:\LocalData\duboiss\wks\NGMigration` before replacing local tarballs or peer dependency wiring.
@@ -33,6 +34,7 @@
 
 ## Validation Flow
 
+- Canonical dependency preflight: `npm run deps:check`
 - Root validation: `npm run lint:all`
 - Library build order matters: build `stark-core` before `stark-ui`
 - Library builds commonly used in this repo:

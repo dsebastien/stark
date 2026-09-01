@@ -51,6 +51,9 @@ jobs:
       - name: Install npm ${{ env.NPM_VERSION }}
         run: npm i -g npm@${{ env.NPM_VERSION }}
 
+      - name: Reject local dependency references
+        run: npm run deps:check
+
       - name: Get tag name if exists
         run: |
           TAG_NAME=$(echo $GITHUB_REF | sed -n "s/^refs\/tags\/\(\S*\).*$/\1/p")
@@ -198,6 +201,9 @@ jobs:
       - name: Install Stark dependencies
         run: npm ci
         if: github.event_name != 'schedule'
+
+      - name: Recheck canonical dependencies before release
+        run: npm run deps:check
 
       - name: Set npm token
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc

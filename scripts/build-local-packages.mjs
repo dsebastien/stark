@@ -56,7 +56,7 @@ function attachSecondaryFailure(primary, context, error) {
 }
 
 function getSecondaryFailures(error) {
-	return error && typeof error === "object" ? secondaryFailures.get(error) ?? [] : [];
+	return error && typeof error === "object" ? (secondaryFailures.get(error) ?? []) : [];
 }
 
 function formatError(error) {
@@ -89,6 +89,28 @@ function stableJson(value) {
 	return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function syncFile(filePath, beforeSync) {
+	const descriptor = fs.openSync(filePath, "r+");
+	try {
+		beforeSync?.();
+		fs.fsyncSync(descriptor);
+	} finally {
+		fs.closeSync(descriptor);
+	}
+}
+
+function syncDirectory(directoryPath) {
+	// Windows does not expose a portable directory handle that Node can fsync.
+	// Flushing the staged file still guarantees its bytes before publication.
+	if (process.platform === "win32") return;
+	const descriptor = fs.openSync(directoryPath, "r");
+	try {
+		fs.fsyncSync(descriptor);
+	} finally {
+		fs.closeSync(descriptor);
+	}
+}
+
 export function writeAtomic(filePath, contents, options = {}) {
 	const parent = path.dirname(filePath);
 	const beforeMutation = options.beforeMutation;
@@ -100,10 +122,12 @@ export function writeAtomic(filePath, contents, options = {}) {
 	try {
 		beforeMutation?.();
 		fs.writeFileSync(temporaryPath, contents, { encoding: "utf8", flag: "wx" });
-		if (options.mode !== undefined) {
-			beforeMutation?.();
-			fs.chmodSync(temporaryPath, options.mode);
-		}
+		syncFile(temporaryPath, () => {
+			if (options.mode !== undefined) {
+				beforeMutation?.();
+				fs.chmodSync(temporaryPath, options.mode);
+			}
+		});
 		beforeMutation?.();
 		if (noReplace) {
 			// rename(2) replaces an existing destination on POSIX, and the
@@ -113,16 +137,23 @@ export function writeAtomic(filePath, contents, options = {}) {
 			try {
 				fs.linkSync(temporaryPath, filePath);
 			} catch (error) {
-				if (error?.code === "EEXIST") fail(`atomic destination already exists: ${filePath}`, "state.write", { path: filePath, cause: error });
+				if (error?.code === "EEXIST")
+					fail(`atomic destination already exists: ${filePath}`, "state.write", { path: filePath, cause: error });
 				throw error;
 			}
+			syncDirectory(parent);
 			fs.unlinkSync(temporaryPath);
+			syncDirectory(parent);
 		} else {
 			fs.renameSync(temporaryPath, filePath);
+			syncDirectory(parent);
 		}
 	} catch (error) {
 		try {
-			if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
+			if (fs.existsSync(temporaryPath)) {
+				fs.unlinkSync(temporaryPath);
+				syncDirectory(parent);
+			}
 		} catch (cleanupError) {
 			attachSecondaryFailure(error, `remove temporary file ${temporaryPath}`, cleanupError);
 		}
@@ -232,9 +263,11 @@ export function resolveContained(baseDirectory, relativePath, label, options = {
 			existing = parent;
 		}
 		const existingReal = canonicalExistingPath(existing, `${label} ancestor`);
-		if (!isPathInside(baseReal, existingReal, options.platform)) fail(`${label} resolves outside ${baseReal}: ${candidate}`, "containment");
+		if (!isPathInside(baseReal, existingReal, options.platform))
+			fail(`${label} resolves outside ${baseReal}: ${candidate}`, "containment");
 	}
-	if (!isPathInside(baseReal, candidateReal, options.platform)) fail(`${label} resolves outside ${baseReal}: ${candidate}`, "containment");
+	if (!isPathInside(baseReal, candidateReal, options.platform))
+		fail(`${label} resolves outside ${baseReal}: ${candidate}`, "containment");
 	return candidate;
 }
 
@@ -298,7 +331,8 @@ function assertStateRootIdentity(stateRoot, expectedWorkspace) {
 function assertPipelineIdentity(plan) {
 	assertWorkspaceIdentity(plan.workspace, plan.workspaceRoot);
 	const actual = assertStateRootIdentity(plan.stateRoot, plan.workspace);
-	if (!sameRecords(actual, plan.stateRootIdentity)) fail("canonical state-root identity changed", "containment", { expected: plan.stateRootIdentity, actual });
+	if (!sameRecords(actual, plan.stateRootIdentity))
+		fail("canonical state-root identity changed", "containment", { expected: plan.stateRootIdentity, actual });
 }
 
 function faultIfRequested(faultPlan, operation) {
@@ -336,44 +370,83 @@ export function renameWithWindowsRetry(source, destination, fileSystem = fs, opt
 
 function runCommand(command, arguments_, options = {}) {
 	const wrapped = options.identityFile !== undefined;
+	if (wrapped && typeof options.identityRunningFile !== "string")
+		fail("wrapped command requires a durable running-identity file", options.phase ?? "command");
 	const actualCommand = wrapped ? process.execPath : command;
 	const actualArguments = wrapped
-		? [processIdentityRunnerPath, "--identity-fd", "3", "--cwd", options.cwd ?? process.cwd(), ...(options.capture ? ["--capture"] : []), "--", command, ...arguments_]
+		? [
+				processIdentityRunnerPath,
+				"--identity-fd",
+				"3",
+				"--cwd",
+				options.cwd ?? process.cwd(),
+				...(options.capture ? ["--capture"] : []),
+				"--",
+				command,
+				...arguments_
+			]
 		: arguments_;
+	let identityFd;
+	if (wrapped) identityFd = fs.openSync(options.identityRunningFile, "wx", 0o600);
 	const stdio = wrapped
-		? (options.capture ? ["ignore", "pipe", "pipe", "pipe"] : ["ignore", "inherit", "inherit", "pipe"])
-		: (options.capture ? ["ignore", "pipe", "pipe"] : "inherit");
-	const result = spawnSync(actualCommand, actualArguments, {
-		cwd: options.cwd,
-		encoding: "utf8",
-		stdio,
-		env: options.env
-	});
+		? options.capture
+			? ["ignore", "pipe", "pipe", identityFd]
+			: ["ignore", options.suppressOutput ? "ignore" : "inherit", options.suppressOutput ? "ignore" : "inherit", identityFd]
+		: options.capture
+			? ["ignore", "pipe", "pipe"]
+			: "inherit";
+	let result;
+	try {
+		result = spawnSync(actualCommand, actualArguments, {
+			cwd: options.cwd,
+			encoding: "utf8",
+			stdio,
+			env: options.env
+		});
+	} finally {
+		if (identityFd !== undefined) fs.closeSync(identityFd);
+	}
 	if (result.error) fail(`could not execute ${command}: ${result.error.message}`, options.phase ?? "command");
 	if (wrapped) {
-		const identityOutput = result.output?.[3];
-		const identityLines = identityOutput === undefined ? [] : identityOutput.toString("utf8").trim().split(/\r?\n/u).filter(Boolean);
+		const identityOutput = fs.readFileSync(options.identityRunningFile, "utf8");
+		const identityLines = identityOutput.trim().split(/\r?\n/u).filter(Boolean);
 		let identity;
 		try {
 			identity = identityLines.length > 0 ? JSON.parse(identityLines.at(-1)) : undefined;
 		} catch (error) {
 			fail(`invalid child identity output: ${error.message}`, options.phase ?? "command");
 		}
-		if (!identity) fail("producer did not emit a child identity", options.phase ?? "command");
-		writeAtomic(options.identityFile, stableJson({
-			...options.identityMetadata,
-			...identity,
-			state: "COMPLETE"
-		}), { noReplace: true });
+		if (
+			!identity ||
+			identity.schemaVersion !== lockSchemaVersion ||
+			identity.state !== "EXITED" ||
+			!identity.wrapper ||
+			!identity.child
+		) {
+			fail("producer did not emit a complete child identity", options.phase ?? "command");
+		}
+		writeAtomic(
+			options.identityFile,
+			stableJson({
+				...options.identityMetadata,
+				...identity,
+				state: "COMPLETE"
+			}),
+			{ noReplace: true }
+		);
 	}
 	if (result.status !== 0) {
 		const diagnostics = options.capture ? [result.stdout, result.stderr].filter(Boolean).join("\n").trim() : "";
 		const suffix = diagnostics ? `\n${diagnostics}` : "";
-		throw new PipelineError(`command failed (${result.status}): ${command} ${arguments_.join(" ")}${suffix}`, options.phase ?? "command", {
-			status: result.status,
-			command,
-			arguments: arguments_
-		});
+		throw new PipelineError(
+			`command failed (${result.status}): ${command} ${arguments_.join(" ")}${suffix}`,
+			options.phase ?? "command",
+			{
+				status: result.status,
+				command,
+				arguments: arguments_
+			}
+		);
 	}
 	return options.capture ? result.stdout : "";
 }
@@ -381,7 +454,10 @@ function runCommand(command, arguments_, options = {}) {
 export function extractCommandOutput(output, marker) {
 	const markerIndex = output.indexOf(marker);
 	if (markerIndex < 0) fail(`verified launcher output did not contain capture marker ${marker}`, "command");
-	return output.slice(markerIndex + marker.length).replace(/^\r?\n/u, "").trim();
+	return output
+		.slice(markerIndex + marker.length)
+		.replace(/^\r?\n/u, "")
+		.trim();
 }
 
 function launcherArguments(repositoryDirectory, repository) {
@@ -455,7 +531,8 @@ function validateRuntimeEvidence(evidence, context, options = {}) {
 			} catch (error) {
 				fail(`${context} has unreadable ${field}: ${error.message}`, "repository.runtime", { field, value });
 			}
-			if (!sameRuntimePath(canonical, value)) fail(`${context} has non-canonical ${field}`, "repository.runtime", { field, value, canonical });
+			if (!sameRuntimePath(canonical, value))
+				fail(`${context} has non-canonical ${field}`, "repository.runtime", { field, value, canonical });
 		}
 	}
 	const nodeParent = runtimePathModule(evidence.nodeExecutable).dirname(evidence.nodeExecutable);
@@ -469,7 +546,9 @@ function observeRepositoryRuntime(repositoryDirectory, repository, moment) {
 		repositoryDirectory,
 		repository,
 		"node",
-		["-e", `
+		[
+			"-e",
+			`
 			const fields = ["nodeVersion", "npmVersion", "nodeExecutable", "npmExecutable"];
 			const variables = {
 				nodeVersion: "STARK_PROJECT_NODE_VERSION",
@@ -478,7 +557,8 @@ function observeRepositoryRuntime(repositoryDirectory, repository, moment) {
 				npmExecutable: "STARK_PROJECT_NPM_EXECUTABLE"
 			};
 			process.stdout.write(JSON.stringify(Object.fromEntries(fields.map((field) => [field, process.env[variables[field]]]))));
-		`],
+		`
+		],
 		{ capture: true, phase: "repository.runtime" }
 	);
 	let evidence;
@@ -491,11 +571,9 @@ function observeRepositoryRuntime(repositoryDirectory, repository, moment) {
 }
 
 export function runtimeEvidenceChanges(before, after, platform = process.platform) {
-	return runtimeEvidenceFields.filter((field) => (
-		field.endsWith("Executable")
-			? !sameRuntimePath(before[field], after[field], platform)
-			: before[field] !== after[field]
-	));
+	return runtimeEvidenceFields.filter((field) =>
+		field.endsWith("Executable") ? !sameRuntimePath(before[field], after[field], platform) : before[field] !== after[field]
+	);
 }
 
 function runGit(repositoryDirectory, repository, ...arguments_) {
@@ -504,6 +582,42 @@ function runGit(repositoryDirectory, repository, ...arguments_) {
 
 function fileIdentity(stat, filePath, label = "file") {
 	return statIdentity(stat, filePath, label);
+}
+
+export function captureRegularFileSet(baseDirectory, relativePaths) {
+	if (!Array.isArray(relativePaths) || relativePaths.length === 0) fail("regular file set must be a non-empty array", "containment");
+	const base = workspaceIdentity(baseDirectory);
+	const keys = new Set();
+	const identities = new Set();
+	let hardlinkedPath;
+	const files = relativePaths.map((relativePath) => {
+		const filePath = resolveContained(base.realPath, relativePath, "managed file");
+		const normalized = path.relative(base.realPath, filePath).split(path.sep).join("/");
+		const key = process.platform === "win32" ? normalized.toLowerCase() : normalized;
+		if (keys.has(key)) fail(`duplicate managed file path: ${relativePath}`, "containment");
+		keys.add(key);
+		const stat = fs.lstatSync(filePath);
+		if (!stat.isFile() || isReparsePoint(stat)) fail(`managed file must be a unique regular file: ${filePath}`, "containment");
+		const identity = fileIdentity(stat, filePath, "managed file");
+		if (identities.has(identity)) fail(`duplicate managed file identity: ${filePath}`, "containment");
+		identities.add(identity);
+		if (stat.nlink > 1 && !hardlinkedPath) hardlinkedPath = filePath;
+		return { path: normalized, realPath: canonicalExistingPath(filePath, "managed file"), identity, sha256: hashFile(filePath) };
+	});
+	if (hardlinkedPath) fail(`managed file must be a unique regular file: ${hardlinkedPath}`, "containment");
+	return { base, files };
+}
+
+export function assertRegularFileSet(proof) {
+	if (!proof?.base?.realPath || !Array.isArray(proof.files) || proof.files.length === 0)
+		fail("regular file proof is malformed", "containment");
+	assertWorkspaceIdentity(proof.base, proof.base.realPath);
+	const actual = captureRegularFileSet(
+		proof.base.realPath,
+		proof.files.map((record) => record.path)
+	);
+	if (!sameRecords(actual, proof)) fail("managed file set identity or contents changed", "containment", { expected: proof, actual });
+	return actual;
 }
 
 function trackedEntries(repositoryDirectory, repository) {
@@ -527,14 +641,16 @@ function trackedEntries(repositoryDirectory, repository) {
 function snapshotTrackedFiles(repositoryDirectory, repository, entries = trackedEntries(repositoryDirectory, repository)) {
 	const identities = new Map();
 	return entries.map((entry) => {
-		if (!["100644", "100755"].includes(entry.mode)) fail(`tracked path has unsupported Git mode ${entry.mode}: ${entry.path}`, "repository.snapshot");
+		if (!["100644", "100755"].includes(entry.mode))
+			fail(`tracked path has unsupported Git mode ${entry.mode}: ${entry.path}`, "repository.snapshot");
 		const filePath = resolveContained(repositoryDirectory, entry.path, "tracked path");
 		if (!fs.existsSync(filePath)) fail(`tracked path is missing: ${filePath}`, "repository.snapshot");
 		const stat = fs.lstatSync(filePath);
 		if (!stat.isFile() || isReparsePoint(stat)) fail(`tracked path is not a regular file: ${filePath}`, "repository.snapshot");
 		if (stat.nlink > 1) fail(`tracked path is hard-linked and cannot be authenticated: ${filePath}`, "repository.snapshot");
 		const identity = fileIdentity(stat, filePath, "tracked file");
-		if (identities.has(identity)) fail(`duplicate tracked file identity for ${filePath} and ${identities.get(identity)}`, "repository.snapshot");
+		if (identities.has(identity))
+			fail(`duplicate tracked file identity for ${filePath} and ${identities.get(identity)}`, "repository.snapshot");
 		identities.set(identity, entry.path);
 		return {
 			path: entry.path,
@@ -550,7 +666,8 @@ function snapshotTrackedFiles(repositoryDirectory, repository, entries = tracked
 function inspectRepository(repositoryDirectory, repository) {
 	const topLevel = canonicalExistingPath(runGit(repositoryDirectory, repository, "rev-parse", "--show-toplevel").trim(), "git top level");
 	const expected = canonicalExistingPath(repositoryDirectory, "repository");
-	if (!samePath(topLevel, expected)) fail(`mapped repository is not the expected Git worktree: ${repositoryDirectory}`, "repository.snapshot");
+	if (!samePath(topLevel, expected))
+		fail(`mapped repository is not the expected Git worktree: ${repositoryDirectory}`, "repository.snapshot");
 	const branch = runGit(repositoryDirectory, repository, "symbolic-ref", "--quiet", "--short", "HEAD").trim();
 	if (!branch) fail(`mapped repository must be on a named branch: ${repositoryDirectory}`, "repository.snapshot");
 	const entries = trackedEntries(repositoryDirectory, repository);
@@ -572,20 +689,26 @@ function sameRecords(left, right) {
 
 function compareRepositorySnapshot(repositoryDirectory, repository, before, context) {
 	const currentReal = canonicalExistingPath(repositoryDirectory, "repository");
-	if (!samePath(currentReal, before.realPath)) fail(`${context}: repository canonical identity changed: ${repositoryDirectory}`, "repository.invariant");
+	if (!samePath(currentReal, before.realPath))
+		fail(`${context}: repository canonical identity changed: ${repositoryDirectory}`, "repository.invariant");
 	const currentDirectoryIdentity = statIdentity(fs.lstatSync(currentReal), currentReal, "repository");
-	if (currentDirectoryIdentity !== before.directoryIdentity) fail(`${context}: repository directory identity changed: ${repositoryDirectory}`, "repository.invariant");
+	if (currentDirectoryIdentity !== before.directoryIdentity)
+		fail(`${context}: repository directory identity changed: ${repositoryDirectory}`, "repository.invariant");
 	const after = inspectRepository(repositoryDirectory, repository);
 	const differences = [];
 	for (const field of ["branch", "commit", "trackedStatus", "trackedPaths", "trackedFiles"]) {
 		if (!sameRecords(after[field], before[field])) differences.push(field);
 	}
 	if (differences.length > 0) {
-		fail(`${context}: sibling repository invariants changed (${differences.join(", ")}): ${repositoryDirectory}`, "repository.invariant", {
-			differences,
-			before,
-			after
-		});
+		fail(
+			`${context}: sibling repository invariants changed (${differences.join(", ")}): ${repositoryDirectory}`,
+			"repository.invariant",
+			{
+				differences,
+				before,
+				after
+			}
+		);
 	}
 	return after;
 }
@@ -631,34 +754,46 @@ function packageVersion(repositoryDirectory, packageEntry) {
 	}
 	const rootManifestPath = resolveContained(repositoryDirectory, "package.json", "repository manifest");
 	const rootVersion = JSON.parse(fs.readFileSync(rootManifestPath, "utf8")).version;
-	if (typeof rootVersion !== "string" || rootVersion.length === 0) fail(`repository manifest has no version: ${rootManifestPath}`, "repository.snapshot");
+	if (typeof rootVersion !== "string" || rootVersion.length === 0)
+		fail(`repository manifest has no version: ${rootManifestPath}`, "repository.snapshot");
 	if (manifest.version !== rootVersion && manifest.version !== "0.0.0-PLACEHOLDER-VERSION") {
-		fail(`${packageEntry.name} version does not match repository version: ${manifest.version} != ${rootVersion}`, "repository.snapshot");
+		fail(
+			`${packageEntry.name} version does not match repository version: ${manifest.version} != ${rootVersion}`,
+			"repository.snapshot"
+		);
 	}
 	return rootVersion;
 }
 
 export function validateSourceArtifact(repositoryDirectory, artifact, packageVersionValue, buildStartedAt) {
 	const directory = artifactDirectory(repositoryDirectory, artifact);
-	if (!fs.existsSync(directory) || !fs.lstatSync(directory).isDirectory()) fail(`missing expected artifact directory: ${directory}`, "artifact.validation");
+	if (!fs.existsSync(directory) || !fs.lstatSync(directory).isDirectory())
+		fail(`missing expected artifact directory: ${directory}`, "artifact.validation");
 	const entries = fs.readdirSync(directory, { withFileTypes: true });
 	const matches = entries.filter((entry) => artifactMatcher(artifact.pattern)(entry.name));
 	const expectedName = expectedArtifactName(artifact, packageVersionValue);
 	if (matches.length === 0) fail(`missing expected artifact: ${path.join(directory, expectedName)}`, "artifact.validation");
-	if (matches.length !== 1) fail(`expected exactly one artifact matching ${artifact.pattern}, found ${matches.length}`, "artifact.validation");
+	if (matches.length !== 1)
+		fail(`expected exactly one artifact matching ${artifact.pattern}, found ${matches.length}`, "artifact.validation");
 	if (matches[0].name !== expectedName) fail(`unexpected artifact ${matches[0].name}; expected ${expectedName}`, "artifact.validation");
 	const unexpectedTarballs = entries.filter((entry) => entry.name.endsWith(".tgz") && entry.name !== expectedName);
-	if (unexpectedTarballs.length > 0) fail(`unexpected tarball output in ${directory}: ${unexpectedTarballs.map((entry) => entry.name).join(", ")}`, "artifact.validation");
+	if (unexpectedTarballs.length > 0)
+		fail(
+			`unexpected tarball output in ${directory}: ${unexpectedTarballs.map((entry) => entry.name).join(", ")}`,
+			"artifact.validation"
+		);
 	const artifactPath = path.join(directory, expectedName);
 	const stat = fs.lstatSync(artifactPath);
-	if (!stat.isFile() || isReparsePoint(stat) || stat.nlink > 1) fail(`artifact must be a unique regular file: ${artifactPath}`, "artifact.validation");
+	if (!stat.isFile() || isReparsePoint(stat) || stat.nlink > 1)
+		fail(`artifact must be a unique regular file: ${artifactPath}`, "artifact.validation");
 	if (stat.mtimeMs < buildStartedAt - 2_000) fail(`stale artifact predates the build: ${artifactPath}`, "artifact.validation");
 	return artifactPath;
 }
 
 function sourceArtifactProof(sourcePath) {
 	const first = fs.lstatSync(sourcePath);
-	if (!first.isFile() || isReparsePoint(first) || first.nlink > 1) fail(`artifact must be a unique regular file: ${sourcePath}`, "artifact.validation");
+	if (!first.isFile() || isReparsePoint(first) || first.nlink > 1)
+		fail(`artifact must be a unique regular file: ${sourcePath}`, "artifact.validation");
 	const firstIdentity = fileIdentity(first, sourcePath, "source artifact");
 	const contents = fs.readFileSync(sourcePath);
 	const proof = {
@@ -668,7 +803,15 @@ function sourceArtifactProof(sourcePath) {
 		sha512: hashBuffer(contents, "sha512")
 	};
 	const second = fs.lstatSync(sourcePath);
-	if (!second.isFile() || isReparsePoint(second) || second.nlink > 1 || fileIdentity(second, sourcePath, "source artifact") !== proof.identity || second.size !== proof.size || hashFile(sourcePath) !== proof.sha256 || hashFile(sourcePath, "sha512") !== proof.sha512) {
+	if (
+		!second.isFile() ||
+		isReparsePoint(second) ||
+		second.nlink > 1 ||
+		fileIdentity(second, sourcePath, "source artifact") !== proof.identity ||
+		second.size !== proof.size ||
+		hashFile(sourcePath) !== proof.sha256 ||
+		hashFile(sourcePath, "sha512") !== proof.sha512
+	) {
 		fail(`source artifact changed during validation: ${sourcePath}`, "artifact.validation");
 	}
 	return proof;
@@ -684,7 +827,8 @@ function cleanMappedArtifacts(repositoryDirectory, packageEntries, faultPlan) {
 			if (!matcher(entry.name)) continue;
 			const filePath = path.join(directory, entry.name);
 			const stat = fs.lstatSync(filePath);
-			if (!stat.isFile() || isReparsePoint(stat) || stat.nlink > 1) fail(`refusing to remove unsafe mapped artifact: ${filePath}`, "source.cleanup");
+			if (!stat.isFile() || isReparsePoint(stat) || stat.nlink > 1)
+				fail(`refusing to remove unsafe mapped artifact: ${filePath}`, "source.cleanup");
 			faultIfRequested(faultPlan, "source.cleanup.remove");
 			fs.unlinkSync(filePath);
 		}
@@ -693,17 +837,25 @@ function cleanMappedArtifacts(repositoryDirectory, packageEntries, faultPlan) {
 
 export function repositoryOrder(map) {
 	const ownerByPackage = new Map();
-	for (const repository of map.repositories ?? []) for (const packageEntry of repository.packages ?? []) ownerByPackage.set(packageEntry.name, repository.id);
+	for (const repository of map.repositories ?? [])
+		for (const packageEntry of repository.packages ?? []) ownerByPackage.set(packageEntry.name, repository.id);
 	const dependencies = new Map(
 		(map.repositories ?? []).map((repository) => [
 			repository.id,
-			new Set((repository.packages ?? []).flatMap((entry) => entry.dependencies ?? []).map((name) => ownerByPackage.get(name)).filter((id) => id && id !== repository.id))
+			new Set(
+				(repository.packages ?? [])
+					.flatMap((entry) => entry.dependencies ?? [])
+					.map((name) => ownerByPackage.get(name))
+					.filter((id) => id && id !== repository.id)
+			)
 		])
 	);
 	const remaining = [...(map.repositories ?? [])];
 	const ordered = [];
 	while (remaining.length > 0) {
-		const index = remaining.findIndex((repository) => [...(dependencies.get(repository.id) ?? [])].every((dependency) => ordered.some((entry) => entry.id === dependency)));
+		const index = remaining.findIndex((repository) =>
+			[...(dependencies.get(repository.id) ?? [])].every((dependency) => ordered.some((entry) => entry.id === dependency))
+		);
 		if (index < 0) fail("repository dependency graph contains a cycle", "plan");
 		ordered.push(remaining.splice(index, 1)[0]);
 	}
@@ -732,7 +884,8 @@ function planFromMap(map, workspaceRoot, stateRoot) {
 
 function validateDeclarativePlan(plan) {
 	if (!plan || typeof plan !== "object") fail("pipeline plan must be an object", "plan");
-	if (typeof plan.workspaceRoot !== "string" || typeof plan.stateRoot !== "string") fail("plan must define workspaceRoot and stateRoot", "plan");
+	if (typeof plan.workspaceRoot !== "string" || typeof plan.stateRoot !== "string")
+		fail("plan must define workspaceRoot and stateRoot", "plan");
 	if (!Array.isArray(plan.repositories) || plan.repositories.length === 0) fail("plan must contain repositories", "plan");
 	const ids = new Set();
 	const packageNames = new Set();
@@ -742,19 +895,36 @@ function validateDeclarativePlan(plan) {
 		if (invalidPathReason(repository.directory)) fail(`${repository.id} directory is unsafe`, "plan");
 		if (!Array.isArray(repository.commands) || repository.commands.length === 0) fail(`${repository.id} has no commands`, "plan");
 		for (const command of repository.commands) {
-			if (invalidPathReason(command.cwd, true) || !Array.isArray(command.argv) || command.argv.length === 0 || command.argv.some((value) => typeof value !== "string")) fail(`${repository.id} has malformed command`, "plan");
+			if (
+				invalidPathReason(command.cwd, true) ||
+				!Array.isArray(command.argv) ||
+				command.argv.length === 0 ||
+				command.argv.some((value) => typeof value !== "string")
+			)
+				fail(`${repository.id} has malformed command`, "plan");
 		}
 		for (const packageEntry of repository.packages ?? []) {
-			if (!packageEntry?.name || packageNames.has(packageEntry.name)) fail(`duplicate or missing package name: ${packageEntry?.name}`, "plan");
+			if (!packageEntry?.name || packageNames.has(packageEntry.name))
+				fail(`duplicate or missing package name: ${packageEntry?.name}`, "plan");
 			packageNames.add(packageEntry.name);
 			if (invalidPathReason(packageEntry.manifest)) fail(`${packageEntry.name} manifest is unsafe`, "plan");
-			if (!Array.isArray(packageEntry.dependencies) || !Number.isInteger(packageEntry.buildOrder)) fail(`${packageEntry.name} has malformed dependency metadata`, "plan");
-			if (invalidPathReason(packageEntry.artifact?.directory, true) || typeof packageEntry.artifact?.pattern !== "string" || typeof packageEntry.artifact?.expectedName !== "string") fail(`${packageEntry.name} has malformed artifact metadata`, "plan");
+			if (!Array.isArray(packageEntry.dependencies) || !Number.isInteger(packageEntry.buildOrder))
+				fail(`${packageEntry.name} has malformed dependency metadata`, "plan");
+			if (
+				invalidPathReason(packageEntry.artifact?.directory, true) ||
+				typeof packageEntry.artifact?.pattern !== "string" ||
+				typeof packageEntry.artifact?.expectedName !== "string"
+			)
+				fail(`${packageEntry.name} has malformed artifact metadata`, "plan");
 		}
 	}
 	const ownerByPackage = new Map();
-	for (const repository of plan.repositories) for (const packageEntry of repository.packages ?? []) ownerByPackage.set(packageEntry.name, repository.id);
-	for (const repository of plan.repositories) for (const packageEntry of repository.packages ?? []) for (const dependency of packageEntry.dependencies) if (!ownerByPackage.has(dependency)) fail(`${packageEntry.name} references unmapped dependency ${dependency}`, "plan");
+	for (const repository of plan.repositories)
+		for (const packageEntry of repository.packages ?? []) ownerByPackage.set(packageEntry.name, repository.id);
+	for (const repository of plan.repositories)
+		for (const packageEntry of repository.packages ?? [])
+			for (const dependency of packageEntry.dependencies)
+				if (!ownerByPackage.has(dependency)) fail(`${packageEntry.name} references unmapped dependency ${dependency}`, "plan");
 }
 
 function readJson(filePath, label) {
@@ -769,14 +939,17 @@ function processStartToken(pid) {
 	if (process.platform === "linux") {
 		try {
 			const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
-			const afterCommand = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/u);
+			const afterCommand = stat
+				.slice(stat.lastIndexOf(")") + 2)
+				.trim()
+				.split(/\s+/u);
 			return afterCommand[19] ?? null;
 		} catch {
 			return null;
 		}
 	}
 	if (process.platform === "win32") {
-		const command = `$ErrorActionPreference='Stop'; $target=${pid}; if ($target -eq $PID) { exit 1 }; (Get-Process -Id $target).StartTime.ToUniversalTime().Ticks`;
+		const command = `$ErrorActionPreference='Stop'; $target=${pid}; $p=Get-CimInstance Win32_Process -Filter "ProcessId = $target"; if ($null -eq $p -or $null -eq $p.CreationDate) { exit 1 }; $p.CreationDate.ToUniversalTime().Ticks`;
 		const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" });
 		const token = result.status === 0 ? result.stdout.trim() : "";
 		return /^\d+$/u.test(token) ? token : null;
@@ -809,12 +982,14 @@ function lockOwner(plan) {
 		pid: process.pid,
 		processStartToken: processStartToken(process.pid),
 		commandLine: processCommandLine(process.pid) ?? process.argv.join(" "),
-		plannedChildren: plan.repositories.flatMap((repository) => repository.commands.map((command) => ({
-			repository: repository.id,
-			phase: command.phase,
-			cwd: command.cwd,
-			argv: command.argv
-		})))
+		plannedChildren: plan.repositories.flatMap((repository) =>
+			repository.commands.map((command) => ({
+				repository: repository.id,
+				phase: command.phase,
+				cwd: command.cwd,
+				argv: command.argv
+			}))
+		)
 	};
 }
 
@@ -825,7 +1000,11 @@ function ensureStateLayout(stateRoot) {
 	}
 	const stateEntries = fs.readdirSync(stateRoot, { withFileTypes: true });
 	for (const entry of stateEntries) {
-		if (!entry.isDirectory() || isReparsePoint(fs.lstatSync(path.join(stateRoot, entry.name))) || !["locks", "generations", "quarantine"].includes(entry.name)) {
+		if (
+			!entry.isDirectory() ||
+			isReparsePoint(fs.lstatSync(path.join(stateRoot, entry.name))) ||
+			!["locks", "generations", "quarantine"].includes(entry.name)
+		) {
 			fail(`unexpected or unsafe state-root entry: ${entry.name}`, "recovery");
 		}
 	}
@@ -849,23 +1028,37 @@ function assertRenamePaths(stateRoot, sourcePath, destinationPath, options = {})
 	if (options.workspace) assertWorkspaceIdentity(options.workspace, options.workspaceRoot);
 	if (options.stateRootIdentity) {
 		const actualState = assertStateRootIdentity(stateRoot, options.workspace ?? workspaceIdentity(options.workspaceRoot));
-		if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed before rename", "containment", { expected: options.stateRootIdentity, actual: actualState });
+		if (!sameRecords(actualState, options.stateRootIdentity))
+			fail("canonical state-root identity changed before rename", "containment", {
+				expected: options.stateRootIdentity,
+				actual: actualState
+			});
 	}
 	const source = assertStateSource(stateRoot, sourcePath, "rename source");
-	if (options.sourceIdentity !== undefined && source.identity !== options.sourceIdentity) fail(`rename source identity changed: ${source.path}`, "containment");
+	if (options.sourceIdentity !== undefined && source.identity !== options.sourceIdentity)
+		fail(`rename source identity changed: ${source.path}`, "containment");
 	const destination = resolveContained(stateRoot, path.relative(stateRoot, destinationPath), "rename destination");
 	const destinationParent = canonicalExistingPath(path.dirname(destination), "rename destination parent");
-	if (!isPathInside(canonicalExistingPath(stateRoot, "state root"), destinationParent)) fail(`rename destination is outside state root: ${destination}`, "containment");
-	if (options.sourceSuffix && !path.basename(source.path).endsWith(options.sourceSuffix)) fail(`rename source has unexpected state suffix: ${source.path}`, "containment");
-	if (options.destinationSuffix && !path.basename(destination).endsWith(options.destinationSuffix)) fail(`rename destination has unexpected state suffix: ${destination}`, "containment");
-	if (options.destinationAbsent !== false && fs.existsSync(destination)) fail(`rename destination already exists: ${destination}`, "containment");
+	if (!isPathInside(canonicalExistingPath(stateRoot, "state root"), destinationParent))
+		fail(`rename destination is outside state root: ${destination}`, "containment");
+	if (options.sourceSuffix && !path.basename(source.path).endsWith(options.sourceSuffix))
+		fail(`rename source has unexpected state suffix: ${source.path}`, "containment");
+	if (options.destinationSuffix && !path.basename(destination).endsWith(options.destinationSuffix))
+		fail(`rename destination has unexpected state suffix: ${destination}`, "containment");
+	if (options.destinationAbsent !== false && fs.existsSync(destination))
+		fail(`rename destination already exists: ${destination}`, "containment");
 	// Re-read source identity immediately before the atomic rename. This is the
 	// last proof point against a replacement between discovery and publication.
 	const current = fs.lstatSync(source.path);
-	if (isReparsePoint(current) || statIdentity(current, source.path, "rename source") !== source.identity) fail(`rename source identity changed: ${source.path}`, "containment");
+	if (isReparsePoint(current) || statIdentity(current, source.path, "rename source") !== source.identity)
+		fail(`rename source identity changed: ${source.path}`, "containment");
 	if (options.stateRootIdentity) {
 		const actualState = assertStateRootIdentity(stateRoot, options.workspace ?? workspaceIdentity(options.workspaceRoot));
-		if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed immediately before rename", "containment", { expected: options.stateRootIdentity, actual: actualState });
+		if (!sameRecords(actualState, options.stateRootIdentity))
+			fail("canonical state-root identity changed immediately before rename", "containment", {
+				expected: options.stateRootIdentity,
+				actual: actualState
+			});
 	}
 	return { source: source.path, destination, sourceIdentity: source.identity };
 }
@@ -877,7 +1070,11 @@ function quarantinePath(stateRoot, sourcePath, stateLabel, faultPlan, operation 
 		const rename = assertRenamePaths(stateRoot, sourcePath, destination, { ...options, sourceSuffix: options.sourceSuffix });
 		if (options.stateRootIdentity) {
 			const actualState = assertStateRootIdentity(stateRoot, options.workspace ?? workspaceIdentity(options.workspaceRoot));
-			if (!sameRecords(actualState, options.stateRootIdentity)) fail("canonical state-root identity changed immediately before quarantine", "containment", { expected: options.stateRootIdentity, actual: actualState });
+			if (!sameRecords(actualState, options.stateRootIdentity))
+				fail("canonical state-root identity changed immediately before quarantine", "containment", {
+					expected: options.stateRootIdentity,
+					actual: actualState
+				});
 		}
 		renameWithWindowsRetry(rename.source, rename.destination, options.renameFileSystem ?? fs, {
 			...(options.renameOptions ?? {}),
@@ -890,7 +1087,11 @@ function quarantinePath(stateRoot, sourcePath, stateLabel, faultPlan, operation 
 			}
 		});
 	} catch (error) {
-		throw new PipelineError(`could not quarantine ${sourcePath}: ${error.message}`, "recovery", { source: sourcePath, destination, cause: error });
+		throw new PipelineError(`could not quarantine ${sourcePath}: ${error.message}`, "recovery", {
+			source: sourcePath,
+			destination,
+			cause: error
+		});
 	}
 	return destination;
 }
@@ -938,8 +1139,13 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 		const activeStat = fs.lstatSync(activePath);
 		if (!activeStat.isDirectory() || isReparsePoint(activeStat)) fail(`active lock is unsafe: ${activePath}`, "lock");
 		const activeDescriptorPath = path.join(activePath, "descriptor.json");
-		const activeDescriptor = fs.existsSync(activeDescriptorPath) ? readJson(activeDescriptorPath, "active lock descriptor") : { malformed: true };
-		fail(`workspace is already locked by ${JSON.stringify(activeDescriptor)}; candidate preserved at ${candidate}`, "lock", { candidate, activeDescriptor });
+		const activeDescriptor = fs.existsSync(activeDescriptorPath)
+			? readJson(activeDescriptorPath, "active lock descriptor")
+			: { malformed: true };
+		fail(`workspace is already locked by ${JSON.stringify(activeDescriptor)}; candidate preserved at ${candidate}`, "lock", {
+			candidate,
+			activeDescriptor
+		});
 	}
 	faultIfRequested(faultPlan, "lock.publish.rename");
 	try {
@@ -952,9 +1158,10 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 		});
 		renameWithWindowsRetry(rename.source, rename.destination);
 	} catch (error) {
-		const activeDescriptor = fs.existsSync(activePath) && fs.existsSync(path.join(activePath, "descriptor.json"))
-			? readJson(path.join(activePath, "descriptor.json"), "active lock descriptor")
-			: undefined;
+		const activeDescriptor =
+			fs.existsSync(activePath) && fs.existsSync(path.join(activePath, "descriptor.json"))
+				? readJson(path.join(activePath, "descriptor.json"), "active lock descriptor")
+				: undefined;
 		throw new PipelineError(`could not acquire workspace lock; candidate preserved at ${candidate}: ${error.message}`, "lock", {
 			candidate,
 			activeDescriptor,
@@ -970,7 +1177,11 @@ function acquireWorkspaceLock(stateRoot, plan, faultPlan) {
 function releaseWorkspaceLock(lock, faultPlan) {
 	assertWorkspaceIdentity(lock.descriptor.workspace, lock.descriptor.workspace.realPath);
 	const stateRootIdentity = assertStateRootIdentity(lock.stateRoot, lock.descriptor.workspace);
-	if (!sameRecords(stateRootIdentity, lock.descriptor.stateRoot)) fail("canonical state-root identity changed before lock release", "containment", { expected: lock.descriptor.stateRoot, actual: stateRootIdentity });
+	if (!sameRecords(stateRootIdentity, lock.descriptor.stateRoot))
+		fail("canonical state-root identity changed before lock release", "containment", {
+			expected: lock.descriptor.stateRoot,
+			actual: stateRootIdentity
+		});
 	const receiptsRoot = statePath(lock.stateRoot, "locks/release-receipts", "release receipts");
 	const releasedRoot = statePath(lock.stateRoot, "locks/released", "released locks");
 	const receiptPath = path.join(receiptsRoot, `${lock.lockId}.complete`);
@@ -985,12 +1196,17 @@ function releaseWorkspaceLock(lock, faultPlan) {
 	};
 	if (!fs.existsSync(lock.activePath)) fail(`active lock disappeared before release: ${lock.activePath}`, "lock.release");
 	const activeDescriptorBeforeReceipt = readJson(path.join(lock.activePath, "descriptor.json"), "active lock descriptor");
-	if (!sameRecords(activeDescriptorBeforeReceipt, lock.descriptor)) fail("active lock owner changed before release receipt", "lock.release");
+	if (!sameRecords(activeDescriptorBeforeReceipt, lock.descriptor))
+		fail("active lock owner changed before release receipt", "lock.release");
 	if (fs.existsSync(releasedPath)) fail(`released lock destination collision: ${releasedPath}`, "lock.release");
 	verifyChildIdentityRecords(lock);
 	faultIfRequested(faultPlan, "lock.release.receipt");
 	const receiptState = assertStateRootIdentity(lock.stateRoot, lock.descriptor.workspace);
-	if (!sameRecords(receiptState, lock.descriptor.stateRoot)) fail("canonical state-root identity changed before release receipt", "containment", { expected: lock.descriptor.stateRoot, actual: receiptState });
+	if (!sameRecords(receiptState, lock.descriptor.stateRoot))
+		fail("canonical state-root identity changed before release receipt", "containment", {
+			expected: lock.descriptor.stateRoot,
+			actual: receiptState
+		});
 	writeAtomic(receiptPath, stableJson(receipt), { noReplace: true });
 	if (!fs.existsSync(lock.activePath)) fail(`active lock disappeared before release: ${lock.activePath}`, "lock.release");
 	const activeDescriptor = readJson(path.join(lock.activePath, "descriptor.json"), "active lock descriptor");
@@ -1014,38 +1230,79 @@ function childIdentityRoot(stateRoot, activePath) {
 }
 
 function validateChildIdentityRecord(record, filePath, state) {
-	const common = record?.schemaVersion === lockSchemaVersion && record.state === state && typeof record.lockId === "string" && record.lockId.length > 0 && typeof record.repository === "string" && record.repository.length > 0 && typeof record.phase === "string" && record.phase.length > 0 && record.command && typeof record.command === "object";
+	const common =
+		record?.schemaVersion === lockSchemaVersion &&
+		record.state === state &&
+		typeof record.lockId === "string" &&
+		record.lockId.length > 0 &&
+		typeof record.repository === "string" &&
+		record.repository.length > 0 &&
+		typeof record.phase === "string" &&
+		record.phase.length > 0 &&
+		record.command &&
+		typeof record.command === "object";
 	if (!common) fail(`child identity record is not verifiable: ${filePath}`, "recovery");
 	if (state === "PENDING") return record;
-	if (!record.child || !Number.isSafeInteger(record.child.pid) || record.child.pid <= 0 || !Number.isSafeInteger(record.child.parentPid) || record.child.parentPid < 0 || typeof record.child.processStartToken !== "string" || record.child.processStartToken.length === 0 || typeof record.child.platform !== "string") {
+	if (
+		!record.child ||
+		!Number.isSafeInteger(record.child.pid) ||
+		record.child.pid <= 0 ||
+		!Number.isSafeInteger(record.child.parentPid) ||
+		record.child.parentPid < 0 ||
+		typeof record.child.processStartToken !== "string" ||
+		record.child.processStartToken.length === 0 ||
+		typeof record.child.platform !== "string"
+	) {
 		fail(`child identity record is not verifiable: ${filePath}`, "recovery");
 	}
 	if (
 		record.child.kind === "direct" &&
 		(!record.child.boundary ||
 			!["process-group", "parent-tree"].includes(record.child.boundary.kind) ||
-			(record.child.boundary.kind === "process-group" && (!Number.isSafeInteger(record.child.boundary.id) || record.child.boundary.id <= 0)))
+			(record.child.boundary.kind === "process-group" &&
+				(!Number.isSafeInteger(record.child.boundary.id) || record.child.boundary.id <= 0)))
 	) {
 		fail(`child identity boundary is not verifiable: ${filePath}`, "recovery");
 	}
 	return record;
 }
 
+function readRunningIdentity(filePath) {
+	const lines = fs.readFileSync(filePath, "utf8").trim().split(/\r?\n/u).filter(Boolean);
+	let identity;
+	try {
+		identity = lines.length > 0 ? JSON.parse(lines.at(-1)) : undefined;
+	} catch (error) {
+		fail(`running child identity is not valid JSON: ${filePath}: ${error.message}`, "recovery");
+	}
+	if (!identity?.wrapper || !identity?.child || !["RUNNING", "EXITED"].includes(identity.state))
+		fail(`running child identity is incomplete: ${filePath}`, "recovery");
+	return identity;
+}
+
 function readChildIdentityRecords(stateRoot, activePath) {
 	const root = childIdentityRoot(stateRoot, activePath);
-	if (!fs.existsSync(root)) return { pending: [], complete: [], terminal: undefined };
+	if (!fs.existsSync(root)) return { pending: [], running: [], complete: [], terminal: undefined };
 	const rootStat = fs.lstatSync(root);
 	if (!rootStat.isDirectory() || isReparsePoint(rootStat)) fail(`child identity root is unsafe: ${root}`, "recovery");
-	const pending = [];
+	const pendingEntries = [];
+	const runningEntries = [];
 	const complete = [];
 	const completeEntries = [];
 	const proofs = new Map();
 	let terminal;
 	for (const entry of directoryEntries(root)) {
-		if (!entry.stat.isFile() || isReparsePoint(entry.stat) || entry.stat.nlink > 1) fail(`unclassifiable child identity record: ${entry.name}`, "recovery");
+		if (!entry.stat.isFile() || isReparsePoint(entry.stat) || entry.stat.nlink > 1)
+			fail(`unclassifiable child identity record: ${entry.name}`, "recovery");
 		if (entry.name === childTerminalMarkerName) {
 			const record = readJson(entry.path, "child terminal marker");
-			if (record.schemaVersion !== lockSchemaVersion || record.state !== "FAILED" || typeof record.lockId !== "string" || !Array.isArray(record.started)) fail(`child terminal marker is not verifiable: ${entry.path}`, "recovery");
+			if (
+				record.schemaVersion !== lockSchemaVersion ||
+				record.state !== "FAILED" ||
+				typeof record.lockId !== "string" ||
+				!Array.isArray(record.started)
+			)
+				fail(`child terminal marker is not verifiable: ${entry.path}`, "recovery");
 			if (terminal) fail(`duplicate child terminal marker: ${root}`, "recovery");
 			terminal = record;
 			continue;
@@ -1053,24 +1310,83 @@ function readChildIdentityRecords(stateRoot, activePath) {
 		const proofMatch = entry.name.match(/^([a-f0-9]{32})\.proof\.complete$/u);
 		if (proofMatch) {
 			const proof = readJson(entry.path, "child identity proof");
-			if (proof.schemaVersion !== lockSchemaVersion || proof.state !== "PROOF" || proof.childId !== proofMatch[1] || typeof proof.recordSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(proof.recordSha256)) fail(`child identity proof is not verifiable: ${entry.path}`, "recovery");
+			if (
+				proof.schemaVersion !== lockSchemaVersion ||
+				proof.state !== "PROOF" ||
+				proof.childId !== proofMatch[1] ||
+				typeof proof.recordSha256 !== "string" ||
+				!/^[a-f0-9]{64}$/u.test(proof.recordSha256)
+			)
+				fail(`child identity proof is not verifiable: ${entry.path}`, "recovery");
 			if (proofs.has(proof.childId)) fail(`duplicate child identity proof: ${proof.childId}`, "recovery");
 			proofs.set(proof.childId, proof);
 			continue;
 		}
-		const record = readJson(entry.path, "child identity record");
-		if (/^[a-f0-9]{32}\.incomplete$/u.test(entry.name)) pending.push(validateChildIdentityRecord(record, entry.path, "PENDING"));
-		else if (/^[a-f0-9]{32}\.complete$/u.test(entry.name)) completeEntries.push({ childId: entry.name.slice(0, -".complete".length), entry, record: validateChildIdentityRecord(record, entry.path, "COMPLETE") });
-		else fail(`unclassifiable child identity record: ${entry.name}`, "recovery");
+		const pendingMatch = entry.name.match(/^([a-f0-9]{32})\.incomplete$/u);
+		const runningMatch = entry.name.match(/^([a-f0-9]{32})\.running$/u);
+		const completeMatch = entry.name.match(/^([a-f0-9]{32})\.complete$/u);
+		if (pendingMatch) {
+			const record = readJson(entry.path, "pending child identity record");
+			pendingEntries.push({ childId: pendingMatch[1], entry, record: validateChildIdentityRecord(record, entry.path, "PENDING") });
+		} else if (runningMatch) {
+			runningEntries.push({ childId: runningMatch[1], entry, identity: readRunningIdentity(entry.path) });
+		} else if (completeMatch) {
+			const record = readJson(entry.path, "complete child identity record");
+			completeEntries.push({ childId: completeMatch[1], entry, record: validateChildIdentityRecord(record, entry.path, "COMPLETE") });
+		} else fail(`unclassifiable child identity record: ${entry.name}`, "recovery");
 	}
+	const running = [];
+	const matchedRunning = new Set();
+	for (const current of runningEntries) {
+		const pending = pendingEntries.find((entry) => entry.childId === current.childId);
+		const completed = completeEntries.find((entry) => entry.childId === current.childId);
+		const completedProof = proofs.get(current.childId);
+		if (!pending && !(completed && completedProof)) fail(`orphaned running child identity: ${current.childId}`, "recovery");
+		if (completed && completedProof && completedProof.recordSha256 !== hashFile(completed.entry.path))
+			fail(`child identity record digest mismatch: ${completed.entry.path}`, "recovery");
+		const metadata = pending?.record ?? completed.record;
+		const record = validateChildIdentityRecord(
+			{
+				...metadata,
+				state: "RUNNING",
+				wrapper: current.identity.wrapper,
+				child: current.identity.child
+			},
+			current.entry.path,
+			"RUNNING"
+		);
+		if (completed) {
+			for (const key of ["lockId", "workspace", "repository", "phase", "command", "wrapper", "child"]) {
+				if (!sameRecords(completed.record[key], record[key]))
+					fail(`running and complete child identities disagree: ${current.childId}`, "recovery");
+			}
+		}
+		if (!completed || !completedProof) running.push(record);
+		matchedRunning.add(current.childId);
+	}
+	const completedIds = new Set(completeEntries.filter((entry) => proofs.has(entry.childId)).map((entry) => entry.childId));
+	const pending = pendingEntries
+		.filter((entry) => !matchedRunning.has(entry.childId) && !completedIds.has(entry.childId))
+		.map((entry) => entry.record);
 	for (const { childId, entry, record } of completeEntries) {
 		const proof = proofs.get(childId);
-		if (!proof) fail(`missing child identity proof: ${entry.path}`, "recovery");
+		if (!proof) {
+			if (matchedRunning.has(childId)) continue;
+			fail(`missing child identity proof: ${entry.path}`, "recovery");
+		}
 		if (proof.recordSha256 !== hashFile(entry.path)) fail(`child identity record digest mismatch: ${entry.path}`, "recovery");
+		const pendingEntry = pendingEntries.find((candidate) => candidate.childId === childId);
+		if (pendingEntry) {
+			for (const key of ["schemaVersion", "lockId", "workspace", "repository", "phase", "command", "createdAt"]) {
+				if (!sameRecords(record[key], pendingEntry.record[key]))
+					fail(`pending and complete child identities disagree: ${childId}`, "recovery");
+			}
+		}
 		complete.push(record);
 	}
-	for (const childId of proofs.keys()) if (!completeEntries.some((entry) => entry.childId === childId)) fail(`orphaned child identity proof: ${childId}`, "recovery");
-	return { pending, complete, terminal };
+	for (const childId of proofs.keys())
+		if (!completeEntries.some((entry) => entry.childId === childId)) fail(`orphaned child identity proof: ${childId}`, "recovery");
+	return { pending, running, complete, terminal };
 }
 
 function createChildIdentityRecord(lock, repository, command) {
@@ -1078,8 +1394,10 @@ function createChildIdentityRecord(lock, repository, command) {
 	ensureDirectory(root, "child identity root");
 	const childId = randomToken(16);
 	const incompletePath = path.join(root, `${childId}.incomplete`);
+	const runningPath = path.join(root, `${childId}.running`);
 	const completePath = path.join(root, `${childId}.complete`);
-	if (fs.existsSync(incompletePath) || fs.existsSync(completePath)) fail(`child identity collision: ${childId}`, "lock");
+	if (fs.existsSync(incompletePath) || fs.existsSync(runningPath) || fs.existsSync(completePath))
+		fail(`child identity collision: ${childId}`, "lock");
 	const metadata = {
 		schemaVersion: lockSchemaVersion,
 		state: "PENDING",
@@ -1091,25 +1409,49 @@ function createChildIdentityRecord(lock, repository, command) {
 		createdAt: new Date().toISOString()
 	};
 	writeAtomic(incompletePath, stableJson(metadata), { noReplace: true });
-	return { childId, incompletePath, completePath, metadata };
+	return { childId, incompletePath, runningPath, completePath, metadata };
 }
 
-function publishChildIdentity(lock, child) {
+function publishChildIdentity(lock, child, options = {}) {
 	if (!fs.existsSync(child.completePath)) fail(`producer did not persist child identity: ${child.completePath}`, "lock");
 	if (!fs.existsSync(child.incompletePath)) fail(`pending child identity disappeared: ${child.incompletePath}`, "lock");
+	if (!fs.existsSync(child.runningPath)) fail(`running child identity disappeared: ${child.runningPath}`, "lock");
 	const records = validateChildIdentityRecord(readJson(child.completePath, "child identity record"), child.completePath, "COMPLETE");
-	const pending = validateChildIdentityRecord(readJson(child.incompletePath, "pending child identity record"), child.incompletePath, "PENDING");
+	const pending = validateChildIdentityRecord(
+		readJson(child.incompletePath, "pending child identity record"),
+		child.incompletePath,
+		"PENDING"
+	);
+	const running = readRunningIdentity(child.runningPath);
 	for (const key of ["schemaVersion", "lockId", "workspace", "repository", "phase", "command"]) {
 		if (!sameRecords(records[key], pending[key])) fail(`child identity metadata changed before publication: ${child.childId}`, "lock");
 	}
+	for (const key of ["wrapper", "child"]) {
+		if (!sameRecords(records[key], running[key])) fail(`running child identity changed before publication: ${child.childId}`, "lock");
+	}
 	const proofPath = path.join(path.dirname(child.completePath), `${child.childId}${childProofSuffix}`);
-	writeAtomic(proofPath, stableJson({ schemaVersion: lockSchemaVersion, state: "PROOF", childId: child.childId, recordSha256: hashFile(child.completePath) }), { noReplace: true });
+	writeAtomic(
+		proofPath,
+		stableJson({
+			schemaVersion: lockSchemaVersion,
+			state: "PROOF",
+			childId: child.childId,
+			recordSha256: hashFile(child.completePath)
+		}),
+		{ noReplace: true }
+	);
 	const pendingSource = assertStateSource(lock.stateRoot, child.incompletePath, "pending child identity record");
-	// The complete identity is already durably written. Removing only the
-	// validated pending marker makes a crash fail closed: a leftover marker is
-	// treated as an in-flight producer by release and break-glass recovery.
-	if (pendingSource.identity !== statIdentity(fs.lstatSync(pendingSource.path), pendingSource.path, "pending child identity record")) fail(`pending child identity changed before publication: ${child.incompletePath}`, "containment");
+	const runningSource = assertStateSource(lock.stateRoot, child.runningPath, "running child identity record");
+	// The complete identity and its digest proof are already durable. Readers
+	// accept either cleanup residue only when it agrees with that proof, so a
+	// crash between these unlinks remains both attributable and recoverable.
+	if (pendingSource.identity !== statIdentity(fs.lstatSync(pendingSource.path), pendingSource.path, "pending child identity record"))
+		fail(`pending child identity changed before publication: ${child.incompletePath}`, "containment");
+	if (runningSource.identity !== statIdentity(fs.lstatSync(runningSource.path), runningSource.path, "running child identity record"))
+		fail(`running child identity changed before publication: ${child.runningPath}`, "containment");
 	fs.unlinkSync(pendingSource.path);
+	options.afterFirstChildMarkerUnlinkForTest?.();
+	fs.unlinkSync(runningSource.path);
 	return records;
 }
 
@@ -1118,25 +1460,38 @@ function childCommandKey(record) {
 }
 
 function assertChildIdentitySet(records, descriptor, phase) {
-	if (records.pending.length > 0) fail(`pending child identity records remain: ${records.pending.map((record) => `${record.repository}/${record.phase}`).join(", ")}`, phase);
+	if (records.pending.length > 0)
+		fail(
+			`pending child identity records remain: ${records.pending.map((record) => `${record.repository}/${record.phase}`).join(", ")}`,
+			phase
+		);
+	if (phase === "lock.release" && records.running.length > 0) fail("running child identity records remain during lock release", phase);
 	const planned = descriptor.owner?.plannedChildren;
 	if (!Array.isArray(planned)) fail("lock owner has no verifiable planned child commands", phase);
 	if (planned.length === 0) {
-		if (records.complete.length > 0) fail("child identity records exist for a lock with no planned commands", phase);
+		if (records.complete.length > 0 || records.running.length > 0)
+			fail("child identity records exist for a lock with no planned commands", phase);
 		return;
 	}
 	const expected = new Map();
 	for (const command of planned) {
-		if (!command || typeof command.repository !== "string" || typeof command.phase !== "string") fail("lock owner has malformed planned child identity", phase);
+		if (!command || typeof command.repository !== "string" || typeof command.phase !== "string")
+			fail("lock owner has malformed planned child identity", phase);
 		const key = `${command.repository}\u0000${command.phase}`;
 		expected.set(key, (expected.get(key) ?? 0) + 1);
 	}
 	let required = expected;
 	if (phase === "lock.release" && records.terminal) {
-		if (records.terminal.lockId !== descriptor.lockId || !sameRecords(records.terminal.workspace, descriptor.workspace) || !Array.isArray(records.terminal.started)) fail("child terminal marker belongs to a different lock or workspace", phase);
+		if (
+			records.terminal.lockId !== descriptor.lockId ||
+			!sameRecords(records.terminal.workspace, descriptor.workspace) ||
+			!Array.isArray(records.terminal.started)
+		)
+			fail("child terminal marker belongs to a different lock or workspace", phase);
 		const started = new Map();
 		for (const command of records.terminal.started) {
-			if (!command || typeof command.repository !== "string" || typeof command.phase !== "string") fail("child terminal marker has malformed started command", phase);
+			if (!command || typeof command.repository !== "string" || typeof command.phase !== "string")
+				fail("child terminal marker has malformed started command", phase);
 			const key = `${command.repository}\u0000${command.phase}`;
 			started.set(key, (started.get(key) ?? 0) + 1);
 		}
@@ -1145,18 +1500,25 @@ function assertChildIdentitySet(records, descriptor, phase) {
 			if (count > available) fail(`child terminal marker names an unplanned command: ${key.replace("\u0000", "/")}`, phase);
 		}
 		required = started;
-		if (records.complete.length !== records.terminal.started.length) fail(`child identity record count does not match terminal started set: expected ${records.terminal.started.length}, found ${records.complete.length}`, phase);
+		if (records.complete.length !== records.terminal.started.length)
+			fail(
+				`child identity record count does not match terminal started set: expected ${records.terminal.started.length}, found ${records.complete.length}`,
+				phase
+			);
 	} else if (phase === "lock.release" && records.complete.length !== planned.length) {
 		fail(`child identity record count mismatch: expected ${planned.length}, found ${records.complete.length}`, phase);
 	}
-	for (const record of records.complete) {
-		if (record.lockId !== descriptor.lockId || !sameRecords(record.workspace, descriptor.workspace)) fail("child identity belongs to a different lock or workspace", phase);
+	for (const record of [...records.complete, ...records.running]) {
+		if (record.lockId !== descriptor.lockId || !sameRecords(record.workspace, descriptor.workspace))
+			fail("child identity belongs to a different lock or workspace", phase);
 		const key = childCommandKey(record);
 		const remaining = required.get(key) ?? 0;
 		if (remaining === 0) fail(`unexpected or duplicate child identity record: ${record.repository}/${record.phase}`, phase);
 		required.set(key, remaining - 1);
 	}
-	if (phase !== "break-glass") for (const [key, remaining] of required) if (remaining !== 0) fail(`missing child identity record: ${key.replace("\u0000", "/")}`, phase);
+	if (phase !== "break-glass")
+		for (const [key, remaining] of required)
+			if (remaining !== 0) fail(`missing child identity record: ${key.replace("\u0000", "/")}`, phase);
 }
 
 function verifyChildIdentityRecords(lock) {
@@ -1165,7 +1527,8 @@ function verifyChildIdentityRecords(lock) {
 	for (const record of records.complete) {
 		const currentToken = processStartToken(record.child.pid);
 		if (currentToken !== null) {
-			if (currentToken !== record.child.processStartToken) fail(`recorded child PID was reused or is still alive: ${record.child.pid}`, "lock.release");
+			if (currentToken !== record.child.processStartToken)
+				fail(`recorded child PID was reused or is still alive: ${record.child.pid}`, "lock.release");
 			fail(`recorded child process is still alive: ${record.child.pid}`, "lock.release");
 		}
 		const alive = processIsAlive(record.child.pid);
@@ -1177,15 +1540,19 @@ function writeChildTerminalMarker(lock, error) {
 	const root = childIdentityRoot(lock.stateRoot, lock.activePath);
 	ensureDirectory(root, "child identity root");
 	const records = readChildIdentityRecords(lock.stateRoot, lock.activePath);
-	writeAtomic(path.join(root, childTerminalMarkerName), stableJson({
-		schemaVersion: lockSchemaVersion,
-		state: "FAILED",
-		lockId: lock.descriptor.lockId,
-		workspace: lock.descriptor.workspace,
-		started: records.complete.map((record) => ({ repository: record.repository, phase: record.phase })),
-		error: { phase: error.phase ?? "pipeline", message: formatError(error) },
-		createdAt: new Date().toISOString()
-	}), { noReplace: true });
+	writeAtomic(
+		path.join(root, childTerminalMarkerName),
+		stableJson({
+			schemaVersion: lockSchemaVersion,
+			state: "FAILED",
+			lockId: lock.descriptor.lockId,
+			workspace: lock.descriptor.workspace,
+			started: records.complete.map((record) => ({ repository: record.repository, phase: record.phase })),
+			error: { phase: error.phase ?? "pipeline", message: formatError(error) },
+			createdAt: new Date().toISOString()
+		}),
+		{ noReplace: true }
+	);
 }
 
 function normalizePlan(plan) {
@@ -1195,7 +1562,8 @@ function normalizePlan(plan) {
 	let stateRelative;
 	if (path.isAbsolute(plan.stateRoot) || path.win32.isAbsolute(plan.stateRoot)) {
 		const absoluteState = path.resolve(plan.stateRoot);
-		if (!isPathInside(workspace.realPath, absoluteState, process.platform)) fail("state root must be inside the workspace", "containment");
+		if (!isPathInside(workspace.realPath, absoluteState, process.platform))
+			fail("state root must be inside the workspace", "containment");
 		stateRelative = path.relative(workspace.realPath, absoluteState);
 	} else {
 		stateRelative = plan.stateRoot;
@@ -1239,7 +1607,11 @@ function expectedArtifactMetadata(repository, repositoryDirectory, packageVersio
 		expectedName: expectedArtifactName(packageEntry.artifact, packageVersions.get(packageEntry.name)),
 		pattern: packageEntry.artifact.pattern,
 		repositoryPath: canonicalExistingPath(repositoryDirectory, "repository"),
-		sourcePath: path.join(canonicalExistingPath(repositoryDirectory, "repository"), packageEntry.artifact.directory, expectedArtifactName(packageEntry.artifact, packageVersions.get(packageEntry.name)))
+		sourcePath: path.join(
+			canonicalExistingPath(repositoryDirectory, "repository"),
+			packageEntry.artifact.directory,
+			expectedArtifactName(packageEntry.artifact, packageVersions.get(packageEntry.name))
+		)
 	}));
 }
 
@@ -1248,9 +1620,15 @@ function packageOrder(repository) {
 }
 
 function initialRepositoryState(planRepository, plan, faultPlan) {
-	const directory = assertDirectChild(plan.workspaceRoot, resolveContained(plan.workspaceRoot, planRepository.directory, `${planRepository.id} repository`), `${planRepository.id} repository`);
+	const directory = assertDirectChild(
+		plan.workspaceRoot,
+		resolveContained(plan.workspaceRoot, planRepository.directory, `${planRepository.id} repository`),
+		`${planRepository.id} repository`
+	);
 	const snapshot = inspectRepository(directory, planRepository);
-	const packageVersions = new Map(packageOrder(planRepository).map((packageEntry) => [packageEntry.name, packageVersion(directory, packageEntry)]));
+	const packageVersions = new Map(
+		packageOrder(planRepository).map((packageEntry) => [packageEntry.name, packageVersion(directory, packageEntry)])
+	);
 	return {
 		repository: planRepository,
 		directory,
@@ -1289,9 +1667,11 @@ function generationDescriptor(plan, generationId, initialStates) {
 
 function regularFileRecord(filePath, relativePath, identities) {
 	const stat = fs.lstatSync(filePath);
-	if (!stat.isFile() || isReparsePoint(stat) || stat.nlink > 1) fail(`generated output must be a unique regular file: ${filePath}`, "output.validation");
+	if (!stat.isFile() || isReparsePoint(stat) || stat.nlink > 1)
+		fail(`generated output must be a unique regular file: ${filePath}`, "output.validation");
 	const identity = fileIdentity(stat, filePath, "generated file");
-	if (identities.has(identity)) fail(`duplicate generated file identity: ${filePath} and ${identities.get(identity)}`, "output.validation");
+	if (identities.has(identity))
+		fail(`duplicate generated file identity: ${filePath} and ${identities.get(identity)}`, "output.validation");
 	identities.set(identity, relativePath);
 	return {
 		path: relativePath,
@@ -1312,7 +1692,8 @@ function collectTreeFiles(generationPath) {
 			const stat = fs.lstatSync(absolutePath);
 			if (isReparsePoint(stat)) fail(`generated tree contains a link or reparse point: ${relativePath}`, "output.validation");
 			if (entry.isDirectory()) visit(absolutePath, relativePath);
-			else if (relativePath !== treeManifestName && relativePath !== completionMarkerName) entries.push(regularFileRecord(absolutePath, relativePath, identities));
+			else if (relativePath !== treeManifestName && relativePath !== completionMarkerName)
+				entries.push(regularFileRecord(absolutePath, relativePath, identities));
 		}
 	};
 	visit(generationPath);
@@ -1330,7 +1711,8 @@ function computeTreeDigest(entries) {
 function validateExpectedGenerationFiles(generationPath) {
 	const topEntries = fs.readdirSync(generationPath).sort();
 	const expectedTop = [...generatedFiles, descriptorName, resultName, treeManifestName, completionMarkerName].sort();
-	if (JSON.stringify(topEntries) !== JSON.stringify(expectedTop)) fail(`unexpected generation output set: ${topEntries.join(", ")}`, "output.validation");
+	if (JSON.stringify(topEntries) !== JSON.stringify(expectedTop))
+		fail(`unexpected generation output set: ${topEntries.join(", ")}`, "output.validation");
 	const artifactsPath = path.join(generationPath, "artifacts");
 	const artifactsStat = fs.lstatSync(artifactsPath);
 	if (!artifactsStat.isDirectory() || isReparsePoint(artifactsStat)) fail("artifact output directory is unsafe", "output.validation");
@@ -1340,10 +1722,14 @@ export function validateGenerationAt(generationPath, expected = {}) {
 	if (!fs.existsSync(generationPath)) fail(`missing generation: ${generationPath}`, "output.validation");
 	const basename = path.basename(generationPath);
 	const staging = basename.endsWith(".incomplete");
-	if (!staging && !basename.endsWith(".complete")) fail(`generation has an unclassifiable state suffix: ${generationPath}`, "output.validation");
-	if (!/^[a-f0-9]{32}\.(?:incomplete|complete)$/u.test(basename)) fail(`generation has an invalid identity name: ${generationPath}`, "output.validation");
-	if (expected.generationId !== undefined && basename.slice(0, 32) !== expected.generationId) fail(`generation path identity mismatch: ${generationPath}`, "output.validation");
-	if (staging && expected.allowIncomplete !== true) fail(`staging generation is not publish authority: ${generationPath}`, "output.validation");
+	if (!staging && !basename.endsWith(".complete"))
+		fail(`generation has an unclassifiable state suffix: ${generationPath}`, "output.validation");
+	if (!/^[a-f0-9]{32}\.(?:incomplete|complete)$/u.test(basename))
+		fail(`generation has an invalid identity name: ${generationPath}`, "output.validation");
+	if (expected.generationId !== undefined && basename.slice(0, 32) !== expected.generationId)
+		fail(`generation path identity mismatch: ${generationPath}`, "output.validation");
+	if (staging && expected.allowIncomplete !== true)
+		fail(`staging generation is not publish authority: ${generationPath}`, "output.validation");
 	const stat = fs.lstatSync(generationPath);
 	if (!stat.isDirectory() || isReparsePoint(stat)) fail(`generation is not a safe directory: ${generationPath}`, "output.validation");
 	if (expected.stateRoot) {
@@ -1358,58 +1744,106 @@ export function validateGenerationAt(generationPath, expected = {}) {
 	const provenance = readJson(path.join(generationPath, "provenance.json"), "generation provenance");
 	const marker = readJson(path.join(generationPath, completionMarkerName), "completion marker");
 	const manifest = readJson(path.join(generationPath, treeManifestName), "tree manifest");
-	if (descriptor.schemaVersion !== stateSchemaVersion || result.schemaVersion !== stateSchemaVersion || provenance.schemaVersion !== stateSchemaVersion || marker.schemaVersion !== stateSchemaVersion) fail("generation schema mismatch", "output.validation");
+	if (
+		descriptor.schemaVersion !== stateSchemaVersion ||
+		result.schemaVersion !== stateSchemaVersion ||
+		provenance.schemaVersion !== stateSchemaVersion ||
+		marker.schemaVersion !== stateSchemaVersion
+	)
+		fail("generation schema mismatch", "output.validation");
 	const basenameGenerationId = basename.slice(0, 32);
-	if (descriptor.generationId !== basenameGenerationId || marker.generationId !== basenameGenerationId || result.generationId !== basenameGenerationId || provenance.generationId !== basenameGenerationId || expected.generationId !== undefined && descriptor.generationId !== expected.generationId) fail("generation identity mismatch", "output.validation");
-	if (!["PUBLISH-READY", "PUBLISHED"].includes(marker.state)) fail("generation completion marker is not publish-ready", "output.validation");
-	if (!sameRecords(descriptor.workspace, result.workspace) || !sameRecords(descriptor.workspace, provenance.workspace) || !sameRecords(descriptor.workspace, marker.workspace)) fail("generation workspace identity mismatch", "output.validation");
+	if (
+		descriptor.generationId !== basenameGenerationId ||
+		marker.generationId !== basenameGenerationId ||
+		result.generationId !== basenameGenerationId ||
+		provenance.generationId !== basenameGenerationId ||
+		(expected.generationId !== undefined && descriptor.generationId !== expected.generationId)
+	)
+		fail("generation identity mismatch", "output.validation");
+	if (!["PUBLISH-READY", "PUBLISHED"].includes(marker.state))
+		fail("generation completion marker is not publish-ready", "output.validation");
+	if (
+		!sameRecords(descriptor.workspace, result.workspace) ||
+		!sameRecords(descriptor.workspace, provenance.workspace) ||
+		!sameRecords(descriptor.workspace, marker.workspace)
+	)
+		fail("generation workspace identity mismatch", "output.validation");
 	assertWorkspaceIdentity(descriptor.workspace, descriptor.workspace.realPath);
 	if (expected.stateRoot) {
 		const state = assertStateRootIdentity(expected.stateRoot, expected.workspace ?? descriptor.workspace);
 		if (!sameRecords(descriptor.plan?.stateRootIdentity, state)) fail("generation state-root identity mismatch", "output.validation");
 	}
-	if (descriptor.mapSha256 !== result.mapSha256 || descriptor.mapSha256 !== provenance.mapSha256) fail("generation map identity mismatch", "output.validation");
+	if (descriptor.mapSha256 !== result.mapSha256 || descriptor.mapSha256 !== provenance.mapSha256)
+		fail("generation map identity mismatch", "output.validation");
 	const entries = collectTreeFiles(generationPath);
 	if (!sameRecords(entries, manifest.entries)) fail("generation tree manifest does not match its files", "output.validation");
 	const treeSha256 = computeTreeDigest(entries);
-	if (manifest.treeSha256 !== treeSha256 || marker.treeSha256 !== treeSha256) fail("generation tree digest mismatch", "output.validation");
-	if (marker.descriptorSha256 !== hashFile(path.join(generationPath, descriptorName)) || marker.resultSha256 !== hashFile(path.join(generationPath, resultName))) fail("generation metadata digest mismatch", "output.validation");
+	if (manifest.treeSha256 !== treeSha256 || marker.treeSha256 !== treeSha256)
+		fail("generation tree digest mismatch", "output.validation");
+	if (
+		marker.descriptorSha256 !== hashFile(path.join(generationPath, descriptorName)) ||
+		marker.resultSha256 !== hashFile(path.join(generationPath, resultName))
+	)
+		fail("generation metadata digest mismatch", "output.validation");
 	const artifactRecords = Array.isArray(result.artifacts) ? result.artifacts : [];
-	if (!sameRecords(artifactRecords, provenance.artifacts) || !sameRecords(result.repositories, provenance.repositories)) fail("generation result and provenance differ", "output.validation");
+	if (!sameRecords(artifactRecords, provenance.artifacts) || !sameRecords(result.repositories, provenance.repositories))
+		fail("generation result and provenance differ", "output.validation");
 	const plannedRepositories = Array.isArray(descriptor.plannedRepositories) ? descriptor.plannedRepositories : [];
 	const resultRepositories = Array.isArray(result.repositories) ? result.repositories : [];
 	if (plannedRepositories.length !== resultRepositories.length) fail("generation repository set mismatch", "output.validation");
 	for (const planned of plannedRepositories) {
 		const actual = resultRepositories.find((entry) => entry.repository === planned.id);
 		if (actual) validateRuntimeEvidence(actual, `generation repository runtime evidence for ${planned.id}`);
-		if (!actual || !samePath(actual.realPath, planned.realPath) || actual.branch !== planned.branch || actual.commit !== planned.commit || actual.trackedStatus !== planned.trackedStatus || actual.trackedFilesSha256 !== planned.trackedFilesSha256) fail(`generation repository provenance mismatch: ${planned.id}`, "output.validation");
+		if (
+			!actual ||
+			!samePath(actual.realPath, planned.realPath) ||
+			actual.branch !== planned.branch ||
+			actual.commit !== planned.commit ||
+			actual.trackedStatus !== planned.trackedStatus ||
+			actual.trackedFilesSha256 !== planned.trackedFilesSha256
+		)
+			fail(`generation repository provenance mismatch: ${planned.id}`, "output.validation");
 	}
 	const artifactNames = new Set();
 	for (const record of artifactRecords) {
-		if (typeof record.artifact !== "string" || !record.artifact.startsWith("artifacts/") || artifactNames.has(record.artifact)) fail("invalid or duplicate artifact record", "output.validation");
+		if (typeof record.artifact !== "string" || !record.artifact.startsWith("artifacts/") || artifactNames.has(record.artifact))
+			fail("invalid or duplicate artifact record", "output.validation");
 		artifactNames.add(record.artifact);
 		const artifactPath = resolveContained(generationPath, record.artifact, "generated artifact");
 		let artifactStat;
 		try {
 			artifactStat = fs.lstatSync(artifactPath);
 		} catch (error) {
-			if (error?.code === "ENOENT") throw new PipelineError(`missing generated artifact: ${record.artifact}`, "output.validation", { cause: error });
-			throw new PipelineError(`could not inspect generated artifact ${record.artifact}: ${error.message}`, "output.validation", { cause: error });
+			if (error?.code === "ENOENT")
+				throw new PipelineError(`missing generated artifact: ${record.artifact}`, "output.validation", { cause: error });
+			throw new PipelineError(`could not inspect generated artifact ${record.artifact}: ${error.message}`, "output.validation", {
+				cause: error
+			});
 		}
-		if (!artifactStat.isFile() || isReparsePoint(artifactStat) || artifactStat.nlink > 1) fail(`generated artifact is not uniquely identified: ${record.artifact}`, "output.validation");
+		if (!artifactStat.isFile() || isReparsePoint(artifactStat) || artifactStat.nlink > 1)
+			fail(`generated artifact is not uniquely identified: ${record.artifact}`, "output.validation");
 		const artifactPathIdentity = fileIdentity(artifactStat, artifactPath, "generated artifact");
-		if (record.outputIdentity !== artifactPathIdentity) fail(`generated artifact identity mismatch: ${record.artifact}`, "output.validation");
+		if (record.outputIdentity !== artifactPathIdentity)
+			fail(`generated artifact identity mismatch: ${record.artifact}`, "output.validation");
 		const actualSha256 = hashFile(artifactPath);
 		const actualSha512 = hashFile(artifactPath, "sha512");
-		if (record.sha256 !== actualSha256 || record.sha512 !== actualSha512 || record.tarballIntegrity !== `sha512-${hashFile(artifactPath, "sha512", "base64")}`) fail(`artifact checksum mismatch: ${record.artifact}`, "output.validation");
+		if (
+			record.sha256 !== actualSha256 ||
+			record.sha512 !== actualSha512 ||
+			record.tarballIntegrity !== `sha512-${hashFile(artifactPath, "sha512", "base64")}`
+		)
+			fail(`artifact checksum mismatch: ${record.artifact}`, "output.validation");
 	}
 	const expectedArtifacts = Array.isArray(descriptor.expectedArtifacts) ? descriptor.expectedArtifacts : [];
 	const expectedByName = new Map(expectedArtifacts.map((entry) => [`artifacts/${entry.expectedName}`, entry]));
-	if (expectedByName.size !== expectedArtifacts.length || expectedByName.size !== artifactRecords.length) fail("generation expected artifact set mismatch", "output.validation");
+	if (expectedByName.size !== expectedArtifacts.length || expectedByName.size !== artifactRecords.length)
+		fail("generation expected artifact set mismatch", "output.validation");
 	for (const record of artifactRecords) {
 		const expectedArtifact = expectedByName.get(record.artifact);
 		const plannedRepository = plannedRepositories.find((entry) => entry.id === record.repository);
-		const expectedSourcePath = expectedArtifact && path.resolve(expectedArtifact.repositoryPath, expectedArtifact.artifactDirectory, expectedArtifact.expectedName);
+		const expectedSourcePath =
+			expectedArtifact &&
+			path.resolve(expectedArtifact.repositoryPath, expectedArtifact.artifactDirectory, expectedArtifact.expectedName);
 		if (
 			!expectedArtifact ||
 			!plannedRepository ||
@@ -1434,14 +1868,23 @@ export function validateGenerationAt(generationPath, expected = {}) {
 			record.sourceProof.sha512 !== record.sourceSha512 ||
 			record.sourceProof.sha256 !== record.sha256 ||
 			record.sourceProof.sha512 !== record.sha512
-		) fail(`generation artifact provenance mismatch: ${record.artifact}`, "output.validation");
+		)
+			fail(`generation artifact provenance mismatch: ${record.artifact}`, "output.validation");
 	}
-	const actualArtifactFiles = fs.readdirSync(path.join(generationPath, "artifacts")).map((name) => `artifacts/${name}`).sort();
-	if (!sameRecords(actualArtifactFiles, [...artifactNames].sort())) fail("generated artifact set does not match provenance", "output.validation");
+	const actualArtifactFiles = fs
+		.readdirSync(path.join(generationPath, "artifacts"))
+		.map((name) => `artifacts/${name}`)
+		.sort();
+	if (!sameRecords(actualArtifactFiles, [...artifactNames].sort()))
+		fail("generated artifact set does not match provenance", "output.validation");
 	const checksumRecords = [...artifactRecords].sort((left, right) => left.artifact.localeCompare(right.artifact));
 	const expectedSha256 = checksumRecords.map((record) => `${record.sha256}  ${record.artifact}\n`).join("");
 	const expectedSha512 = checksumRecords.map((record) => `${record.sha512}  ${record.artifact}\n`).join("");
-	if (fs.readFileSync(path.join(generationPath, "checksums.sha256"), "utf8") !== expectedSha256 || fs.readFileSync(path.join(generationPath, "checksums.sha512"), "utf8") !== expectedSha512) fail("generated checksums do not match provenance", "output.validation");
+	if (
+		fs.readFileSync(path.join(generationPath, "checksums.sha256"), "utf8") !== expectedSha256 ||
+		fs.readFileSync(path.join(generationPath, "checksums.sha512"), "utf8") !== expectedSha512
+	)
+		fail("generated checksums do not match provenance", "output.validation");
 	return { descriptor, result, provenance, marker, manifest, treeSha256 };
 }
 
@@ -1462,13 +1905,23 @@ function reconcileState(plan, faultPlan, lock) {
 		fail(`unclassifiable lock state: ${entry.name}`, "recovery");
 	}
 	for (const entry of directoryEntries(candidatesRoot)) {
-		if (!entry.name.endsWith(".incomplete") || !entry.stat.isDirectory() || isReparsePoint(entry.stat)) fail(`unclassifiable lock candidate: ${entry.name}`, "recovery");
-			quarantinePath(stateRoot, entry.path, "abandoned-lock-candidate", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot, stateRootIdentity: plan.stateRootIdentity });
+		if (!entry.name.endsWith(".incomplete") || !entry.stat.isDirectory() || isReparsePoint(entry.stat))
+			fail(`unclassifiable lock candidate: ${entry.name}`, "recovery");
+		quarantinePath(stateRoot, entry.path, "abandoned-lock-candidate", faultPlan, "recovery.quarantine", {
+			workspace: plan.workspace,
+			workspaceRoot: plan.workspaceRoot,
+			stateRootIdentity: plan.stateRootIdentity
+		});
 	}
 	for (const entry of directoryEntries(generationsRoot)) {
-		if (!/^[a-f0-9]{32}\.(?:incomplete|complete)$/u.test(entry.name) || !entry.stat.isDirectory() || isReparsePoint(entry.stat)) fail(`unclassifiable generation state: ${entry.name}`, "recovery");
+		if (!/^[a-f0-9]{32}\.(?:incomplete|complete)$/u.test(entry.name) || !entry.stat.isDirectory() || isReparsePoint(entry.stat))
+			fail(`unclassifiable generation state: ${entry.name}`, "recovery");
 		if (entry.name.endsWith(".incomplete")) {
-			quarantinePath(stateRoot, entry.path, "abandoned-generation", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot, stateRootIdentity: plan.stateRootIdentity });
+			quarantinePath(stateRoot, entry.path, "abandoned-generation", faultPlan, "recovery.quarantine", {
+				workspace: plan.workspace,
+				workspaceRoot: plan.workspaceRoot,
+				stateRootIdentity: plan.stateRootIdentity
+			});
 			continue;
 		}
 		try {
@@ -1476,7 +1929,11 @@ function reconcileState(plan, faultPlan, lock) {
 		} catch (error) {
 			let reported = error;
 			try {
-				quarantinePath(stateRoot, entry.path, "invalid-complete-generation", faultPlan, "recovery.quarantine", { workspace: plan.workspace, workspaceRoot: plan.workspaceRoot, stateRootIdentity: plan.stateRootIdentity });
+				quarantinePath(stateRoot, entry.path, "invalid-complete-generation", faultPlan, "recovery.quarantine", {
+					workspace: plan.workspace,
+					workspaceRoot: plan.workspaceRoot,
+					stateRootIdentity: plan.stateRootIdentity
+				});
 			} catch (quarantineError) {
 				reported = attachSecondaryFailure(reported, `quarantine invalid generation ${entry.path}`, quarantineError);
 			}
@@ -1494,21 +1951,21 @@ function sourceArtifactRecord(sourcePath, sourceProof, packageEntry, repositoryE
 	return {
 		package: packageEntry.name,
 		version,
-	repository: repositoryEntry.id,
-	sourceDirectory: repositoryEntry.directory,
-	artifactDirectory: packageEntry.artifact.directory,
-	expectedName: expectedArtifactName(packageEntry.artifact, version),
-	pattern: packageEntry.artifact.pattern,
-	repositoryPath: repositoryEntry.snapshot.realPath,
-	branch: repositoryEntry.snapshot.branch,
-	commit: repositoryEntry.snapshot.commit,
-	artifact: `artifacts/${path.basename(outputPath)}`,
-	sourcePath: sourcePath,
-	sourceIdentity: sourceProof.identity,
-	sourceSize: sourceProof.size,
-	sourceSha256: sourceProof.sha256,
-	sourceSha512: sourceProof.sha512,
-	sourceProof,
+		repository: repositoryEntry.id,
+		sourceDirectory: repositoryEntry.directory,
+		artifactDirectory: packageEntry.artifact.directory,
+		expectedName: expectedArtifactName(packageEntry.artifact, version),
+		pattern: packageEntry.artifact.pattern,
+		repositoryPath: repositoryEntry.snapshot.realPath,
+		branch: repositoryEntry.snapshot.branch,
+		commit: repositoryEntry.snapshot.commit,
+		artifact: `artifacts/${path.basename(outputPath)}`,
+		sourcePath: sourcePath,
+		sourceIdentity: sourceProof.identity,
+		sourceSize: sourceProof.size,
+		sourceSha256: sourceProof.sha256,
+		sourceSha512: sourceProof.sha512,
+		sourceProof,
 		outputIdentity,
 		sha256: hashFile(outputPath),
 		sha512: hashFile(outputPath, "sha512"),
@@ -1547,22 +2004,35 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 			const child = createChildIdentityRecord(lock, repository, command);
 			process.stdout.write(`[local-packages] ${repository.id}: ${command.phase}\n`);
 			try {
-				runCommand(invocation.command, invocation.arguments, { cwd: projectRoot, identityFile: child.completePath, identityMetadata: child.metadata, phase: `repository[${repository.id}].command[${command.phase}]` });
+				runCommand(invocation.command, invocation.arguments, {
+					cwd: projectRoot,
+					identityFile: child.completePath,
+					identityRunningFile: child.runningPath,
+					identityMetadata: child.metadata,
+					phase: `repository[${repository.id}].command[${command.phase}]`
+				});
 			} catch (error) {
 				commandFailure = error;
 			}
 			try {
 				publishChildIdentity(lock, child);
 			} catch (identityError) {
-				if (commandFailure) attachSecondaryFailure(commandFailure, `child identity after ${repository.id}/${command.phase}`, identityError);
+				if (commandFailure)
+					attachSecondaryFailure(commandFailure, `child identity after ${repository.id}/${command.phase}`, identityError);
 				else commandFailure = identityError;
 			}
 			try {
 				faultIfRequested(faultPlan, `repository[${repository.id}].post-command-snapshot`);
 				assertPipelineIdentity(plan);
-				currentSnapshot = compareRepositorySnapshot(state.directory, repository, currentSnapshot, `after ${repository.id}/${command.phase}`);
+				currentSnapshot = compareRepositorySnapshot(
+					state.directory,
+					repository,
+					currentSnapshot,
+					`after ${repository.id}/${command.phase}`
+				);
 			} catch (invariantError) {
-				if (commandFailure) attachSecondaryFailure(commandFailure, `repository invariant after ${repository.id}/${command.phase}`, invariantError);
+				if (commandFailure)
+					attachSecondaryFailure(commandFailure, `repository invariant after ${repository.id}/${command.phase}`, invariantError);
 				else commandFailure = invariantError;
 			}
 			if (commandFailure) break;
@@ -1576,12 +2046,18 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 				{ requireExisting: true }
 			);
 			const changed = runtimeEvidenceChanges(runtimeBefore, runtimeAfter);
-			if (changed.length > 0) fail(`${repository.id} runtime evidence changed across producer sequence (${changed.join(", ")})`, "repository.runtime", { before: runtimeBefore, after: runtimeAfter, changed });
+			if (changed.length > 0)
+				fail(`${repository.id} runtime evidence changed across producer sequence (${changed.join(", ")})`, "repository.runtime", {
+					before: runtimeBefore,
+					after: runtimeAfter,
+					changed
+				});
 		} catch (error) {
 			runtimeFailure = asError(error, "repository.runtime");
 		}
 		if (commandFailure) {
-			if (runtimeFailure) attachSecondaryFailure(commandFailure, `runtime evidence after ${repository.id} producer sequence`, runtimeFailure);
+			if (runtimeFailure)
+				attachSecondaryFailure(commandFailure, `runtime evidence after ${repository.id} producer sequence`, runtimeFailure);
 			throw commandFailure;
 		}
 		if (runtimeFailure) throw runtimeFailure;
@@ -1602,10 +2078,25 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 			const outputIdentity = fileIdentity(outputStat, outputPath, "generated artifact");
 			if (outputIdentities.has(outputIdentity)) fail(`duplicate generated artifact identity: ${outputPath}`, "artifact.validation");
 			outputIdentities.add(outputIdentity);
-			if (hashFile(outputPath) !== sourceProof.sha256 || hashFile(outputPath, "sha512") !== sourceProof.sha512 || outputStat.size !== sourceProof.size) fail(`source artifact content changed before copy: ${sourceArtifact}`, "artifact.validation");
+			if (
+				hashFile(outputPath) !== sourceProof.sha256 ||
+				hashFile(outputPath, "sha512") !== sourceProof.sha512 ||
+				outputStat.size !== sourceProof.size
+			)
+				fail(`source artifact content changed before copy: ${sourceArtifact}`, "artifact.validation");
 			const afterCopySourceProof = sourceArtifactProof(sourceArtifact);
-			if (!sameRecords(afterCopySourceProof, sourceProof)) fail(`source artifact changed after copy: ${sourceArtifact}`, "artifact.validation");
-			records.push(sourceArtifactRecord(sourceArtifact, sourceProof, packageEntry, { ...repositoryEntry, snapshot: currentSnapshot }, version, outputPath));
+			if (!sameRecords(afterCopySourceProof, sourceProof))
+				fail(`source artifact changed after copy: ${sourceArtifact}`, "artifact.validation");
+			records.push(
+				sourceArtifactRecord(
+					sourceArtifact,
+					sourceProof,
+					packageEntry,
+					{ ...repositoryEntry, snapshot: currentSnapshot },
+					version,
+					outputPath
+				)
+			);
 		}
 		const finalSnapshot = compareRepositorySnapshot(state.directory, repository, currentSnapshot, `final ${repository.id}`);
 		assertPipelineIdentity(plan);
@@ -1637,36 +2128,48 @@ function buildGeneration(plan, generationPath, descriptor, initialStates, faultP
 	writeAtomic(path.join(generationPath, resultName), stableJson(result));
 	faultIfRequested(faultPlan, "checksums.write");
 	assertPipelineIdentity(plan);
-	writeAtomic(path.join(generationPath, "checksums.sha256"), checksumRecords.map((record) => `${record.sha256}  ${record.artifact}\n`).join(""));
+	writeAtomic(
+		path.join(generationPath, "checksums.sha256"),
+		checksumRecords.map((record) => `${record.sha256}  ${record.artifact}\n`).join("")
+	);
 	assertPipelineIdentity(plan);
-	writeAtomic(path.join(generationPath, "checksums.sha512"), checksumRecords.map((record) => `${record.sha512}  ${record.artifact}\n`).join(""));
+	writeAtomic(
+		path.join(generationPath, "checksums.sha512"),
+		checksumRecords.map((record) => `${record.sha512}  ${record.artifact}\n`).join("")
+	);
 	faultIfRequested(faultPlan, "provenance.write");
 	assertPipelineIdentity(plan);
-	writeAtomic(path.join(generationPath, "provenance.json"), stableJson({
-		schemaVersion: stateSchemaVersion,
-		generationId: descriptor.generationId,
-		workspace: descriptor.workspace,
-		generatedAt,
-		mapSha256: descriptor.mapSha256,
-		repositories: repositoryRecords,
-		artifacts: records
-	}));
+	writeAtomic(
+		path.join(generationPath, "provenance.json"),
+		stableJson({
+			schemaVersion: stateSchemaVersion,
+			generationId: descriptor.generationId,
+			workspace: descriptor.workspace,
+			generatedAt,
+			mapSha256: descriptor.mapSha256,
+			repositories: repositoryRecords,
+			artifacts: records
+		})
+	);
 	const entries = collectTreeFiles(generationPath);
 	const treeSha256 = computeTreeDigest(entries);
 	faultIfRequested(faultPlan, "marker.write");
 	assertPipelineIdentity(plan);
 	writeAtomic(path.join(generationPath, treeManifestName), stableJson({ ...treeManifestCore(entries), treeSha256 }));
 	assertPipelineIdentity(plan);
-	writeAtomic(path.join(generationPath, completionMarkerName), stableJson({
-		schemaVersion: stateSchemaVersion,
-		generationId: descriptor.generationId,
-		workspace: descriptor.workspace,
-		state: "PUBLISH-READY",
-		treeSha256,
-		descriptorSha256: hashFile(path.join(generationPath, descriptorName)),
-		resultSha256: hashFile(path.join(generationPath, resultName)),
-		createdAt: new Date().toISOString()
-	}));
+	writeAtomic(
+		path.join(generationPath, completionMarkerName),
+		stableJson({
+			schemaVersion: stateSchemaVersion,
+			generationId: descriptor.generationId,
+			workspace: descriptor.workspace,
+			state: "PUBLISH-READY",
+			treeSha256,
+			descriptorSha256: hashFile(path.join(generationPath, descriptorName)),
+			resultSha256: hashFile(path.join(generationPath, resultName)),
+			createdAt: new Date().toISOString()
+		})
+	);
 	validateGenerationAt(generationPath, { generationId: descriptor.generationId, allowIncomplete: true });
 	return { descriptor, result, treeSha256, records, repositoryRecords };
 }
@@ -1725,9 +2228,11 @@ function persistGenerationDescriptor(candidate, faultPlan) {
 
 function liveProcessPids() {
 	if (process.platform === "win32") {
-		const command = "$ErrorActionPreference='Stop'; Get-CimInstance Win32_Process | Where-Object ProcessId -gt 0 | ForEach-Object { $p=Get-Process -Id $_.ProcessId -ErrorAction Stop; [pscustomobject]@{pid=[int]$_.ProcessId; parentPid=[int]$_.ParentProcessId; startToken=[string]$p.StartTime.ToUniversalTime().Ticks} } | ConvertTo-Json -Compress";
+		const command =
+			"$ErrorActionPreference='Stop'; Get-CimInstance Win32_Process | Where-Object ProcessId -gt 0 | ForEach-Object { if ($null -eq $_.CreationDate) { throw \"missing process creation time for $($_.ProcessId)\" }; [pscustomobject]@{pid=[int]$_.ProcessId; parentPid=[int]$_.ParentProcessId; startToken=[string]$_.CreationDate.ToUniversalTime().Ticks} } | ConvertTo-Json -Compress";
 		const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8" });
-		if (result.status !== 0) fail(`process-tree enumeration is unavailable: ${result.stderr.trim() || "Windows process enumeration failed"}`, "break-glass");
+		if (result.status !== 0)
+			fail(`process-tree enumeration is unavailable: ${result.stderr.trim() || "Windows process enumeration failed"}`, "break-glass");
 		let parsed;
 		try {
 			const output = result.stdout.trim();
@@ -1739,11 +2244,20 @@ function liveProcessPids() {
 		return records.map((record) => {
 			const pid = Number(record.pid);
 			const parentPid = Number(record.parentPid);
-			if (!Number.isSafeInteger(pid) || pid <= 0 || !Number.isSafeInteger(parentPid) || parentPid < 0 || typeof record.startToken !== "string" || !/^\d+$/u.test(record.startToken)) fail("process-tree enumeration returned malformed Windows identity", "break-glass");
+			if (
+				!Number.isSafeInteger(pid) ||
+				pid <= 0 ||
+				!Number.isSafeInteger(parentPid) ||
+				parentPid < 0 ||
+				typeof record.startToken !== "string" ||
+				!/^\d+$/u.test(record.startToken)
+			)
+				fail("process-tree enumeration returned malformed Windows identity", "break-glass");
 			return { pid, parentPid, startToken: record.startToken };
 		});
 	}
-	if (process.platform !== "linux") fail("process-tree enumeration is unavailable on this platform; break-glass recovery is refused", "break-glass");
+	if (process.platform !== "linux")
+		fail("process-tree enumeration is unavailable on this platform; break-glass recovery is refused", "break-glass");
 	const pids = [];
 	let names;
 	try {
@@ -1755,18 +2269,29 @@ function liveProcessPids() {
 		if (!/^\d+$/u.test(name)) continue;
 		try {
 			const stat = fs.readFileSync(`/proc/${name}/stat`, "utf8");
-			const after = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/u);
+			const after = stat
+				.slice(stat.lastIndexOf(")") + 2)
+				.trim()
+				.split(/\s+/u);
 			const pid = Number(name);
 			const parentPid = Number(after[1]);
 			const groupId = Number(after[2]);
 			const startToken = after[19];
-			if (!Number.isSafeInteger(pid) || !Number.isSafeInteger(parentPid) || !Number.isSafeInteger(groupId) || groupId <= 0 || typeof startToken !== "string" || startToken.length === 0) {
+			if (
+				!Number.isSafeInteger(pid) ||
+				!Number.isSafeInteger(parentPid) ||
+				!Number.isSafeInteger(groupId) ||
+				groupId <= 0 ||
+				typeof startToken !== "string" ||
+				startToken.length === 0
+			) {
 				fail(`process-tree enumeration returned malformed identity for PID ${name}`, "break-glass");
 			}
 			pids.push({ pid, parentPid, groupId, startToken });
 		} catch (error) {
 			// A process can exit between enumeration and reading its stat; omit only that exited process.
-			if (error?.code !== "ENOENT") fail(`process-tree enumeration failed for PID ${name}: ${error.message}`, "break-glass", { cause: error });
+			if (error?.code !== "ENOENT")
+				fail(`process-tree enumeration failed for PID ${name}: ${error.message}`, "break-glass", { cause: error });
 		}
 	}
 	return pids;
@@ -1779,7 +2304,8 @@ function readBreakGlassActiveLock(root, activePath) {
 	const descriptorPath = path.join(active.path, "descriptor.json");
 	const descriptorFile = assertStateSource(root, descriptorPath, "active lock descriptor");
 	const descriptorStat = fs.lstatSync(descriptorFile.path);
-	if (!descriptorStat.isFile() || isReparsePoint(descriptorStat)) fail(`active lock descriptor is not a safe file: ${descriptorPath}`, "break-glass");
+	if (!descriptorStat.isFile() || isReparsePoint(descriptorStat))
+		fail(`active lock descriptor is not a safe file: ${descriptorPath}`, "break-glass");
 	const descriptorContents = fs.readFileSync(descriptorPath);
 	const descriptor = readJson(descriptorPath, "active lock descriptor");
 	const activeAfterRead = assertStateSource(root, activePath, "active lock");
@@ -1792,9 +2318,11 @@ function readBreakGlassActiveLock(root, activePath) {
 
 function assertBreakGlassWriteBoundary(root, activePath, proof) {
 	const stateRootIdentity = assertStateRootIdentity(root, proof.descriptor.workspace);
-	if (!sameRecords(stateRootIdentity, proof.descriptor.stateRoot)) fail("canonical state-root identity changed before break-glass evidence", "break-glass");
+	if (!sameRecords(stateRootIdentity, proof.descriptor.stateRoot))
+		fail("canonical state-root identity changed before break-glass evidence", "break-glass");
 	const active = assertStateSource(root, activePath, "active lock");
-	if (active.identity !== proof.active.identity || !samePath(active.realPath, proof.active.realPath)) fail("active lock identity changed before break-glass evidence", "break-glass");
+	if (active.identity !== proof.active.identity || !samePath(active.realPath, proof.active.realPath))
+		fail("active lock identity changed before break-glass evidence", "break-glass");
 	const descriptorPath = path.join(activePath, "descriptor.json");
 	const descriptorFile = assertStateSource(root, descriptorPath, "active lock descriptor");
 	if (descriptorFile.identity !== proof.descriptorFile.identity || !fs.readFileSync(descriptorPath).equals(proof.descriptorContents)) {
@@ -1812,7 +2340,8 @@ function assertBreakGlassWriteBoundary(root, activePath, proof) {
 function readBreakGlassEvidence(root, evidencePath, expected, proof) {
 	const evidenceFile = assertStateSource(root, evidencePath, "break-glass evidence");
 	const evidenceStat = fs.lstatSync(evidenceFile.path);
-	if (!evidenceStat.isFile() || isReparsePoint(evidenceStat)) fail(`break-glass evidence is not a safe file: ${evidencePath}`, "break-glass");
+	if (!evidenceStat.isFile() || isReparsePoint(evidenceStat))
+		fail(`break-glass evidence is not a safe file: ${evidencePath}`, "break-glass");
 	const contents = fs.readFileSync(evidencePath);
 	if (proof && (evidenceFile.identity !== proof.file.identity || !contents.equals(proof.contents))) {
 		fail("break-glass evidence changed before rename", "break-glass");
@@ -1835,7 +2364,8 @@ function readBreakGlassEvidence(root, evidencePath, expected, proof) {
 		fail(`existing break-glass evidence does not belong to the active lock: ${evidencePath}`, "break-glass");
 	}
 	const evidenceAfterRead = assertStateSource(root, evidencePath, "break-glass evidence");
-	if (evidenceAfterRead.identity !== evidenceFile.identity) fail(`break-glass evidence identity changed while reading: ${evidencePath}`, "break-glass");
+	if (evidenceAfterRead.identity !== evidenceFile.identity)
+		fail(`break-glass evidence identity changed while reading: ${evidencePath}`, "break-glass");
 	return { file: evidenceFile, contents };
 }
 
@@ -1850,7 +2380,13 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 	if (typeof expectedWorkspace !== "string") fail("active lock has no canonical workspace identity", "break-glass");
 	assertWorkspaceIdentity(descriptor.workspace, expectedWorkspace);
 	assertBreakGlassWriteBoundary(root, activePath, activeProof);
-	if ((options.processEnumerator !== undefined || options.faultPlan !== undefined || options.renameFileSystem !== undefined || options.renameOptions !== undefined) && process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1") {
+	if (
+		(options.processEnumerator !== undefined ||
+			options.faultPlan !== undefined ||
+			options.renameFileSystem !== undefined ||
+			options.renameOptions !== undefined) &&
+		process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1"
+	) {
 		fail("custom break-glass options are test-only", "break-glass");
 	}
 	const enumerateProcesses = options.processEnumerator ?? liveProcessPids;
@@ -1863,7 +2399,16 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 	if (!Array.isArray(processes)) fail("process-tree enumeration returned no verifiable process list", "break-glass");
 	const seenPids = new Set();
 	for (const processRecord of processes) {
-		if (!processRecord || !Number.isSafeInteger(processRecord.pid) || processRecord.pid <= 0 || !Number.isSafeInteger(processRecord.parentPid) || processRecord.parentPid < 0 || typeof processRecord.startToken !== "string" || processRecord.startToken.length === 0 || seenPids.has(processRecord.pid)) {
+		if (
+			!processRecord ||
+			!Number.isSafeInteger(processRecord.pid) ||
+			processRecord.pid <= 0 ||
+			!Number.isSafeInteger(processRecord.parentPid) ||
+			processRecord.parentPid < 0 ||
+			typeof processRecord.startToken !== "string" ||
+			processRecord.startToken.length === 0 ||
+			seenPids.has(processRecord.pid)
+		) {
 			fail("process-tree enumeration returned ambiguous process identity; break-glass recovery is refused", "break-glass");
 		}
 		seenPids.add(processRecord.pid);
@@ -1874,31 +2419,38 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 		fail("active lock has no verifiable owner process identity; break-glass recovery is refused", "break-glass");
 	}
 	const owner = processes.find((entry) => entry.pid === ownerPid);
-	if (owner && descriptor.owner.processStartToken !== owner.startToken) fail("active lock owner PID was reused; break-glass recovery is refused", "break-glass");
+	if (owner && descriptor.owner.processStartToken !== owner.startToken)
+		fail("active lock owner PID was reused; break-glass recovery is refused", "break-glass");
 	const childRecords = readChildIdentityRecords(root, activePath);
 	assertChildIdentitySet(childRecords, descriptor, "break-glass");
+	const childIdentities = [...childRecords.complete, ...childRecords.running];
 	const childPids = new Set();
 	const processGroups = new Set();
-	for (const record of childRecords.complete) {
+	for (const record of childIdentities) {
 		if (childPids.has(record.child.pid)) fail(`duplicate recorded child PID: ${record.child.pid}`, "break-glass");
 		childPids.add(record.child.pid);
 		if (record.child.boundary?.kind === "process-group") processGroups.add(record.child.boundary.id);
 		const current = processes.find((entry) => entry.pid === record.child.pid);
-		if (current && current.startToken !== record.child.processStartToken) fail(`recorded child PID was reused; break-glass recovery is refused: ${record.child.pid}`, "break-glass");
+		if (current && current.startToken !== record.child.processStartToken)
+			fail(`recorded child PID was reused; break-glass recovery is refused: ${record.child.pid}`, "break-glass");
 	}
 	const roots = new Set([ownerPid, ...childPids]);
 	const descendants = new Set(roots);
 	let changed = true;
 	while (changed) {
 		changed = false;
-		for (const entry of processes) if (descendants.has(entry.parentPid) && !descendants.has(entry.pid)) {
-			descendants.add(entry.pid);
-			changed = true;
-		}
+		for (const entry of processes)
+			if (descendants.has(entry.parentPid) && !descendants.has(entry.pid)) {
+				descendants.add(entry.pid);
+				changed = true;
+			}
 	}
-	const liveRecordedChild = childRecords.complete.some((record) => processes.some((entry) => entry.pid === record.child.pid));
-	const liveProcessGroupMember = processes.some((entry) => entry.groupId !== undefined && processGroups.has(entry.groupId) && !childPids.has(entry.pid));
-	if (owner || liveRecordedChild || liveProcessGroupMember || descendants.size > roots.size) fail("active lock owner or a recorded descendant is still alive; break-glass recovery is refused", "break-glass");
+	const liveRecordedChild = childIdentities.some((record) => processes.some((entry) => entry.pid === record.child.pid));
+	const liveProcessGroupMember = processes.some(
+		(entry) => entry.groupId !== undefined && processGroups.has(entry.groupId) && !childPids.has(entry.pid)
+	);
+	if (owner || liveRecordedChild || liveProcessGroupMember || descendants.size > roots.size)
+		fail("active lock owner or a recorded descendant is still alive; break-glass recovery is refused", "break-glass");
 	const assertWriteBoundary = () => assertBreakGlassWriteBoundary(root, activePath, activeProof);
 	const evidencePath = path.join(activePath, "break-glass-evidence.json");
 	const evidence = {
@@ -1906,7 +2458,7 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 		lockId: descriptor.lockId,
 		workspace: descriptor.workspace,
 		owner: descriptor.owner,
-		children: childRecords.complete,
+		children: childIdentities,
 		enumeratedAt: new Date().toISOString(),
 		processes
 	};
@@ -1936,8 +2488,265 @@ export function breakGlassActiveLock(stateRoot, options = {}) {
 	return destination;
 }
 
+function readWorkspaceCommandResult(lock, repository, command) {
+	const activeProof = readBreakGlassActiveLock(lock.stateRoot, lock.activePath);
+	if (!sameRecords(activeProof.descriptor, lock.descriptor)) fail("workspace command result lock changed", "workspace-command");
+	const resultPath = path.join(lock.activePath, "result.json");
+	const resultFile = assertStateSource(lock.stateRoot, resultPath, "workspace command result");
+	const resultStat = fs.lstatSync(resultFile.path);
+	if (!resultStat.isFile() || isReparsePoint(resultStat) || resultStat.nlink > 1 || resultStat.size > 65_536) {
+		fail("workspace command result is not a unique bounded regular file", "workspace-command");
+	}
+	const contents = fs.readFileSync(resultFile.path);
+	let envelope;
+	try {
+		envelope = JSON.parse(contents.toString("utf8"));
+	} catch (error) {
+		fail(`workspace command result is invalid JSON: ${error.message}`, "workspace-command");
+	}
+	if (
+		!envelope ||
+		typeof envelope !== "object" ||
+		Array.isArray(envelope) ||
+		!sameRecords(Object.keys(envelope).sort(), ["lockId", "phase", "repository", "result", "schemaVersion"]) ||
+		envelope.schemaVersion !== lockSchemaVersion ||
+		envelope.lockId !== lock.descriptor.lockId ||
+		envelope.repository !== repository.id ||
+		envelope.phase !== command.phase
+	) {
+		fail("workspace command result does not match the active operation", "workspace-command");
+	}
+	assertBreakGlassWriteBoundary(lock.stateRoot, lock.activePath, activeProof);
+	const after = assertStateSource(lock.stateRoot, resultPath, "workspace command result");
+	if (after.identity !== resultFile.identity || !fs.readFileSync(after.path).equals(contents))
+		fail("workspace command result changed while reading", "workspace-command");
+	return envelope.result;
+}
+
+export function runExclusiveWorkspaceCommand(input, options = {}) {
+	if (!input?.repository || !input?.command) fail("exclusive workspace command requires one repository command", "plan");
+	if (options.capture === true && options.result === true)
+		fail("workspace command cannot capture stdout and publish a result file", "plan");
+	if (
+		(options.processEnumerator !== undefined ||
+			options.abandonAfterAcquireForTest !== undefined ||
+			options.onLock !== undefined ||
+			options.suppressOutputForTest !== undefined ||
+			options.afterFirstChildMarkerUnlinkForTest !== undefined) &&
+		process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1"
+	) {
+		fail("custom exclusive workspace command options are test-only", "plan");
+	}
+	const plan = normalizePlan({
+		workspaceRoot: input.workspaceRoot,
+		stateRoot: input.stateRoot,
+		repositories: [{ ...input.repository, packages: [], commands: [input.command] }]
+	});
+	assertPipelineIdentity(plan);
+	ensureStateLayout(plan.stateRoot);
+	assertPipelineIdentity(plan);
+	const activePath = statePath(plan.stateRoot, "locks/active", "active lock");
+	if (fs.existsSync(activePath)) {
+		breakGlassActiveLock(plan.stateRoot, { processEnumerator: options.processEnumerator });
+		assertPipelineIdentity(plan);
+	}
+
+	let lock;
+	let child;
+	let output;
+	let primaryError;
+	let preserveLock = false;
+	try {
+		lock = acquireWorkspaceLock(plan.stateRoot, plan);
+		options.onLock?.(lock);
+		if (options.abandonAfterAcquireForTest === true) {
+			preserveLock = true;
+			fail("exclusive workspace command abandoned after acquire", "workspace-command");
+		}
+		const repositoryDirectory = assertDirectChild(
+			plan.workspaceRoot,
+			resolveContained(plan.workspaceRoot, input.repository.directory, `${input.repository.id} repository`),
+			`${input.repository.id} repository`
+		);
+		const invocation = buildInvocation(launcherPath, repositoryDirectory, input.repository, input.command);
+		child = createChildIdentityRecord(lock, input.repository, input.command);
+		let commandError;
+		try {
+			output = runCommand(invocation.command, invocation.arguments, {
+				cwd: projectRoot,
+				capture: options.capture === true,
+				suppressOutput: options.suppressOutputForTest === true,
+				identityFile: child.completePath,
+				identityRunningFile: child.runningPath,
+				identityMetadata: child.metadata,
+				phase: "workspace-command"
+			});
+		} catch (error) {
+			commandError = error;
+		}
+		try {
+			publishChildIdentity(lock, child, options);
+		} catch (identityError) {
+			if (commandError) attachSecondaryFailure(commandError, "workspace command child identity", identityError);
+			else commandError = identityError;
+		}
+		if (commandError) throw commandError;
+		if (options.result === true) output = readWorkspaceCommandResult(lock, input.repository, input.command);
+	} catch (error) {
+		primaryError = asError(error, "workspace-command");
+		if (lock && !preserveLock) {
+			try {
+				writeChildTerminalMarker(lock, primaryError);
+			} catch (terminalError) {
+				primaryError = attachSecondaryFailure(primaryError, "persist workspace command terminal marker", terminalError);
+			}
+		}
+	} finally {
+		if (lock && !preserveLock) {
+			try {
+				releaseWorkspaceLock(lock);
+			} catch (releaseError) {
+				if (primaryError) primaryError = attachSecondaryFailure(primaryError, "release workspace command lock", releaseError);
+				else primaryError = asError(releaseError, "lock.release");
+			}
+		}
+	}
+	if (primaryError) throw primaryError;
+	return output;
+}
+
+function workspaceCommandWorkerProof(input, options = {}) {
+	if (!input?.workspaceRoot || !input?.stateRoot || !input?.repositoryId || !input?.phase) {
+		fail("workspace command worker proof is incomplete", "workspace-command");
+	}
+	if (options.processEnumerator !== undefined && process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1") {
+		fail("custom workspace command worker process enumeration is test-only", "workspace-command");
+	}
+	const workspace = workspaceIdentity(input.workspaceRoot);
+	const root = path.resolve(input.stateRoot);
+	const stateRootIdentity = assertStateRootIdentity(root, workspace);
+	const activePath = statePath(root, "locks/active", "active lock");
+	if (!fs.existsSync(activePath)) fail("dependency-mode worker has no active operation lock", "workspace-command");
+	const activeProof = readBreakGlassActiveLock(root, activePath);
+	const descriptor = activeProof.descriptor;
+	if (
+		descriptor.schemaVersion !== lockSchemaVersion ||
+		descriptor.state !== "LOCK-CANDIDATE" ||
+		typeof descriptor.lockId !== "string" ||
+		typeof descriptor.ownerNonce !== "string"
+	) {
+		fail("dependency-mode worker active lock descriptor is malformed", "workspace-command");
+	}
+	if (!sameRecords(descriptor.workspace, workspace) || !sameRecords(descriptor.stateRoot, stateRootIdentity)) {
+		fail("dependency-mode worker lock belongs to a different workspace", "workspace-command");
+	}
+	const planned = descriptor.owner?.plannedChildren;
+	if (
+		!Array.isArray(planned) ||
+		planned.length !== 1 ||
+		planned[0]?.repository !== input.repositoryId ||
+		planned[0]?.phase !== input.phase
+	) {
+		fail("dependency-mode worker is not the single planned operation child", "workspace-command");
+	}
+	if (
+		!Number.isSafeInteger(descriptor.owner?.pid) ||
+		descriptor.owner.pid <= 0 ||
+		typeof descriptor.owner.processStartToken !== "string"
+	) {
+		fail("dependency-mode worker lock owner identity is unverifiable", "workspace-command");
+	}
+	const processes = (options.processEnumerator ?? liveProcessPids)();
+	const byPid = new Map(processes.map((record) => [record.pid, record]));
+	const owner = byPid.get(descriptor.owner.pid);
+	if (!owner || owner.startToken !== descriptor.owner.processStartToken) {
+		fail("dependency-mode worker lock owner is absent or its PID was reused", "workspace-command");
+	}
+	let cursor = byPid.get(process.pid);
+	const visited = new Set();
+	while (cursor && cursor.pid !== descriptor.owner.pid && !visited.has(cursor.pid)) {
+		visited.add(cursor.pid);
+		cursor = byPid.get(cursor.parentPid);
+	}
+	if (cursor?.pid !== descriptor.owner.pid) fail("dependency-mode worker is not a descendant of the lock owner", "workspace-command");
+	let children;
+	let identityError;
+	const deadline = Date.now() + 5_000;
+	do {
+		try {
+			children = readChildIdentityRecords(root, activePath);
+			if (children.complete.length === 0 && !children.terminal && children.pending.length === 0 && children.running.length === 1)
+				break;
+			identityError = new Error("dependency-mode worker has an invalid in-flight child boundary");
+		} catch (error) {
+			identityError = error;
+		}
+		wait(10);
+	} while (Date.now() < deadline);
+	if (
+		!children ||
+		children.complete.length !== 0 ||
+		children.terminal ||
+		children.pending.length !== 0 ||
+		children.running.length !== 1
+	) {
+		fail(
+			`dependency-mode worker has no durable running child boundary: ${identityError?.message ?? "unknown identity error"}`,
+			"workspace-command"
+		);
+	}
+	const pending = children.running[0];
+	const recordedChild = byPid.get(pending.child.pid);
+	let childCursor = byPid.get(process.pid);
+	const childVisited = new Set();
+	while (childCursor && childCursor.pid !== pending.child.pid && !childVisited.has(childCursor.pid)) {
+		childVisited.add(childCursor.pid);
+		childCursor = byPid.get(childCursor.parentPid);
+	}
+	if (
+		pending.lockId !== descriptor.lockId ||
+		!sameRecords(pending.workspace, descriptor.workspace) ||
+		pending.repository !== input.repositoryId ||
+		pending.phase !== input.phase ||
+		!recordedChild ||
+		recordedChild.startToken !== pending.child.processStartToken ||
+		childCursor?.pid !== pending.child.pid
+	) {
+		fail("dependency-mode worker pending child does not match the active lock", "workspace-command");
+	}
+	assertBreakGlassWriteBoundary(root, activePath, activeProof);
+	return { root, activePath, activeProof, descriptor };
+}
+
+export function assertExclusiveWorkspaceCommandWorker(input, options = {}) {
+	const proof = workspaceCommandWorkerProof(input, options);
+	return { lockId: proof.descriptor.lockId, owner: proof.descriptor.owner };
+}
+
+export function publishExclusiveWorkspaceCommandResult(input, result) {
+	const proof = workspaceCommandWorkerProof(input);
+	const envelope = {
+		schemaVersion: lockSchemaVersion,
+		lockId: proof.descriptor.lockId,
+		repository: input.repositoryId,
+		phase: input.phase,
+		result
+	};
+	const contents = stableJson(envelope);
+	if (Buffer.byteLength(contents) > 65_536) fail("workspace command result exceeds 64 KiB", "workspace-command");
+	const resultPath = path.join(proof.activePath, "result.json");
+	writeAtomic(resultPath, contents, {
+		noReplace: true,
+		beforeMutation: () => assertBreakGlassWriteBoundary(proof.root, proof.activePath, proof.activeProof)
+	});
+	return result;
+}
+
 function runPipelineInternal(planInput, options = {}) {
-	if (options.runtimeProbe !== undefined && (process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1" || typeof options.runtimeProbe !== "function")) {
+	if (
+		options.runtimeProbe !== undefined &&
+		(process.env.STARK_LOCAL_PACKAGE_TEST_MODE !== "1" || typeof options.runtimeProbe !== "function")
+	) {
 		fail("runtime probe injection is available only in test mode", "plan");
 	}
 	const runtimeProbe = options.runtimeProbe ?? observeRepositoryRuntime;
@@ -1974,7 +2783,11 @@ function runPipelineInternal(planInput, options = {}) {
 		completePath = candidate.completePath;
 		candidate = undefined;
 		faultIfRequested(faultPlan, "publish.post-rename-validation");
-		const validated = validateGenerationAt(completePath, { generationId: built.descriptor.generationId, stateRoot: plan.stateRoot, workspace: plan.workspace });
+		const validated = validateGenerationAt(completePath, {
+			generationId: built.descriptor.generationId,
+			stateRoot: plan.stateRoot,
+			workspace: plan.workspace
+		});
 		assertPipelineIdentity(plan);
 		result = normalizeReturnedDescriptor(plan, completePath, {
 			...built,
@@ -1990,7 +2803,8 @@ function runPipelineInternal(planInput, options = {}) {
 			}
 		}
 		const pathsToQuarantine = [];
-		if (candidate?.incompletePath && fs.existsSync(candidate.incompletePath)) pathsToQuarantine.push([candidate.incompletePath, "failed-generation"]);
+		if (candidate?.incompletePath && fs.existsSync(candidate.incompletePath))
+			pathsToQuarantine.push([candidate.incompletePath, "failed-generation"]);
 		if (completePath && fs.existsSync(completePath)) pathsToQuarantine.push([completePath, "invalid-complete-generation"]);
 		for (const [source, state] of pathsToQuarantine) {
 			try {

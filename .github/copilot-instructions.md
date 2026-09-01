@@ -24,6 +24,7 @@ This repository uses **Beads (bd)** for issue tracking.
 - Never use ambient Windows `node`, `npm`, or `npx`
 - Use generated local tarballs for active sibling development; restore repository-appropriate non-local references only when preparing clean upstream pull requests
 - Never hand-edit dependency mode switches or commit machine-specific local package paths
+- Run `npm run deps:check` after restoring canonical dependencies and before package or consumer validation, migration-history rewrites, and publication; do not bypass or replace this read-only guard
 
 ## Context Loading
 
