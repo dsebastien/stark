@@ -33,6 +33,8 @@
         align-items: center;
 
         .stark-collapsible-title {
+          // Stark's historical `body-1` slot maps to the legacy 15px
+          // `subheading-1` level in the compatibility typography config.
           font-size: mat.m2-font-size($typography-config, body-1);
           font-weight: mat.m2-font-weight($typography-config, body-1);
           line-height: mat.m2-line-height($typography-config, body-1);

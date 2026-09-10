@@ -35,6 +35,7 @@ const CARET_TRAP = "[]";
  */
 export function createStarkTextMaskInputElement(config: StarkTextMaskEngineConfig): StarkTextMaskInputElement {
 	let previousConformedValue = "";
+	let previousPlaceholder = "";
 
 	return {
 		update(value?: unknown): void {
@@ -43,9 +44,13 @@ export function createStarkTextMaskInputElement(config: StarkTextMaskEngineConfi
 				return;
 			}
 
-			const currentCaretPosition = config.inputElement.selectionEnd ?? rawValue.length;
-			const mask = resolveMask(config.mask, rawValue);
 			const placeholderChar = config.placeholderChar || "_";
+			const currentCaretPosition = config.inputElement.selectionEnd ?? rawValue.length;
+			const { caretTrapIndexes, mask } = resolveMask(config.mask, rawValue, {
+				currentCaretPosition,
+				placeholderChar,
+				previousConformedValue
+			});
 			const placeholder = convertMaskToPlaceholder(mask, placeholderChar);
 			const conformConfig: ConformConfig = {
 				currentCaretPosition,
@@ -57,20 +62,35 @@ export function createStarkTextMaskInputElement(config: StarkTextMaskEngineConfi
 			};
 
 			let conformedValue = conformToMask(rawValue, mask, conformConfig);
+			let indexesOfPipedChars: readonly number[] = [];
 			if (config.pipe) {
-				conformedValue = applyPipe(config.pipe, conformedValue, {
+				const pipeResult = applyPipe(config.pipe, conformedValue, {
 					...config,
 					...conformConfig,
 					mask: config.mask,
 					rawValue
 				});
+				conformedValue = pipeResult.value;
+				indexesOfPipedChars = pipeResult.indexesOfPipedChars;
 			}
 
+			const adjustedCaretPosition = adjustCaretPosition({
+				caretTrapIndexes,
+				conformedValue,
+				currentCaretPosition,
+				indexesOfPipedChars,
+				placeholder,
+				placeholderChar,
+				previousConformedValue,
+				previousPlaceholder,
+				rawValue
+			});
 			const inputValue = conformedValue === placeholder ? (config.showMask ? placeholder : "") : conformedValue;
 			previousConformedValue = inputValue;
+			previousPlaceholder = placeholder;
 			if (config.inputElement.value !== inputValue) {
 				config.inputElement.value = inputValue;
-				setCaretPosition(config.inputElement, inputValue, placeholderChar, currentCaretPosition);
+				setCaretPosition(config.inputElement, adjustedCaretPosition);
 			}
 		}
 	};
@@ -80,10 +100,25 @@ export function createStarkTextMaskInputElement(config: StarkTextMaskEngineConfi
  * Resolves a static or dynamic mask and removes caret-only markers.
  * @param mask - Static token list or mask factory.
  * @param rawValue - Current unmasked input value.
+ * @param config - Context supplied to a dynamic mask factory.
+ * @param config.currentCaretPosition - Current input caret position.
+ * @param config.placeholderChar - Character used for editable placeholder positions.
+ * @param config.previousConformedValue - Previously accepted masked value.
  */
-function resolveMask(mask: StarkMask, rawValue: string): StarkMaskArray {
-	const resolvedMask = typeof mask === "function" ? mask(rawValue) : mask;
-	return resolvedMask.filter((token) => token !== CARET_TRAP);
+function resolveMask(
+	mask: StarkMask,
+	rawValue: string,
+	config: { readonly currentCaretPosition: number; readonly placeholderChar: string; readonly previousConformedValue: string }
+): { readonly caretTrapIndexes: readonly number[]; readonly mask: StarkMaskArray } {
+	const resolvedMask = [...(typeof mask === "function" ? mask(rawValue, config) : mask)];
+	const caretTrapIndexes: number[] = [];
+	let caretTrapIndex = resolvedMask.indexOf(CARET_TRAP);
+	while (caretTrapIndex !== -1) {
+		caretTrapIndexes.push(caretTrapIndex);
+		resolvedMask.splice(caretTrapIndex, 1);
+		caretTrapIndex = resolvedMask.indexOf(CARET_TRAP);
+	}
+	return { caretTrapIndexes, mask: resolvedMask };
 }
 
 /**
@@ -199,15 +234,19 @@ function conformToMask(rawValue: string, mask: StarkMaskArray, config: ConformCo
  * @param value - Conformed value before the pipe runs.
  * @param config - Runtime mask state passed to the pipe.
  */
-function applyPipe(pipe: StarkPipeFunction, value: string, config: RuntimePipeConfig): string {
+function applyPipe(
+	pipe: StarkPipeFunction,
+	value: string,
+	config: RuntimePipeConfig
+): { readonly value: string; readonly indexesOfPipedChars: readonly number[] } {
 	const result = pipe(value, config);
 	if (result === false) {
-		return config.previousConformedValue;
+		return { value: config.previousConformedValue, indexesOfPipedChars: [] };
 	}
 	if (typeof result === "string") {
-		return result;
+		return { value: result, indexesOfPipedChars: [] };
 	}
-	return result.value;
+	return { value: result.value, indexesOfPipedChars: result.indexesOfPipedChars ?? [] };
 }
 
 /**
@@ -235,18 +274,157 @@ function testPattern(pattern: RegExp, value: string): boolean {
 }
 
 /**
- * Moves the caret to the next editable character when the input currently has focus.
- * @param element - Masked input element.
- * @param value - Conformed input value.
- * @param placeholderChar - Character identifying unfilled editable positions.
- * @param currentPosition - Caret position before the update.
+ * Reproduces text-mask's edit-aware caret contract. A simple "next placeholder"
+ * search loses the insertion point after a rejected character and while a
+ * dynamic mask grows (notably the email mask).
+ * @param config - Previous and current edit state used to place the caret.
+ * @param config.previousConformedValue - Previously accepted masked value.
+ * @param config.previousPlaceholder - Placeholder used for the previous mask.
+ * @param config.currentCaretPosition - Caret position reported by the input event.
+ * @param config.conformedValue - Newly accepted masked value.
+ * @param config.rawValue - Raw input value before conformance.
+ * @param config.placeholderChar - Character used for editable placeholder positions.
+ * @param config.placeholder - Placeholder generated from the current mask.
+ * @param config.indexesOfPipedChars - Character indexes inserted by a pipe function.
+ * @param config.caretTrapIndexes - Preferred caret positions supplied by a dynamic mask.
  */
-function setCaretPosition(element: HTMLInputElement, value: string, placeholderChar: string, currentPosition: number): void {
+// eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- Caret placement depends on the complete previous/current edit state.
+function adjustCaretPosition(config: {
+	readonly previousConformedValue: string;
+	readonly previousPlaceholder: string;
+	readonly currentCaretPosition: number;
+	readonly conformedValue: string;
+	readonly rawValue: string;
+	readonly placeholderChar: string;
+	readonly placeholder: string;
+	readonly indexesOfPipedChars: readonly number[];
+	readonly caretTrapIndexes: readonly number[];
+}): number {
+	const {
+		previousConformedValue,
+		previousPlaceholder,
+		currentCaretPosition,
+		conformedValue,
+		rawValue,
+		placeholderChar,
+		placeholder,
+		indexesOfPipedChars,
+		caretTrapIndexes
+	} = config;
+	if (currentCaretPosition === 0 || rawValue.length === 0) {
+		return 0;
+	}
+
+	const editLength = rawValue.length - previousConformedValue.length;
+	const isAddition = editLength > 0;
+	const isFirstRawValue = previousConformedValue.length === 0;
+	if (editLength > 1 && !isAddition && !isFirstRawValue) {
+		return currentCaretPosition;
+	}
+
+	const possiblyHasRejectedChar = isAddition && (previousConformedValue === conformedValue || conformedValue === placeholder);
+	let startingSearchIndex = 0;
+	let trackRightCharacter = false;
+	let targetChar: string | undefined;
+
+	if (possiblyHasRejectedChar) {
+		startingSearchIndex = currentCaretPosition - editLength;
+	} else {
+		const normalizedConformedValue = conformedValue.toLowerCase();
+		const normalizedRawValue = rawValue.toLowerCase();
+		const intersection = normalizedRawValue
+			.slice(0, currentCaretPosition)
+			.split("")
+			.filter((character) => normalizedConformedValue.includes(character));
+		targetChar = intersection.at(-1);
+
+		const previousLeftMaskChars = previousPlaceholder
+			.slice(0, intersection.length)
+			.split("")
+			.filter((character) => character !== placeholderChar).length;
+		const leftMaskChars = placeholder
+			.slice(0, intersection.length)
+			.split("")
+			.filter((character) => character !== placeholderChar).length;
+		const targetIsMaskMovingLeft =
+			typeof previousPlaceholder[intersection.length - 1] !== "undefined" &&
+			typeof placeholder[intersection.length - 2] !== "undefined" &&
+			previousPlaceholder[intersection.length - 1] !== placeholderChar &&
+			previousPlaceholder[intersection.length - 1] !== placeholder[intersection.length - 1] &&
+			previousPlaceholder[intersection.length - 1] === placeholder[intersection.length - 2];
+
+		if (
+			!isAddition &&
+			(leftMaskChars !== previousLeftMaskChars || targetIsMaskMovingLeft) &&
+			previousLeftMaskChars > 0 &&
+			typeof targetChar !== "undefined" &&
+			placeholder.includes(targetChar) &&
+			typeof rawValue[currentCaretPosition] !== "undefined"
+		) {
+			trackRightCharacter = true;
+			targetChar = rawValue[currentCaretPosition];
+		}
+
+		const countTargetCharInPipedChars = indexesOfPipedChars
+			.map((index) => normalizedConformedValue[index])
+			.filter((character) => character === targetChar).length;
+		const countTargetCharInIntersection = intersection.filter((character) => character === targetChar).length;
+		const firstPlaceholderIndex = placeholder.indexOf(placeholderChar);
+		const countTargetCharInPlaceholder = placeholder
+			.slice(0, firstPlaceholderIndex === -1 ? 0 : firstPlaceholderIndex)
+			.split("")
+			.filter((character, index) => character === targetChar && rawValue[index] !== character).length;
+		const requiredNumberOfMatches =
+			countTargetCharInPlaceholder + countTargetCharInIntersection + countTargetCharInPipedChars + Number(trackRightCharacter);
+
+		let numberOfEncounteredMatches = 0;
+		for (let index = 0; index < conformedValue.length; index++) {
+			startingSearchIndex = index + 1;
+			if (normalizedConformedValue[index] === targetChar) {
+				numberOfEncounteredMatches++;
+			}
+			if (numberOfEncounteredMatches >= requiredNumberOfMatches) {
+				break;
+			}
+		}
+	}
+
+	if (isAddition) {
+		let lastPlaceholderIndex = startingSearchIndex;
+		for (let index = startingSearchIndex; index <= placeholder.length; index++) {
+			if (placeholder[index] === placeholderChar) {
+				lastPlaceholderIndex = index;
+			}
+			if (placeholder[index] === placeholderChar || caretTrapIndexes.includes(index) || index === placeholder.length) {
+				return lastPlaceholderIndex;
+			}
+		}
+	} else if (trackRightCharacter) {
+		for (let index = startingSearchIndex - 1; index >= 0; index--) {
+			if (conformedValue[index] === targetChar || caretTrapIndexes.includes(index) || index === 0) {
+				return index;
+			}
+		}
+	} else {
+		for (let index = startingSearchIndex; index >= 0; index--) {
+			if (placeholder[index - 1] === placeholderChar || caretTrapIndexes.includes(index) || index === 0) {
+				return index;
+			}
+		}
+	}
+
+	return currentCaretPosition;
+}
+
+/**
+ * Moves the caret when the masked input currently owns focus.
+ * @param element - Input whose selection should be updated.
+ * @param position - Collapsed selection position.
+ */
+function setCaretPosition(element: HTMLInputElement, position: number): void {
 	if (typeof document === "undefined" || document.activeElement !== element) {
 		return;
 	}
 
-	const nextPlaceholder = value.indexOf(placeholderChar, Math.max(0, currentPosition));
-	const position = nextPlaceholder === -1 ? value.length : nextPlaceholder;
 	element.setSelectionRange(position, position, "none");
 }

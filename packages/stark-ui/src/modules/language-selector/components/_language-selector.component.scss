@@ -4,6 +4,31 @@
 /* stark: src/modules/language-selector/components/_language-selector.component.scss */
 
 @mixin stark-language-selector() {
+  .stark-language-selector {
+    mat-form-field {
+      height: 56.5px;
+    }
+
+    .mat-button-toggle-button {
+      font-size: 14px;
+      line-height: 26px;
+    }
+
+    .mat-button-toggle-checkbox-wrapper {
+      display: none;
+    }
+
+    .mat-button-toggle-checked {
+      background-color: rgba(0, 0, 0, 0.12) !important;
+    }
+
+    .mat-button-toggle-checked .mat-button-toggle-button {
+      // Material reserves space for its checked icon on the button itself.
+      // Stark intentionally hides that icon in toolbar mode.
+      padding-left: 0 !important;
+    }
+  }
+
   .stark-language-selector.stark-full-width {
     .mat-mdc-form-field {
       width: 100%;
@@ -11,30 +36,47 @@
   }
 
   .stark-language-selector.stark-white {
+    display: block;
+    height: 65px;
+
     .stark-dropdown-mat-form-field.mat-mdc-form-field {
-      height: 40px;
+      display: block;
+      height: 65px;
+      font-size: 16px;
+      line-height: 18px;
 
       .mat-mdc-text-field-wrapper {
-        height: 40px;
-        padding: 0 8px;
+        height: 65px;
+        padding: 0;
         background-color: transparent;
       }
 
       .mat-mdc-form-field-flex {
-        height: 40px;
-        align-items: center;
+        height: 45px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.87);
       }
 
       .mat-mdc-form-field-infix {
-        display: flex;
-        align-items: center;
-        min-height: 40px;
-        width: auto;
+        min-height: 45px;
+        width: 100%;
         padding: 0;
       }
 
       .mat-mdc-select-trigger {
-        height: 24px;
+        box-sizing: border-box;
+        column-gap: 4px;
+        position: relative;
+        top: 12px;
+        height: 18px;
+        width: 100%;
+        padding-right: 4px;
+        font-size: 16px;
+        line-height: 18px;
+      }
+
+      .mat-mdc-select-value {
+        height: 18px;
+        line-height: 18px;
       }
 
       .mat-mdc-select-value,

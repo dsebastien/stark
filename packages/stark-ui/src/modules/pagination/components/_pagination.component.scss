@@ -26,11 +26,21 @@
     }
 
     .pagination-items-per-page {
-      width: 82px;
+      // MDC stretches the select trigger across the whole legacy host width.
+      // Keep the pre-MDC trigger footprint so the value and arrow stay together.
+      width: 47px;
     }
 
     .page-numbers {
       display: none;
+    }
+
+    button.mat-mdc-icon-button:not(:disabled) {
+      color: rgba(0, 0, 0, 0.54);
+    }
+
+    button.mat-mdc-icon-button:disabled {
+      color: rgba(0, 0, 0, 0.26);
     }
   }
 

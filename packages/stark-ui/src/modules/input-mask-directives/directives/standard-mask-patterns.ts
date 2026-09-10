@@ -1,4 +1,10 @@
-import { StarkMaskArray, StarkMaskFunction, StarkPipeFunction, StarkTextMaskConfig } from "./text-mask-config.intf";
+import {
+	StarkMaskArray,
+	StarkMaskFunction,
+	StarkMaskFunctionConfig,
+	StarkPipeFunction,
+	StarkTextMaskConfig
+} from "./text-mask-config.intf";
 import { StarkNumberMaskConfig } from "./number-mask-config.intf";
 
 /** Pattern matching a single decimal digit. */
@@ -94,27 +100,34 @@ export function createStarkNumberMask(config: StarkNumberMaskConfig = {}): Stark
 }
 
 export const starkEmailMask: { mask: StarkMaskFunction; pipe: StarkPipeFunction } = {
-	mask: (input: string): StarkMaskArray => {
+	mask: (input: string, config?: StarkMaskFunctionConfig): StarkMaskArray => {
 		const rawValue = input.replace(/\s/g, "");
+		const placeholderChar = config?.placeholderChar ?? "_";
+		const currentCaretPosition = config?.currentCaretPosition ?? rawValue.length;
 		const atIndex = rawValue.indexOf("@");
 		const lastDot = rawValue.lastIndexOf(".");
 		const topLevelDot = lastDot < atIndex ? -1 : lastDot;
 		const local = atIndex === -1 ? rawValue : rawValue.slice(0, atIndex);
 		let domain = atIndex === -1 ? "" : rawValue.slice(atIndex + 1, topLevelDot === -1 ? rawValue.length : topLevelDot);
 		let topLevelDomain = topLevelDot === -1 ? "" : rawValue.slice(topLevelDot + 1);
-		domain = domain.replace(/[\s_]/g, "");
-		topLevelDomain = topLevelDomain.replace(/[\s_.]/g, "");
-		if (!domain) {
+		domain = domain.replace(new RegExp(`[\\s${placeholderChar}]`, "g"), "");
+		topLevelDomain = topLevelDomain.replace(new RegExp(`[\\s${placeholderChar}.]`, "g"), "");
+		if (domain === "@") {
+			domain = "*";
+		} else if (domain.length < 1) {
 			domain = " ";
+		} else if (domain.endsWith(".")) {
+			domain = domain.slice(0, -1);
+		}
+		if (topLevelDomain.length === 0 && rawValue[topLevelDot - 1] === "." && currentCaretPosition !== rawValue.length) {
+			topLevelDomain = "*";
 		}
 
 		return [
 			...toCharacterMask(local, false),
-			...(rawValue[atIndex + 1] === "@" ? ["@"] : [CARET_TRAP, "@"]),
-			CARET_TRAP,
+			...emailConnector(rawValue, atIndex + 1, "@"),
 			...toCharacterMask(domain, false),
-			...(rawValue[topLevelDot - 1] === "." ? ["."] : [CARET_TRAP, "."]),
-			CARET_TRAP,
+			...emailConnector(rawValue, topLevelDot - 1, "."),
 			...toCharacterMask(topLevelDomain, true)
 		];
 	},
@@ -143,6 +156,16 @@ export const starkEmailMask: { mask: StarkMaskFunction; pipe: StarkPipeFunction 
 		return normalized;
 	}
 };
+
+/**
+ * Keeps an email separator literal in the dynamic mask and surrounds it with caret traps.
+ * @param rawValue - Current unmasked input value.
+ * @param connectionIndex - Index at which the separator is expected.
+ * @param connectionSymbol - Email separator to preserve.
+ */
+function emailConnector(rawValue: string, connectionIndex: number, connectionSymbol: string): StarkMaskArray {
+	return rawValue[connectionIndex] === connectionSymbol ? [connectionSymbol, CARET_TRAP] : [CARET_TRAP, connectionSymbol, CARET_TRAP];
+}
 
 /**
  * Converts numeric characters into reusable digit-mask tokens.

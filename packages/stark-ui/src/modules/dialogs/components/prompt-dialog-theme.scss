@@ -3,6 +3,7 @@
 /* ============================================================================== */
 /* stark-ui: src/modules/dialogs/components/prompt-dialog.component.scss */
 
+@use "sass:color";
 @use "sass:map";
 @use "@angular/material" as mat;
 
@@ -10,6 +11,8 @@
   $primary-palette: map.get($material-theme-config, primary);
 
   .stark-prompt-dialog {
+    --stark-dialog-focused-button-color: #{color.mix(#000, mat.m2-get-color-from-palette($primary-palette, 500), 12.5%)};
+
     .button-ok {
       --mat-button-protected-container-color: #{mat.m2-get-color-from-palette($primary-palette, 500)};
       --mat-button-protected-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary-palette, 500)};

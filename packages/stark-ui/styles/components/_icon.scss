@@ -3,5 +3,11 @@
     $small-icon-size: 18px;
     height: $small-icon-size;
     width: $small-icon-size;
+
+    svg {
+      display: block;
+      height: 100%;
+      width: 100%;
+    }
   }
 }

@@ -41,9 +41,15 @@
     }
 
     .stark-toast-action {
+      --mat-button-text-container-height: 36px;
+      --mat-button-text-label-text-color: rgba(255, 255, 255, 0.7);
       float: none;
       margin: 0;
       padding: 0;
+
+      .mdc-button__label {
+        transform: translateX(7px);
+      }
     }
 
     .stark-toast-text {

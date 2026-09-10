@@ -6,7 +6,7 @@ import { ActionReducerMap, StoreModule } from "@ngrx/store";
 import { StoreDevtoolsModule } from "@ngrx/store-devtools";
 import { EffectsModule } from "@ngrx/effects";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
-import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from "@angular/material/form-field";
+import { OVERLAY_DEFAULT_CONFIG } from "@angular/cdk/overlay";
 import { MatIconModule, MatIconRegistry } from "@angular/material/icon";
 import { MatButtonModule } from "@angular/material/button";
 import { MatButtonToggleModule } from "@angular/material/button-toggle";
@@ -185,7 +185,7 @@ export const reducers: ActionReducerMap<State> = {
 	 */
 	providers: [
 		environment.ENV_PROVIDERS,
-		{ provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { subscriptSizing: "dynamic" } },
+		{ provide: OVERLAY_DEFAULT_CONFIG, useValue: { usePopover: false } },
 		{ provide: STARK_APP_CONFIG, useFactory: starkAppConfigFactory },
 		{ provide: STARK_APP_METADATA, useFactory: starkAppMetadataFactory },
 		{ provide: STARK_MOCK_DATA, useFactory: starkMockDataFactory },

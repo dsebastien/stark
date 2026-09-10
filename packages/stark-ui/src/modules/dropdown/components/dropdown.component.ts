@@ -1,4 +1,5 @@
 import {
+	AfterViewChecked,
 	Component,
 	ElementRef,
 	EventEmitter,
@@ -60,7 +61,7 @@ const componentName = "stark-dropdown";
 })
 export class StarkDropdownComponent
 	extends AbstractStarkUiComponent
-	implements OnInit, OnChanges, OnInit, OnDestroy, ControlValueAccessor, MatFormFieldControl<any | any[]>, Validator
+	implements AfterViewChecked, OnInit, OnChanges, OnInit, OnDestroy, ControlValueAccessor, MatFormFieldControl<any | any[]>, Validator
 {
 	/**
 	 * Variable that will be incremented automatically to serve as unique id for every new instance of this component
@@ -177,6 +178,15 @@ export class StarkDropdownComponent
 	@Input()
 	// eslint-disable-next-line no-null/no-null
 	public panelWidth: string | number | null = null;
+
+	/**
+	 * CSS class applied to Material's detached select panel when an explicit
+	 * panel width must not be expanded by Stark's content-sized panel styles.
+	 */
+	protected get materialPanelClass(): string {
+		// eslint-disable-next-line no-null/no-null
+		return this.panelWidth === null ? "" : "stark-dropdown-fixed-panel-width";
+	}
 
 	/**
 	 * If the dropdown is required or not. by default, the dropdown is not required
@@ -377,6 +387,14 @@ export class StarkDropdownComponent
 	}
 
 	/**
+	 * Keeps Material's panel class synchronized after either select view is rendered.
+	 */
+	public ngAfterViewChecked(): void {
+		this.syncMaterialPanelClass(this.singleSelectElement);
+		this.syncMaterialPanelClass(this.multiSelectElement);
+	}
+
+	/**
 	 * Component lifecycle hook
 	 * @param changes - Contains the changed properties
 	 */
@@ -545,6 +563,16 @@ export class StarkDropdownComponent
 		}
 
 		this.formFieldHostElement = undefined;
+	}
+
+	/**
+	 * Keeps Material's detached panel class aligned with the public panel-width input.
+	 * @param select - Material select rendered by the active single- or multi-select template.
+	 */
+	private syncMaterialPanelClass(select: MatSelect | undefined): void {
+		if (select && select.panelClass !== this.materialPanelClass) {
+			select.panelClass = this.materialPanelClass;
+		}
 	}
 
 	/**

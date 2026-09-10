@@ -69,6 +69,13 @@ IMPORTANT: Stark styles are provided as SCSS styles so they should be imported i
     flex-flow: row wrap;
     justify-content: space-between;
     align-items: flex-end;
+    column-gap: 0;
+
+    // Match the former fxLayoutGap contract: every flex item reserved its
+    // trailing 20px gutter, including the last item on a wrapped row.
+    > * {
+      margin-right: 20px;
+    }
   }
 
   .showcase-layout-details {

@@ -5,7 +5,7 @@ import { UIRouter, UIRouterModule } from "@uirouter/angular";
 import { ActionReducerMap, StoreModule } from "@ngrx/store";
 import { StoreDevtoolsModule } from "@ngrx/store-devtools";
 import { EffectsModule } from "@ngrx/effects";
-import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from "@angular/material/form-field";
+import { OVERLAY_DEFAULT_CONFIG } from "@angular/cdk/overlay";
 import { MatIconRegistry } from "@angular/material/icon";
 import { DateAdapter } from "@angular/material/core";
 import { Observable, of } from "rxjs";
@@ -219,7 +219,7 @@ export const reducers: ActionReducerMap<State> = {
 	 */
 	providers: [
 		environment.ENV_PROVIDERS,
-		{ provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { subscriptSizing: "dynamic" } },
+		{ provide: OVERLAY_DEFAULT_CONFIG, useValue: { usePopover: false } },
 		{ provide: STARK_APP_CONFIG, useFactory: starkAppConfigFactory },
 		{ provide: STARK_APP_METADATA, useFactory: starkAppMetadataFactory },
 		{ provide: STARK_MOCK_DATA, useFactory: starkMockDataFactory },

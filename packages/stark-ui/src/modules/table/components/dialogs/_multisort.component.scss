@@ -20,6 +20,25 @@ $stark-table-multifilters-side-padding: 10px;
   }
 
   .stark-table-dialog-multisort {
+    mat-form-field {
+      --mat-form-field-container-height: 46px;
+      --mat-form-field-container-text-size: 15px;
+      --mat-form-field-container-text-line-height: 24px;
+      --mat-form-field-filled-label-text-size: 15px;
+      --mat-form-field-filled-container-color: transparent;
+      --mat-form-field-focus-state-layer-opacity: 0;
+      --mat-form-field-hover-state-layer-opacity: 0;
+
+      .mat-mdc-text-field-wrapper {
+        height: 46px;
+        padding: 0;
+      }
+
+      .mat-mdc-form-field-subscript-wrapper {
+        height: 19px;
+      }
+    }
+
     .header {
       display: flex;
       align-items: flex-start;
@@ -44,8 +63,17 @@ $stark-table-multifilters-side-padding: 10px;
           flex-grow: 1;
         }
 
-        .form-field-order .mat-mdc-form-field-infix {
+        .form-field-order {
           width: 80px;
+
+          .mat-mdc-form-field-infix {
+            width: auto;
+            min-width: 0;
+          }
+
+          .mat-mdc-select-value {
+            max-width: 56px;
+          }
         }
       }
     }

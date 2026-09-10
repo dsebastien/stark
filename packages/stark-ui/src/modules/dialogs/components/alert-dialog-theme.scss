@@ -3,6 +3,7 @@
 /* ============================================================================== */
 /* stark-ui: src/modules/dialogs/components/alert-dialog.component.scss */
 
+@use "sass:color";
 @use "sass:map";
 @use "@angular/material" as mat;
 
@@ -11,6 +12,7 @@
 
   .stark-alert-dialog {
     --mat-dialog-subhead-color: #{mat.m2-get-color-from-palette($alert-palette, 500)};
+    --stark-dialog-focused-button-color: #{color.mix(#000, mat.m2-get-color-from-palette($alert-palette, 500), 12.5%)};
 
     [mat-dialog-title] {
       color: mat.m2-get-color-from-palette($alert-palette, 500);

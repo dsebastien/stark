@@ -7,6 +7,44 @@
   .stark-dropdown-mat-form-field.stark-full-width {
     width: 100%;
   }
+
+  .stark-dropdown-mat-form-field .mat-mdc-form-field-error {
+    transform: translateY(-1px);
+  }
+
+  .stark-dropdown-mat-form-field .mat-mdc-form-field-error-wrapper {
+    padding-inline: 0;
+  }
+
+  stark-dropdown.stark-dropdown {
+    position: relative;
+    display: block;
+
+    .stark-dropdown-floating-label {
+      position: absolute;
+      top: -10px;
+      left: 0;
+      z-index: 1;
+      display: none;
+      font-size: 14px;
+      line-height: 18px;
+      pointer-events: none;
+      transform: scale(0.75);
+      transform-origin: left top;
+    }
+
+    &.floating .stark-dropdown-floating-label {
+      display: block;
+    }
+
+    .mat-mdc-select-trigger {
+      transform: translateY(5px);
+    }
+
+    &.floating .mat-mdc-select-placeholder {
+      visibility: hidden;
+    }
+  }
 }
 
 /* END stark-ui: src/modules/dropdown/components/dropdown/_dropdown.component.scss */

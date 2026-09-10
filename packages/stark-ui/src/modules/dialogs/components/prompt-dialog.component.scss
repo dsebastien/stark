@@ -6,6 +6,9 @@
 @mixin stark-prompt-dialog() {
   .stark-prompt-dialog {
     .mat-mdc-form-field.prompt-text {
+      // Match the pre-MDC prompt field's reserved control height. The shared
+      // compact field is shorter, which pulls the action row eight pixels up.
+      --mat-form-field-container-height: 48px;
       display: block;
       margin: 16px 0;
     }

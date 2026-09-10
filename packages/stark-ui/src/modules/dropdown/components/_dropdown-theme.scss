@@ -8,30 +8,42 @@
 
 @mixin stark-dropdown-color($color) {
   .mat-mdc-floating-label,
+  .stark-dropdown-floating-label,
   &.mat-mdc-form-field.mat-focused .mat-mdc-floating-label {
-    color: rgba($color: $color, $alpha: 0.87);
+    color: rgba($color: $color, $alpha: 0.87) !important;
   }
 
   // arrow color change
   .mat-mdc-select-arrow,
   &.mat-mdc-form-field.mat-focused .mat-mdc-select-arrow {
-    color: rgba($color: $color, $alpha: 0.87);
+    color: rgba($color: $color, $alpha: 0.87) !important;
   }
 
   // selected value color change
-  .mat-mdc-select-value {
-    color: rgba($color: $color, $alpha: 0.87);
+  .mat-mdc-select-value,
+  .mat-mdc-select-placeholder {
+    color: rgba($color: $color, $alpha: 0.87) !important;
   }
 
   // underline color change (normal and focus)
   .mdc-line-ripple::before,
   &.mat-mdc-form-field.mat-focused .mdc-line-ripple::after {
-    border-bottom-color: rgba($color: $color, $alpha: 0.87);
+    border-bottom-color: rgba($color: $color, $alpha: 0.87) !important;
   }
 }
 
 @mixin stark-dropdown-theme($material-theme-config, $stark-theme-config) {
   .stark-dropdown-mat-form-field {
+    &.mat-form-field-invalid {
+      .mat-mdc-select-placeholder {
+        color: mat.m2-get-color-from-palette(map.get($material-theme-config, warn), 500) !important;
+      }
+
+      .mdc-line-ripple::before {
+        border-bottom-color: mat.m2-get-color-from-palette(map.get($material-theme-config, warn), 500) !important;
+      }
+    }
+
     &.stark-primary {
       @include stark-dropdown-color(mat.m2-get-color-from-palette(map.get($material-theme-config, primary), 900));
     }

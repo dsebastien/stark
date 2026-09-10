@@ -1,3 +1,11 @@
 mat-form-field {
   min-width: 250px;
 }
+
+@media (min-width: 960px) {
+  // The removed fxLayout used space-between without applying fxFlex to these
+  // fields. Keep their intrinsic 250px width instead of stretching the row.
+  .showcase-layout-form-grid > mat-form-field {
+    flex: 0 0 250px;
+  }
+}

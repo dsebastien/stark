@@ -1,5 +1,10 @@
 export type StarkMaskArray = Array<string | RegExp>;
-export type StarkMaskFunction = (raw: string) => StarkMaskArray;
+export interface StarkMaskFunctionConfig {
+	currentCaretPosition: number;
+	placeholderChar: string;
+	previousConformedValue: string;
+}
+export type StarkMaskFunction = (raw: string, config?: StarkMaskFunctionConfig) => StarkMaskArray;
 export interface StarkPipeResultObject {
 	value: string;
 	indexesOfPipedChars?: number[];

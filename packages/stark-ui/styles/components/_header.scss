@@ -149,6 +149,34 @@
             &.stark-app-bar-content-right-actions-alt {
               margin-top: -10px;
               position: inherit;
+
+              > a {
+                display: block;
+                height: 40px;
+                line-height: 0;
+              }
+
+              button.mat-mdc-mini-fab {
+                display: inline-block;
+                font-size: 14px;
+                font-weight: 500;
+                line-height: 40px;
+                transform: translate3d(0, 0, 0);
+
+                .mat-icon {
+                  display: inline-block;
+                  position: static;
+                  font-size: 14px;
+                  font-weight: 500;
+                  line-height: 24px;
+                  margin: -2.5px 0 0;
+                  vertical-align: middle;
+                }
+              }
+
+              stark-route-search > button.mat-mdc-mini-fab {
+                display: block;
+              }
             }
           }
         }

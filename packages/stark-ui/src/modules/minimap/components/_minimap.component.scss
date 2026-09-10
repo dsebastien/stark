@@ -41,7 +41,20 @@
   // The mat-menu is rendered outside of the stark-minimap component
   .mat-mdc-menu-content .mat-mdc-menu-item.stark-minimap-menu-item {
     height: 35px;
+    min-height: 35px;
     line-height: 35px;
+
+    &:hover {
+      background-color: #f5f5f5;
+    }
+
+    .mat-mdc-checkbox {
+      // The legacy checkbox kept an 8px gap between its 18px control and label
+      // and did not darken an unchecked outline on hover/focus.
+      --mat-checkbox-unselected-hover-icon-color: rgba(0, 0, 0, 0.54);
+      --mat-checkbox-unselected-focus-icon-color: rgba(0, 0, 0, 0.54);
+      --mat-checkbox-hover-state-layer-opacity: 0;
+    }
   }
 }
 

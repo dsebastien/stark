@@ -340,7 +340,7 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 
 		// Material can measure projected menu content before it has a width during initial rendering.
 		// Observe only until that first measurable layout, then let Material manage subsequent changes.
-		const sidenav = (this.elementRef.nativeElement as HTMLElement).querySelector<HTMLElement>(".stark-app-sidenav-left");
+		const sidenav = (<HTMLElement>this.elementRef.nativeElement).querySelector<HTMLElement>(".stark-app-sidenav-left");
 		if (!sidenav) {
 			return;
 		}
@@ -361,9 +361,9 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 			return;
 		}
 
-		const ResizeObserverConstructor = sidenav.ownerDocument.defaultView?.ResizeObserver;
-		if (ResizeObserverConstructor) {
-			this.initialContentMarginResizeObserver = new ResizeObserverConstructor(() => refreshContentMargin());
+		const resizeObserverConstructor = sidenav.ownerDocument.defaultView?.ResizeObserver;
+		if (resizeObserverConstructor) {
+			this.initialContentMarginResizeObserver = new resizeObserverConstructor(() => refreshContentMargin());
 			this.initialContentMarginResizeObserver.observe(sidenav);
 		}
 	}

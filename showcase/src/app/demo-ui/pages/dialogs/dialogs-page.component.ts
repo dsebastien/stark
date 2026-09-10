@@ -1,4 +1,4 @@
-import { Component, Inject } from "@angular/core";
+import { ChangeDetectorRef, Component, Inject } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import {
@@ -42,7 +42,8 @@ export class DemoDialogsPageComponent {
 
 	public constructor(
 		@Inject(STARK_LOGGING_SERVICE) public logger: StarkLoggingService,
-		public dialogService: MatDialog
+		public dialogService: MatDialog,
+		private readonly changeDetectorRef: ChangeDetectorRef
 	) {}
 
 	public showAlert(): void {
@@ -63,6 +64,7 @@ export class DemoDialogsPageComponent {
 				} else {
 					this.dialogStatus = "SHOWCASE.DEMO.DIALOGS.ALERT.RESULT_CANCEL";
 				}
+				this.changeDetectorRef.markForCheck();
 			});
 	}
 
@@ -85,6 +87,7 @@ export class DemoDialogsPageComponent {
 				} else {
 					this.dialogStatus = "SHOWCASE.DEMO.DIALOGS.CONFIRM.RESULT_CANCEL";
 				}
+				this.changeDetectorRef.markForCheck();
 			});
 	}
 
@@ -109,6 +112,7 @@ export class DemoDialogsPageComponent {
 				} else {
 					this.dialogStatus = "SHOWCASE.DEMO.DIALOGS.PROMPT.RESULT_OK";
 				}
+				this.changeDetectorRef.markForCheck();
 			});
 	}
 }

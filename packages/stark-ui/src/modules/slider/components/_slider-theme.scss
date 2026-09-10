@@ -87,6 +87,11 @@
       }
     }
 
+    &:has(.horizontal .noUi-handle-upper) > .horizontal {
+      padding-top: 43px;
+      padding-bottom: 30px;
+    }
+
     .vertical {
       padding: 18px 60px 20px 80px;
     }

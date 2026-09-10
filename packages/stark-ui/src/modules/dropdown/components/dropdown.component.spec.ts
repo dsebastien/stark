@@ -109,6 +109,7 @@ describe("DropdownComponent", () => {
 				[optionIdProperty]="$any(optionIdProperty)"
 				[optionLabelProperty]="$any(optionLabelProperty)"
 				[options]="options"
+				[panelWidth]="panelWidth"
 				[placeholder]="$any(placeholder)"
 				[required]="$any(required)"
 			>
@@ -125,6 +126,8 @@ describe("DropdownComponent", () => {
 		public optionIdProperty?: string;
 		public optionLabelProperty?: string;
 		public options: any[] = [];
+		// eslint-disable-next-line no-null/no-null
+		public panelWidth: string | number | null = null;
 		public placeholder?: string;
 		public required?: boolean;
 	}
@@ -248,10 +251,25 @@ describe("DropdownComponent", () => {
 				const dropdownComponent = getDropdownDebugElement(hostFixture);
 				const matSelect = getMatSelectComponent(hostFixture);
 				expect(hostFixture.nativeElement.innerHTML).toContain(matSelectTagSelector);
+				expect(
+					(<HTMLElement>dropdownComponent.nativeElement).querySelector(".stark-dropdown-floating-label")?.textContent?.trim()
+				).toBe(dropdownPlaceholder);
+				expect((<HTMLElement>dropdownComponent.nativeElement).classList.contains("floating")).toBe(false);
 				expect(dropdownComponent.componentInstance.value).toBeUndefined();
 				expect(matSelect.value).toBeUndefined();
 				expect(matSelect.placeholder).toBe(dropdownPlaceholder);
 				expect(matSelect.id).toBe(dropdownId);
+			});
+
+			it("should keep an explicitly sized Material panel within its overlay bounds", async () => {
+				renderHost((host) => {
+					host.panelWidth = "212px";
+				});
+				await stabilizeFixture(hostFixture);
+
+				const matSelect = getMatSelectComponent(hostFixture);
+				expect(matSelect.panelWidth).toBe("212px");
+				expect(matSelect.panelClass).toBe("stark-dropdown-fixed-panel-width");
 			});
 		});
 
@@ -264,6 +282,7 @@ describe("DropdownComponent", () => {
 					await stabilizeFixture(hostFixture);
 					expect(component.required).toBe(true);
 					expect(getMatSelectElement(hostFixture).getAttribute("aria-required")).toBe("true");
+					expect(getMatSelectComponent(hostFixture).placeholder).toBe(`${dropdownPlaceholder} *`);
 
 					renderHost((host) => {
 						host.required = false;
@@ -271,6 +290,7 @@ describe("DropdownComponent", () => {
 					await stabilizeFixture(hostFixture);
 					expect(component.required).toBe(false);
 					expect(getMatSelectElement(hostFixture).getAttribute("aria-required")).toBe("false");
+					expect(getMatSelectComponent(hostFixture).placeholder).toBe(dropdownPlaceholder);
 				});
 			});
 
@@ -473,6 +493,7 @@ describe("DropdownComponent", () => {
 				expect(matSelect.value).toBe(dropdownValue);
 				expect(matSelect.placeholder).toBe(dropdownPlaceholder);
 				expect(matSelect.id).toBe(dropdownId);
+				expect((<HTMLElement>dropdownComponent.nativeElement).classList.contains("floating")).toBe(true);
 			});
 		});
 

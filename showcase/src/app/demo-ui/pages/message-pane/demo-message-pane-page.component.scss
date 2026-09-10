@@ -7,7 +7,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin: 0 -15px; // offset outer margins children
+  margin: 14px -15px 0; // offset outer margins children and preserve the legacy post-description spacing
 
   & [mat-raised-button] {
     margin: 6px 8px;

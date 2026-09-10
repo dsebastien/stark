@@ -19,6 +19,19 @@
       border-bottom: 1px solid rgba($color: $color_low, $alpha: 0.12);
       background-color: rgba($color: $color_high, $alpha: 0.02);
 
+      &:focus,
+      &:focus-visible {
+        background-color: rgba($color: $color_high, $alpha: 0.02);
+      }
+
+      // Angular Material's MDC-era expansion header adds a higher-specificity
+      // keyboard/program focus background. Keep Stark's established focus
+      // treatment instead of letting that state layer darken the whole header.
+      &:not([aria-disabled="true"]).cdk-keyboard-focused,
+      &:not([aria-disabled="true"]).cdk-program-focused {
+        background-color: rgba(0, 0, 0, 0.04) !important;
+      }
+
       &:not(.mat-expanded) {
         &:hover {
           background-color: rgba($color: $color_low, $alpha: 0.02);
@@ -27,6 +40,16 @@
 
       &.mat-expanded {
         background-color: rgba($color: $color_high, $alpha: 1);
+
+        &:focus,
+        &:focus-visible {
+          background-color: rgba($color: $color_high, $alpha: 1);
+        }
+
+        &:not([aria-disabled="true"]).cdk-keyboard-focused,
+        &:not([aria-disabled="true"]).cdk-program-focused {
+          background-color: rgba($color: $color_high, $alpha: 1) !important;
+        }
       }
     }
 
