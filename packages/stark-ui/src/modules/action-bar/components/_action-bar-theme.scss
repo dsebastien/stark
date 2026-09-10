@@ -11,6 +11,14 @@
 @use "../../../../styles/media-queries" as *;
 
 @mixin stark-action-bar-theme($material-theme-config, $stark-theme-config) {
+  .stark-action-bar {
+    @include mat.icon-button-overrides(
+      (
+        disabled-icon-color: mat.get-theme-color($material-theme-config, foreground, disabled-button)
+      )
+    );
+  }
+
   @media #{$tablet-query} {
     .stark-action-bar {
       .action-label {

@@ -13,9 +13,29 @@
     overflow: visible;
     transform-origin: bottom;
 
-    // These composite icon/caption controls retain their existing inline flow.
-    .mat-mdc-icon-button {
+    // Preserve the inline baseline shared by the small icons and optional captions.
+    .mat-mdc-icon-button.mat-mdc-button-base {
       display: block;
+      align-items: normal;
+      justify-content: normal;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 40px;
+      padding: 0;
+
+      .mat-icon {
+        line-height: 24px;
+        margin-top: -2.5px;
+        vertical-align: middle;
+      }
+    }
+
+    .alt-actions > .mat-mdc-icon-button {
+      display: inline-block;
+    }
+
+    .action-label {
+      vertical-align: middle;
     }
 
     &.extended {
@@ -37,7 +57,6 @@
 
       width: 40px;
       height: 40px;
-      padding: 8px;
 
       .mat-mdc-button-ripple {
         overflow: visible;
@@ -60,7 +79,7 @@
       bottom: 0;
       left: 0;
       margin-bottom: 0;
-      padding: 0;
+      padding: 4px 0;
       position: fixed;
       right: 0;
       z-index: 4;
