@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { getVisualTarget, isBaselineUpdateRequested } from "../support/oracle";
 import { pilotVisualComparisons } from "../support/visual-manifest";
 
-test("defines three unmasked pilot comparisons with stable snapshot names", () => {
+test("separates unchanged shell regions from migrated guide copy and component captures", () => {
 	expect(
 		pilotVisualComparisons.map(({ capture, maskSelectors, route, scenarioId, snapshotName }) => ({
 			capture,
@@ -13,11 +13,38 @@ test("defines three unmasked pilot comparisons with stable snapshot names", () =
 		}))
 	).toEqual([
 		{
-			capture: { scope: "page" },
+			capture: {
+				scope: "shell",
+				selector: "header.stark-app-header",
+				bounds: { x: 0, y: 0, width: 1280, height: 128 },
+				overflowBottom: 32
+			},
 			maskSelectors: [],
 			routeId: "getting-started",
-			scenarioId: "shell-layout",
-			snapshotName: "getting-started-default.png"
+			scenarioId: "shell-header",
+			snapshotName: "getting-started-shell-header.png"
+		},
+		{
+			capture: {
+				scope: "shell",
+				selector: "mat-sidenav.stark-app-sidenav-left",
+				bounds: { x: 0, y: 128, width: 280, height: 592 }
+			},
+			maskSelectors: [],
+			routeId: "getting-started",
+			scenarioId: "shell-navigation",
+			snapshotName: "getting-started-shell-navigation.png"
+		},
+		{
+			capture: {
+				scope: "shell",
+				selector: ".getting-started-content > div:first-child",
+				bounds: { x: 315, y: 192, width: 730, height: 48 }
+			},
+			maskSelectors: [],
+			routeId: "getting-started",
+			scenarioId: "shell-page-title",
+			snapshotName: "getting-started-shell-page-title.png"
 		},
 		{
 			capture: { scope: "component", selector: "example-viewer#classic-full" },

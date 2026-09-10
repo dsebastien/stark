@@ -281,7 +281,11 @@ const componentSurfaces = [
 		"StarkMessagePaneComponent",
 		"stark-message-pane",
 		"packages/stark-ui/src/modules/message-pane/components/message-pane.component.ts",
-		appShell("<stark-message-pane")
+		mounted(
+			"message-pane",
+			evidence("showcase/src/app/app.component.html", "<stark-message-pane"),
+			evidence("showcase/src/app/demo-ui/pages/message-pane/demo-message-pane-page.component.html", '(click)="notifyMessages()"')
+		)
 	),
 	component(
 		"minimap-component",

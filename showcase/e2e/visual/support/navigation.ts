@@ -70,11 +70,17 @@ function routePath(url: string): string {
 export async function openRouteFromShowcaseShell(page: Page, target: ShowcaseNavigationTarget): Promise<void> {
 	await page.goto(".", { waitUntil: "domcontentloaded" });
 	await expect(page.locator("stark-app-container").first()).toBeVisible();
+	await expect(page).toHaveURL(/\/home(?:[?#]|$)/);
+	await expect(page.locator("ui-view home")).toBeVisible();
+	await page.waitForLoadState("networkidle");
+	await expect(page.locator("stark-message-pane .stark-message-pane-item-error")).toHaveCount(0);
 	await navigateVisibleMenuRoute(page, target);
+	await expect(page.locator("stark-message-pane .stark-message-pane-item-error")).toHaveCount(0);
 }
 
 async function navigateVisibleMenuRoute(page: Page, target: ShowcaseNavigationTarget): Promise<void> {
-	for (const menuId of target.menuTrail) {
+	const expectedUrl = new RegExp(`${escapeRegExp(target.path)}(?:[?#]|$)`);
+	for (const [index, menuId] of target.menuTrail.entries()) {
 		const menuItem = page.locator(`#${menuId}`);
 		await expect(menuItem).toBeVisible();
 
@@ -90,10 +96,22 @@ async function navigateVisibleMenuRoute(page: Page, target: ShowcaseNavigationTa
 			}
 		} else {
 			await menuItem.click();
+			if (index === target.menuTrail.length - 1) {
+				try {
+					await page.waitForURL(expectedUrl, { timeout: 3_000 });
+				} catch {
+					// The legacy Material expansion panel can swallow the first click while
+					// releasing its pointer-event shield. Retry only when no navigation began.
+					if (!expectedUrl.test(page.url())) {
+						await menuItem.click();
+					}
+					await page.waitForURL(expectedUrl);
+				}
+			}
 		}
 	}
 
-	await expect(page).toHaveURL(new RegExp(`${escapeRegExp(target.path)}(?:[?#]|$)`));
+	await expect(page).toHaveURL(expectedUrl);
 }
 
 /**

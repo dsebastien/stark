@@ -26,6 +26,19 @@ test("uses the pinned visual browser environment", async ({ page }) => {
 	});
 });
 
+test("rejects delayed UI-Router transition errors before capture", async ({ page }) => {
+	await page.setContent("<stark-message-pane></stark-message-pane>");
+	await page.evaluate(() => {
+		setTimeout(() => {
+			const error = document.createElement("div");
+			error.textContent = "Error: Transition Rejection: transition superseded";
+			document.querySelector("stark-message-pane")?.append(error);
+		}, 50);
+	});
+
+	await expect(stabilizeVisualPage(page)).rejects.toThrow(/transition rejection/i);
+});
+
 test("produces byte-identical representative screenshots without masking component content", async ({ page }, testInfo) => {
 	await openRouteFromShowcaseShell(page, smokeRoute);
 	const heading = page.locator("ui-view h1").first();

@@ -2,7 +2,14 @@ import { representativeRoutes, type ShowcaseNavigationTarget } from "./navigatio
 
 type RepresentativeRouteId = (typeof representativeRoutes)[number]["id"];
 
-export type VisualCapture = Readonly<{ scope: "page" }> | Readonly<{ scope: "component"; selector: string }>;
+export type ShellCapture = Readonly<{
+	scope: "shell";
+	selector: string;
+	bounds: Readonly<{ x: number; y: number; width: number; height: number }>;
+	overflowBottom?: number;
+}>;
+
+export type VisualCapture = Readonly<{ scope: "page" }> | Readonly<{ scope: "component"; selector: string }> | ShellCapture;
 
 export type VisualComparison = Readonly<{
 	capture: VisualCapture;
@@ -40,11 +47,41 @@ function comparison(definition: VisualComparisonDefinition): VisualComparison {
  * explain which non-deterministic pixels it excludes; tests cannot add masks.
  */
 export const pilotVisualComparisons = [
+	// stark-4sp.3.7.1: the Angular 22 guide intentionally changes Node/npm,
+	// dev-server, testing, polyfill, and troubleshooting copy (including its TOC).
+	// Compare the unchanged shell and title separately, with the content-overlap
+	// assertion on every shell capture. Do not rewrite or mask documentation text.
 	comparison({
-		capture: { scope: "page" },
+		capture: {
+			scope: "shell",
+			selector: "header.stark-app-header",
+			bounds: { x: 0, y: 0, width: 1280, height: 128 },
+			// Header actions and their shadows extend below the 128px header box.
+			overflowBottom: 32
+		},
 		routeId: "getting-started",
-		scenarioId: "shell-layout",
-		snapshotName: "getting-started-default.png"
+		scenarioId: "shell-header",
+		snapshotName: "getting-started-shell-header.png"
+	}),
+	comparison({
+		capture: {
+			scope: "shell",
+			selector: "mat-sidenav.stark-app-sidenav-left",
+			bounds: { x: 0, y: 128, width: 280, height: 592 }
+		},
+		routeId: "getting-started",
+		scenarioId: "shell-navigation",
+		snapshotName: "getting-started-shell-navigation.png"
+	}),
+	comparison({
+		capture: {
+			scope: "shell",
+			selector: ".getting-started-content > div:first-child",
+			bounds: { x: 315, y: 192, width: 730, height: 48 }
+		},
+		routeId: "getting-started",
+		scenarioId: "shell-page-title",
+		snapshotName: "getting-started-shell-page-title.png"
 	}),
 	comparison({
 		capture: { scope: "component", selector: "example-viewer#classic-full" },

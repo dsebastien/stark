@@ -10,6 +10,44 @@ export const fixedVisualMetadata = {
 } as const;
 
 const screenshotStyles = readFileSync(resolve(__dirname, "../styles/screenshot.css"), "utf8");
+const visualDomQuietPeriodMs = 100;
+
+async function waitForAngularStability(page: Page): Promise<void> {
+	await page.evaluate(async () => {
+		const angularWindow = window as Window & {
+			getAllAngularTestabilities?: () => Array<{ whenStable: (callback: () => void) => void }>;
+		};
+		const testabilities = angularWindow.getAllAngularTestabilities?.() ?? [];
+		await Promise.all(testabilities.map((testability) => new Promise<void>((resolveStable) => testability.whenStable(resolveStable))));
+	});
+}
+
+async function waitForDomQuiet(page: Page): Promise<void> {
+	await page.evaluate(
+		(quietPeriodMs) =>
+			new Promise<void>((resolveQuiet) => {
+				let quietTimer = 0;
+				const observer = new MutationObserver(() => {
+					window.clearTimeout(quietTimer);
+					quietTimer = window.setTimeout(() => {
+						observer.disconnect();
+						resolveQuiet();
+					}, quietPeriodMs);
+				});
+				observer.observe(document.documentElement, {
+					attributes: true,
+					characterData: true,
+					childList: true,
+					subtree: true
+				});
+				quietTimer = window.setTimeout(() => {
+					observer.disconnect();
+					resolveQuiet();
+				}, quietPeriodMs);
+			}),
+		visualDomQuietPeriodMs
+	);
+}
 
 export const test = base.extend({
 	page: async ({ page }, use) => {
@@ -51,12 +89,19 @@ export async function stabilizeVisualPage(page: Page): Promise<void> {
 			}
 		}
 	}, fixedVisualMetadata);
+	await waitForAngularStability(page);
+	await waitForDomQuiet(page);
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolveAfterPaint) => {
 				requestAnimationFrame(() => requestAnimationFrame(() => resolveAfterPaint()));
 			})
 	);
+
+	const transitionRejection = page.locator("stark-message-pane").filter({ hasText: /Transition Rejection/i });
+	if ((await transitionRejection.count()) > 0) {
+		throw new Error("Visual page contains a delayed UI-Router transition rejection.");
+	}
 }
 
 export async function captureVisualScreenshot(page: Page): Promise<Buffer> {

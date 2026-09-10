@@ -12,12 +12,15 @@ import {
 import {
 	executableScenariosForRunner,
 	executableVisualScenarios,
+	missingVisualFixtureStates,
 	reviewedCoverageBaseline,
+	reviewedVisualDiffBudgets,
 	sourceBackedStates,
 	stateAxisReviews,
 	stateRequirements,
 	validateVisualCoverage,
 	type ExecutableVisualScenario,
+	type MissingVisualFixtureState,
 	type StateAxisReview,
 	type StateRequirement,
 	type VisualScenarioRunnerId
@@ -162,9 +165,10 @@ function validate(
 	surfaces: readonly VisualSurface[] = visualSurfaceManifest,
 	requirements: readonly StateRequirement[] = stateRequirements,
 	reviews: readonly StateAxisReview[] = stateAxisReviews,
-	executableScenarios: readonly ExecutableVisualScenario[] = executableVisualScenarios
+	executableScenarios: readonly ExecutableVisualScenario[] = executableVisualScenarios,
+	missingFixtures: readonly MissingVisualFixtureState[] = missingVisualFixtureStates
 ): string[] {
-	return validateVisualCoverage(surfaces, requirements, reviews, visualRouteManifest, readEvidence, executableScenarios);
+	return validateVisualCoverage(surfaces, requirements, reviews, visualRouteManifest, readEvidence, executableScenarios, missingFixtures);
 }
 
 test("accounts for exactly 36 components/pages, 10 directives, and 6 behavior services", () => {
@@ -184,11 +188,88 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(12);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(262);
+	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
 		expect(reviews.map(({ axis }) => axis).sort(), surface.id).toEqual([...visualStateAxes].sort());
 	}
+});
+
+test("gives every Dropdown, Slider, and input-directive state one explicit fixture disposition", () => {
+	const ownedStateIds = sourceBackedStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.5")
+		.map(({ id }) => id)
+		.sort();
+	const executableStateIds = executableScenariosForRunner("input-family-states")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+	const missingStateIds = missingVisualFixtureStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.5")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+
+	expect(ownedStateIds).toHaveLength(71);
+	expect(executableStateIds).toHaveLength(66);
+	expect(missingStateIds).toHaveLength(5);
+	expect([...executableStateIds, ...missingStateIds].sort()).toEqual(ownedStateIds);
+});
+
+test("gives every navigation and application-control state one explicit fixture disposition", () => {
+	const ownedStateIds = sourceBackedStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.3")
+		.map(({ id }) => id)
+		.sort();
+	const executableStateIds = executableScenariosForRunner("navigation-control-states")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+	const executableOwnedStateIds = executableStateIds.filter((sourceStateId) => ownedStateIds.includes(sourceStateId));
+	const missingStateIds = missingVisualFixtureStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.3")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+
+	expect(ownedStateIds).toHaveLength(38);
+	expect(executableOwnedStateIds).toHaveLength(36);
+	expect(missingStateIds).toEqual(["app-menu-component.content.empty", "app-menu-item-component.focus.keyboard"]);
+	expect([...executableOwnedStateIds, ...missingStateIds].sort()).toEqual(ownedStateIds);
+});
+
+test("runs every date, date-range, and date-time state owned by the date-control bead", () => {
+	const ownedStateIds = sourceBackedStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.4")
+		.map(({ id }) => id)
+		.sort();
+	const executableStateIds = executableScenariosForRunner("date-control-states")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+	const missingStateIds = missingVisualFixtureStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.4")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+
+	expect(ownedStateIds).toHaveLength(31);
+	expect(executableStateIds).toEqual(ownedStateIds);
+	expect(missingStateIds).toEqual([]);
+});
+
+test("gives every dialog, message, progress, and toast state one explicit fixture disposition", () => {
+	const ownedStateIds = sourceBackedStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.7")
+		.map(({ id }) => id)
+		.sort();
+	const executableStateIds = executableScenariosForRunner("feedback-states")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+	const missingStateIds = missingVisualFixtureStates
+		.filter(({ ownerBead }) => ownerBead === "stark-4sp.4.7")
+		.map(({ sourceStateId }) => sourceStateId)
+		.sort();
+
+	expect(ownedStateIds).toHaveLength(68);
+	expect(executableStateIds).toHaveLength(66);
+	expect(missingStateIds).toEqual(["progress-indicator-directive.content.fallback", "progress-indicator-service.selection.topic-b"]);
+	expect([...executableStateIds, ...missingStateIds].sort()).toEqual(ownedStateIds);
 });
 
 test("runs both App Logo focus states through the exact audited shell component", () => {
@@ -243,6 +324,580 @@ test("runs both App Logo focus states through the exact audited shell component"
 			threshold: 0
 		}
 	]);
+});
+
+test("runs every reachable App Data mode, disclosure, and focus state", () => {
+	const appDataScenarios = executableVisualScenarios.filter(({ surfaceId }) => surfaceId === "app-data-component");
+	const appDataSourceStates = sourceBackedStates
+		.filter(({ ownerBead, surfaceId }) => surfaceId === "app-data-component" && ownerBead === "stark-4sp.4.2")
+		.map(({ id }) => id);
+
+	expect(appDataSourceStates).toEqual([
+		"app-data-component.content.dropdown",
+		"app-data-component.content.menu",
+		"app-data-component.disclosure.closed",
+		"app-data-component.disclosure.open",
+		"app-data-component.focus.rest",
+		"app-data-component.focus.keyboard"
+	]);
+	expect(
+		appDataScenarios.map(
+			({ capture, maskSelectors, maxDiffPixels, payload, routeId, runner, sourceStateId, snapshotName, threshold }) => ({
+				capture,
+				maskSelectors,
+				maxDiffPixels,
+				payload: {
+					action: payload.action,
+					expectedFocusVisible: payload.expectedFocusVisible,
+					expectedFocused: payload.expectedFocused,
+					expectedMode: payload.expectedMode,
+					expectedOpen: payload.expectedOpen
+				},
+				routeId,
+				runner,
+				sourceStateId,
+				snapshotName,
+				threshold
+			})
+		)
+	).toEqual([
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#dropdown stark-app-data.stark-app-data > div.stark-app-data.dropdown"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMode: "dropdown",
+				expectedOpen: false
+			},
+			routeId: "app-data",
+			runner: "app-data-states",
+			sourceStateId: "app-data-component.content.dropdown",
+			snapshotName: "app-data-content-dropdown.png",
+			threshold: 0
+		},
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#menu stark-app-data.stark-app-data > div.stark-app-data.menu"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMode: "menu",
+				expectedOpen: false
+			},
+			routeId: "app-data",
+			runner: "app-data-states",
+			sourceStateId: "app-data-component.content.menu",
+			snapshotName: "app-data-content-menu.png",
+			threshold: 0
+		},
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#dropdown stark-app-data.stark-app-data > div.stark-app-data.dropdown"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMode: "dropdown",
+				expectedOpen: false
+			},
+			routeId: "app-data",
+			runner: "app-data-states",
+			sourceStateId: "app-data-component.disclosure.closed",
+			snapshotName: "app-data-disclosure-closed.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: ".cdk-overlay-pane .stark-app-data.dropdown-detail" },
+			maskSelectors: [],
+			maxDiffPixels: 575,
+			payload: {
+				action: { kind: "open-dropdown" },
+				expectedFocusVisible: false,
+				expectedFocused: true,
+				expectedMode: "dropdown",
+				expectedOpen: true
+			},
+			routeId: "app-data",
+			runner: "app-data-states",
+			sourceStateId: "app-data-component.disclosure.open",
+			snapshotName: "app-data-disclosure-open.png",
+			threshold: 0
+		},
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#dropdown stark-app-data.stark-app-data > div.stark-app-data.dropdown"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMode: "dropdown",
+				expectedOpen: false
+			},
+			routeId: "app-data",
+			runner: "app-data-states",
+			sourceStateId: "app-data-component.focus.rest",
+			snapshotName: "app-data-focus-rest.png",
+			threshold: 0
+		},
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#dropdown stark-app-data.stark-app-data > div.stark-app-data.dropdown"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 25,
+			payload: {
+				action: { kind: "keyboard-tab" },
+				expectedFocusVisible: true,
+				expectedFocused: true,
+				expectedMode: "dropdown",
+				expectedOpen: false
+			},
+			routeId: "app-data",
+			runner: "app-data-states",
+			sourceStateId: "app-data-component.focus.keyboard",
+			snapshotName: "app-data-focus-keyboard.png",
+			threshold: 0
+		}
+	]);
+});
+
+test("runs every reachable Minimap content, selection, overlay, and focus state owned by this bead", () => {
+	const minimapScenarios = executableVisualScenarios.filter(({ surfaceId }) => surfaceId === "minimap-component");
+	const minimapSourceStates = sourceBackedStates
+		.filter(({ ownerBead, surfaceId }) => surfaceId === "minimap-component" && ownerBead === "stark-4sp.4.2")
+		.map(({ id }) => id);
+
+	expect(minimapSourceStates).toEqual([
+		"minimap-component.content.empty",
+		"minimap-component.content.populated",
+		"minimap-component.selection.all-visible",
+		"minimap-component.selection.partially-hidden",
+		"minimap-component.overlay.closed",
+		"minimap-component.overlay.open",
+		"minimap-component.focus.rest",
+		"minimap-component.focus.keyboard"
+	]);
+	expect(
+		minimapScenarios.map(
+			({ capture, maskSelectors, maxDiffPixels, payload, routeId, runner, sourceStateId, snapshotName, threshold }) => ({
+				capture,
+				maskSelectors,
+				maxDiffPixels,
+				payload: {
+					action: payload.action,
+					expectedChecked: payload.expectedChecked,
+					expectedFocusVisible: payload.expectedFocusVisible,
+					expectedFocused: payload.expectedFocused,
+					expectedMenuOpen: payload.expectedMenuOpen,
+					expectedSelected: payload.expectedSelected
+				},
+				routeId,
+				runner,
+				sourceStateId,
+				snapshotName,
+				threshold
+			})
+		)
+	).toEqual([
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#full stark-minimap.stark-minimap:not(.stark-primary):not(.stark-accent)"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedChecked: [],
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMenuOpen: false,
+				expectedSelected: [true, true, true, true]
+			},
+			routeId: "minimap",
+			runner: "minimap-states",
+			sourceStateId: "minimap-component.content.populated",
+			snapshotName: "minimap-content-populated.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: '.cdk-overlay-pane [role="menu"]:has(.stark-minimap-menu-item)' },
+			maskSelectors: [],
+			maxDiffPixels: 200,
+			payload: {
+				action: { kind: "open-menu" },
+				expectedChecked: [true, true, true, true],
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMenuOpen: true,
+				expectedSelected: [true, true, true, true]
+			},
+			routeId: "minimap",
+			runner: "minimap-states",
+			sourceStateId: "minimap-component.selection.all-visible",
+			snapshotName: "minimap-selection-all-visible.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: '.cdk-overlay-pane [role="menu"]:has(.stark-minimap-menu-item)' },
+			maskSelectors: [],
+			maxDiffPixels: 420,
+			payload: {
+				action: { index: 1, kind: "open-menu-toggle-item" },
+				expectedChecked: [true, false, true, true],
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMenuOpen: true,
+				expectedSelected: [true, false, true, true]
+			},
+			routeId: "minimap",
+			runner: "minimap-states",
+			sourceStateId: "minimap-component.selection.partially-hidden",
+			snapshotName: "minimap-selection-partially-hidden.png",
+			threshold: 0
+		},
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#full stark-minimap.stark-minimap:not(.stark-primary):not(.stark-accent)"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedChecked: [],
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMenuOpen: false,
+				expectedSelected: [true, true, true, true]
+			},
+			routeId: "minimap",
+			runner: "minimap-states",
+			sourceStateId: "minimap-component.overlay.closed",
+			snapshotName: "minimap-overlay-closed.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: '.cdk-overlay-pane [role="menu"]:has(.stark-minimap-menu-item)' },
+			maskSelectors: [],
+			maxDiffPixels: 200,
+			payload: {
+				action: { kind: "open-menu" },
+				expectedChecked: [true, true, true, true],
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMenuOpen: true,
+				expectedSelected: [true, true, true, true]
+			},
+			routeId: "minimap",
+			runner: "minimap-states",
+			sourceStateId: "minimap-component.overlay.open",
+			snapshotName: "minimap-overlay-open.png",
+			threshold: 0
+		},
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#full stark-minimap.stark-minimap:not(.stark-primary):not(.stark-accent)"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedChecked: [],
+				expectedFocusVisible: false,
+				expectedFocused: false,
+				expectedMenuOpen: false,
+				expectedSelected: [true, true, true, true]
+			},
+			routeId: "minimap",
+			runner: "minimap-states",
+			sourceStateId: "minimap-component.focus.rest",
+			snapshotName: "minimap-focus-rest.png",
+			threshold: 0
+		},
+		{
+			capture: {
+				scope: "component",
+				selector: "example-viewer#full stark-minimap.stark-minimap:not(.stark-primary):not(.stark-accent)"
+			},
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "keyboard-tab" },
+				expectedChecked: [],
+				expectedFocusVisible: true,
+				expectedFocused: true,
+				expectedMenuOpen: false,
+				expectedSelected: [true, true, true, true]
+			},
+			routeId: "minimap",
+			runner: "minimap-states",
+			sourceStateId: "minimap-component.focus.keyboard",
+			snapshotName: "minimap-focus-keyboard.png",
+			threshold: 0
+		}
+	]);
+	expect(minimapScenarios.map(({ sourceStateId }) => sourceStateId)).not.toContain("minimap-component.content.empty");
+});
+
+test("runs every Pagination state that the pinned legacy fixtures can honestly render", () => {
+	const paginationScenarios = executableVisualScenarios.filter(({ surfaceId }) => surfaceId === "pagination-component");
+	const paginationSourceStates = sourceBackedStates
+		.filter(({ ownerBead, surfaceId }) => surfaceId === "pagination-component" && ownerBead === "stark-4sp.4.2")
+		.map(({ id }) => id);
+
+	expect(paginationSourceStates).toEqual([
+		"pagination-component.content.empty",
+		"pagination-component.content.populated",
+		"pagination-component.availability.previous-disabled",
+		"pagination-component.availability.next-enabled",
+		"pagination-component.availability.next-disabled",
+		"pagination-component.selection.first-page",
+		"pagination-component.selection.middle-page",
+		"pagination-component.selection.page-size",
+		"pagination-component.focus.rest",
+		"pagination-component.focus.keyboard"
+	]);
+	expect(paginationScenarios.map(({ sourceStateId }) => sourceStateId)).toEqual(paginationSourceStates.slice(1));
+	expect(paginationScenarios).toHaveLength(9);
+	expect(
+		paginationScenarios.every(
+			({ capture, id, maskSelectors, maxDiffPixels, ownerBead, routeId, threshold }) =>
+				capture.scope === "component" &&
+				capture.selector !== "body" &&
+				maskSelectors.length === 0 &&
+				maxDiffPixels === reviewedVisualDiffBudgets[id] &&
+				ownerBead === "stark-4sp.4.2" &&
+				routeId === "pagination" &&
+				threshold === 0
+		)
+	).toBe(true);
+	expect(paginationScenarios.map(({ sourceStateId }) => sourceStateId)).not.toContain("pagination-component.content.empty");
+});
+
+test("runs every Pretty Print component and service state that the pinned legacy fixtures can honestly render", () => {
+	const componentSourceStates = sourceBackedStates
+		.filter(({ ownerBead, surfaceId }) => surfaceId === "pretty-print-component" && ownerBead === "stark-4sp.4.2")
+		.map(({ id }) => id);
+	const serviceSourceStates = sourceBackedStates
+		.filter(({ ownerBead, surfaceId }) => surfaceId === "pretty-print-service" && ownerBead === "stark-4sp.4.2")
+		.map(({ id }) => id);
+	const componentScenarios = executableVisualScenarios.filter(({ surfaceId }) => surfaceId === "pretty-print-component");
+	const serviceScenarios = executableVisualScenarios.filter(({ surfaceId }) => surfaceId === "pretty-print-service");
+
+	expect(componentSourceStates).toEqual([
+		"pretty-print-component.content.empty",
+		"pretty-print-component.content.plain",
+		"pretty-print-component.content.highlighted",
+		"pretty-print-component.content.typescript",
+		"pretty-print-component.async.pending",
+		"pretty-print-component.async.formatted",
+		"pretty-print-component.async.error",
+		"pretty-print-component.validity.supported-format",
+		"pretty-print-component.validity.unsupported-format"
+	]);
+	expect(serviceSourceStates).toEqual([
+		"pretty-print-service.content.empty",
+		"pretty-print-service.content.json",
+		"pretty-print-service.content.xml",
+		"pretty-print-service.async.pending",
+		"pretty-print-service.async.formatted",
+		"pretty-print-service.async.error",
+		"pretty-print-service.validity.valid",
+		"pretty-print-service.validity.invalid"
+	]);
+	expect(componentScenarios.map(({ sourceStateId }) => sourceStateId)).toEqual([
+		"pretty-print-component.content.empty",
+		"pretty-print-component.content.plain",
+		"pretty-print-component.content.highlighted",
+		"pretty-print-component.content.typescript",
+		"pretty-print-component.async.formatted",
+		"pretty-print-component.async.error",
+		"pretty-print-component.validity.supported-format"
+	]);
+	expect(serviceScenarios.map(({ sourceStateId }) => sourceStateId)).toEqual([
+		"pretty-print-service.content.json",
+		"pretty-print-service.content.xml",
+		"pretty-print-service.async.formatted",
+		"pretty-print-service.async.error",
+		"pretty-print-service.validity.valid",
+		"pretty-print-service.validity.invalid"
+	]);
+	expect([...componentScenarios, ...serviceScenarios]).toHaveLength(13);
+	expect(
+		[...componentScenarios, ...serviceScenarios].every(
+			({ capture, maskSelectors, maxDiffPixels, ownerBead, routeId, threshold }) =>
+				capture.scope === "component" &&
+				capture.selector !== "body" &&
+				maskSelectors.length === 0 &&
+				maxDiffPixels === 0 &&
+				ownerBead === "stark-4sp.4.2" &&
+				routeId === "pretty-print" &&
+				threshold === 0
+		)
+	).toBe(true);
+});
+
+test("runs every App Footer state that the pinned legacy fixture can honestly render", () => {
+	const footerScenarios = executableScenariosForRunner("app-footer-states");
+	const footerSourceStates = sourceBackedStates.filter(({ surfaceId }) => surfaceId === "app-footer-component").map(({ id }) => id);
+
+	expect(footerSourceStates).toEqual([
+		"app-footer-component.content.without-links",
+		"app-footer-component.content.with-links",
+		"app-footer-component.focus.rest",
+		"app-footer-component.focus.keyboard"
+	]);
+	expect(
+		footerScenarios.map(
+			({ capture, maskSelectors, maxDiffPixels, payload, routeId, runner, sourceStateId, snapshotName, threshold }) => ({
+				capture,
+				maskSelectors,
+				maxDiffPixels,
+				payload: {
+					action: payload.action,
+					expectedFocusVisible: payload.expectedFocusVisible,
+					expectedKeyboardFocused: payload.expectedKeyboardFocused
+				},
+				routeId,
+				runner,
+				sourceStateId,
+				snapshotName,
+				threshold
+			})
+		)
+	).toEqual([
+		{
+			capture: { scope: "component", selector: "mat-sidenav-content stark-app-footer.stark-app-footer" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedFocusVisible: false,
+				expectedKeyboardFocused: false
+			},
+			routeId: "app-shell",
+			runner: "app-footer-states",
+			sourceStateId: "app-footer-component.content.with-links",
+			snapshotName: "app-footer-content-with-links.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "mat-sidenav-content stark-app-footer.stark-app-footer" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "initial" },
+				expectedFocusVisible: false,
+				expectedKeyboardFocused: false
+			},
+			routeId: "app-shell",
+			runner: "app-footer-states",
+			sourceStateId: "app-footer-component.focus.rest",
+			snapshotName: "app-footer-focus-rest.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "mat-sidenav-content stark-app-footer.stark-app-footer" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			payload: {
+				action: { kind: "keyboard-tab" },
+				expectedFocusVisible: true,
+				expectedKeyboardFocused: true
+			},
+			routeId: "app-shell",
+			runner: "app-footer-states",
+			sourceStateId: "app-footer-component.focus.keyboard",
+			snapshotName: "app-footer-focus-keyboard.png",
+			threshold: 0
+		}
+	]);
+	expect(footerScenarios).not.toEqual(
+		expect.arrayContaining([expect.objectContaining({ sourceStateId: "app-footer-component.content.without-links" })])
+	);
+	expect(missingVisualFixtureStates).toContainEqual({
+		sourceStateId: "app-footer-component.content.without-links",
+		ownerBead: "stark-4sp.4.2",
+		status: "missing-fixture",
+		rationale: "The pinned legacy shell always configures both footer links."
+	});
+});
+
+test("runs every Breadcrumb state owned by this bead that the pinned legacy fixture can honestly render", () => {
+	const breadcrumbScenarios = executableVisualScenarios.filter(({ surfaceId }) => surfaceId === "breadcrumb-component");
+	const breadcrumbSourceStates = sourceBackedStates
+		.filter(({ ownerBead, surfaceId }) => surfaceId === "breadcrumb-component" && ownerBead === "stark-4sp.4.2")
+		.map(({ id }) => id);
+
+	expect(breadcrumbSourceStates).toEqual([
+		"breadcrumb-component.content.empty",
+		"breadcrumb-component.content.single",
+		"breadcrumb-component.content.nested",
+		"breadcrumb-component.focus.rest",
+		"breadcrumb-component.focus.keyboard"
+	]);
+	expect(
+		breadcrumbScenarios.map(({ capture, maskSelectors, maxDiffPixels, routeId, runner, sourceStateId, snapshotName, threshold }) => ({
+			capture,
+			maskSelectors,
+			maxDiffPixels,
+			routeId,
+			runner,
+			sourceStateId,
+			snapshotName,
+			threshold
+		}))
+	).toEqual([
+		{
+			capture: { scope: "component", selector: "example-viewer#with-config-input stark-breadcrumb.stark-breadcrumb" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			routeId: "breadcrumb",
+			runner: "breadcrumb-states",
+			sourceStateId: "breadcrumb-component.content.nested",
+			snapshotName: "breadcrumb-content-nested.png",
+			threshold: 0
+		},
+		{
+			capture: { scope: "component", selector: "example-viewer#with-config-input stark-breadcrumb.stark-breadcrumb" },
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			routeId: "breadcrumb",
+			runner: "breadcrumb-states",
+			sourceStateId: "breadcrumb-component.focus.rest",
+			snapshotName: "breadcrumb-focus-rest.png",
+			threshold: 0
+		}
+	]);
+	expect(breadcrumbScenarios.map(({ sourceStateId }) => sourceStateId)).not.toEqual(
+		expect.arrayContaining([
+			"breadcrumb-component.content.empty",
+			"breadcrumb-component.content.single",
+			"breadcrumb-component.focus.keyboard"
+		])
+	);
 });
 
 test("keeps source-backed states as owned requirements rather than pseudo-executable contracts", () => {
@@ -322,8 +977,18 @@ test("has a valid fail-closed manifest", () => {
 	expect(validate()).toEqual([]);
 });
 
+test("fails closed when an owned state loses its explicit fixture disposition", () => {
+	const withoutFooterDisposition = missingVisualFixtureStates.filter(
+		({ sourceStateId }) => sourceStateId !== "app-footer-component.content.without-links"
+	);
+
+	const errors = validate(undefined, undefined, undefined, undefined, withoutFooterDisposition);
+	expect(errors).toContain("reviewed baseline requires 21 missing visual fixtures, received 20");
+	expect(errors).toContain("app-footer-component.content.without-links must have exactly one executable or missing-fixture disposition");
+});
+
 test("runs every Action Bar disclosure requirement with enough scroll checkpoints to expose every action", () => {
-	const actionBarScenarios = executableScenariosForRunner("action-bar-disclosure");
+	const actionBarScenarios = executableScenariosForRunner("action-bar-disclosure").filter(({ axis }) => axis === "disclosure");
 	const disclosure = stateRequirements.find(({ id }) => id === "action-bar-component.disclosure");
 	expect(disclosure?.states.map(({ id }) => id)).toEqual(["collapsed", "expanded"]);
 	expect(sourceBackedStates.filter(({ id }) => id.startsWith("action-bar-component.disclosure.")).map(({ id }) => id)).toEqual([
@@ -353,7 +1018,7 @@ test("runs every Action Bar disclosure requirement with enough scroll checkpoint
 		{
 			capture: { scope: "component", selector: "example-viewer#classic-full" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 380,
 			payload: { action: "initial", expectedVisibleActionLabels: [], scroll: { kind: "offset", top: 0 } },
 			routeId: "action-bar",
 			runner: "action-bar-disclosure",
@@ -364,7 +1029,7 @@ test("runs every Action Bar disclosure requirement with enough scroll checkpoint
 		{
 			capture: { scope: "component", selector: "example-viewer#classic-full" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 260,
 			payload: { action: "toggle", expectedVisibleActionLabels: ["Approve"], scroll: { kind: "offset", top: 0 } },
 			routeId: "action-bar",
 			runner: "action-bar-disclosure",
@@ -375,7 +1040,7 @@ test("runs every Action Bar disclosure requirement with enough scroll checkpoint
 		{
 			capture: { scope: "component", selector: "example-viewer#classic-full" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 190,
 			payload: { action: "toggle", expectedVisibleActionLabels: ["Save"], scroll: { kind: "offset", top: 40 } },
 			routeId: "action-bar",
 			runner: "action-bar-disclosure",
@@ -386,7 +1051,7 @@ test("runs every Action Bar disclosure requirement with enough scroll checkpoint
 		{
 			capture: { scope: "component", selector: "example-viewer#classic-full" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 300,
 			payload: { action: "toggle", expectedVisibleActionLabels: ["Delete"], scroll: { kind: "offset", top: 80 } },
 			routeId: "action-bar",
 			runner: "action-bar-disclosure",
@@ -397,7 +1062,7 @@ test("runs every Action Bar disclosure requirement with enough scroll checkpoint
 		{
 			capture: { scope: "component", selector: "example-viewer#classic-full" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 225,
 			payload: { action: "toggle", expectedVisibleActionLabels: ["Close"], scroll: { kind: "end" } },
 			routeId: "action-bar",
 			runner: "action-bar-disclosure",
@@ -406,6 +1071,36 @@ test("runs every Action Bar disclosure requirement with enough scroll checkpoint
 			threshold: 0
 		}
 	]);
+});
+
+test("runs every reachable Action Bar content, availability, overlay, and focus state", () => {
+	const scenarios = executableScenariosForRunner("action-bar-states");
+	expect(scenarios.map(({ sourceStateId }) => sourceStateId)).toEqual([
+		"action-bar-component.content.primary-actions",
+		"action-bar-component.content.alternative-actions",
+		"action-bar-component.content.compact",
+		"action-bar-component.availability.enabled",
+		"action-bar-component.availability.disabled",
+		"action-bar-component.overlay.closed",
+		"action-bar-component.overlay.open",
+		"action-bar-component.focus.rest",
+		"action-bar-component.focus.keyboard"
+	]);
+	expect(
+		scenarios.every(
+			({ capture, id, maskSelectors, maxDiffPixels, ownerBead, routeId, threshold }) =>
+				capture.scope === "component" &&
+				capture.selector !== "body" &&
+				maskSelectors.length === 0 &&
+				maxDiffPixels === (reviewedVisualDiffBudgets[id] ?? 0) &&
+				ownerBead === "stark-4sp.4.2" &&
+				routeId === "action-bar" &&
+				threshold === 0
+		)
+	).toBe(true);
+	expect(missingVisualFixtureStates).toContainEqual(
+		expect.objectContaining({ sourceStateId: "action-bar-component.content.empty", status: "missing-fixture" })
+	);
 });
 
 test("runs every Collapsible state that the pinned legacy fixture can honestly render", () => {
@@ -429,7 +1124,7 @@ test("runs every Collapsible state that the pinned legacy fixture can honestly r
 		{
 			capture: { scope: "component", selector: "example-viewer#default" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 930,
 			payload: {
 				action: { kind: "initial" },
 				expectedContentVisible: false,
@@ -443,7 +1138,7 @@ test("runs every Collapsible state that the pinned legacy fixture can honestly r
 		{
 			capture: { scope: "component", selector: "example-viewer#default" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 1750,
 			payload: {
 				action: { kind: "toggle-header" },
 				expectedContentVisible: true,
@@ -457,7 +1152,7 @@ test("runs every Collapsible state that the pinned legacy fixture can honestly r
 		{
 			capture: { scope: "component", selector: "example-viewer#custom" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 1950,
 			payload: {
 				action: { kind: "initial" },
 				expectedContentVisible: true,
@@ -471,7 +1166,7 @@ test("runs every Collapsible state that the pinned legacy fixture can honestly r
 		{
 			capture: { scope: "component", selector: "example-viewer#default" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 930,
 			payload: {
 				action: { kind: "initial" },
 				expectedContentVisible: false,
@@ -485,7 +1180,7 @@ test("runs every Collapsible state that the pinned legacy fixture can honestly r
 		{
 			capture: { scope: "component", selector: "example-viewer#default" },
 			maskSelectors: [],
-			maxDiffPixels: 0,
+			maxDiffPixels: 930,
 			payload: {
 				action: {
 					kind: "keyboard-focus-header",
@@ -532,6 +1227,76 @@ test("fails closed when App Logo focus coverage escapes its audited component bo
 	);
 });
 
+test("fails closed when App Data coverage escapes its audited fixture", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "app-data-disclosure-open" ? { ...scenario, capture: { scope: "component", selector: "body" } } : scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"app-data-disclosure-open does not use the audited App Data fixture and interaction flow"
+	);
+});
+
+test("fails closed when App Footer coverage escapes its audited shell component", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "app-footer-focus-keyboard" ? { ...scenario, capture: { scope: "component", selector: "body" } } : scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"app-footer-focus-keyboard does not use the audited App Footer selectors and keyboard flow"
+	);
+});
+
+test("fails closed when Breadcrumb coverage escapes its audited fixture", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "breadcrumb-content-nested" ? { ...scenario, capture: { scope: "component", selector: "body" } } : scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"breadcrumb-content-nested does not use the audited Breadcrumb fixture"
+	);
+});
+
+test("fails closed when Minimap coverage escapes its audited fixture", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "minimap-selection-partially-hidden"
+				? { ...scenario, capture: { scope: "component", selector: "body" } }
+				: scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"minimap-selection-partially-hidden does not use the audited Minimap fixture and interaction flow"
+	);
+});
+
+test("fails closed when Pagination coverage escapes its audited fixture", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "pagination-selection-page-size" ? { ...scenario, capture: { scope: "component", selector: "body" } } : scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"pagination-selection-page-size does not use the audited Pagination fixture and interaction flow"
+	);
+});
+
+test("fails closed when Pretty Print coverage escapes its audited fixture", () => {
+	const weakened = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "pretty-print-service-content-json"
+				? { ...scenario, capture: { scope: "component", selector: "body" } }
+				: scenario
+	);
+
+	expect(validate(undefined, undefined, undefined, weakened)).toContain(
+		"pretty-print-service-content-json does not use the audited Pretty Print fixture and interaction flow"
+	);
+});
+
 test("fails closed when the App Logo focus runner loses exact ownership", () => {
 	const unknownRunner = executableVisualScenarios.map(
 		(scenario): ExecutableVisualScenario =>
@@ -541,6 +1306,74 @@ test("fails closed when the App Logo focus runner loses exact ownership", () => 
 	const errors = validate(undefined, undefined, undefined, unknownRunner);
 	expect(errors).toContain("app-logo-focus-rest declares unknown runner unregistered");
 	expect(errors).toContain("app-logo-focus runner owns 1 scenarios, expected 2");
+});
+
+test("fails closed when the App Data runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "app-data-focus-rest" ? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId } : scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("app-data-focus-rest declares unknown runner unregistered");
+	expect(errors).toContain("app-data-states runner owns 5 scenarios, expected 6");
+});
+
+test("fails closed when the App Footer runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "app-footer-focus-rest" ? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId } : scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("app-footer-focus-rest declares unknown runner unregistered");
+	expect(errors).toContain("app-footer-states runner owns 2 scenarios, expected 3");
+});
+
+test("fails closed when the Breadcrumb runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "breadcrumb-focus-rest" ? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId } : scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("breadcrumb-focus-rest declares unknown runner unregistered");
+	expect(errors).toContain("breadcrumb-states runner owns 1 scenarios, expected 2");
+});
+
+test("fails closed when the Minimap runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "minimap-focus-rest" ? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId } : scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("minimap-focus-rest declares unknown runner unregistered");
+	expect(errors).toContain("minimap-states runner owns 6 scenarios, expected 7");
+});
+
+test("fails closed when the Pagination runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "pagination-focus-rest" ? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId } : scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("pagination-focus-rest declares unknown runner unregistered");
+	expect(errors).toContain("pagination-states runner owns 8 scenarios, expected 9");
+});
+
+test("fails closed when the Pretty Print runner loses exact ownership", () => {
+	const unknownRunner = executableVisualScenarios.map(
+		(scenario): ExecutableVisualScenario =>
+			scenario.id === "pretty-print-component-content-empty"
+				? { ...scenario, runner: "unregistered" as VisualScenarioRunnerId }
+				: scenario
+	);
+
+	const errors = validate(undefined, undefined, undefined, unknownRunner);
+	expect(errors).toContain("pretty-print-component-content-empty declares unknown runner unregistered");
+	expect(errors).toContain("pretty-print-states runner owns 12 scenarios, expected 13");
 });
 
 test("fails closed when the Collapsible runner loses exact ownership", () => {
@@ -554,21 +1387,21 @@ test("fails closed when the Collapsible runner loses exact ownership", () => {
 	expect(errors).toContain("collapsible-states runner owns 4 scenarios, expected 5");
 });
 
-test("fails closed when executable coverage weakens its component-only exact comparison", () => {
+test("fails closed when executable coverage weakens its reviewed component-only comparison", () => {
 	const weakened = executableVisualScenarios.map(
 		(scenario): ExecutableVisualScenario =>
 			scenario.id === "action-bar-disclosure-expanded-approve"
 				? {
 						...scenario,
 						capture: { scope: "component", selector: "body" },
-						maxDiffPixels: 10 as unknown as 0
+						maxDiffPixels: 10
 					}
 				: scenario
 	);
 
 	const errors = validate(undefined, undefined, undefined, weakened);
 	expect(errors).toContain("action-bar-disclosure-expanded-approve does not use audited Action Bar selectors");
-	expect(errors).toContain("action-bar-disclosure-expanded-approve weakens exact unmasked visual comparison");
+	expect(errors).toContain("action-bar-disclosure-expanded-approve weakens its reviewed unmasked visual comparison");
 });
 
 test("fails closed for an unknown runner and pins Action Bar runner ownership", () => {
