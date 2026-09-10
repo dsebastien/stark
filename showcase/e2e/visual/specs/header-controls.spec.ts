@@ -3,8 +3,6 @@ import { openRouteFromShowcaseShell } from "../support/navigation";
 
 const homeRoute = { id: "home", menuTrail: [], path: "/home" } as const;
 
-const reviewedHeaderControlsMaxDiffPixels = 273;
-
 test("matches the desktop header controls", async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 720 });
 	await openRouteFromShowcaseShell(page, homeRoute);
@@ -43,9 +41,39 @@ test("matches the desktop header controls", async ({ page }) => {
 		animations: "disabled",
 		caret: "hide",
 		mask: [],
-		// Geometry, colors and state are asserted above. The remaining differences
-		// are reviewed MDC text/vector rasterization.
-		maxDiffPixels: reviewedHeaderControlsMaxDiffPixels,
+		maxDiffPixels: 0,
 		threshold: 0
 	});
+});
+
+test("preserves the header language selector keyboard focus and dismissal", async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 720 });
+	await openRouteFromShowcaseShell(page, homeRoute);
+	await stabilizeVisualPage(page);
+	const controls = page.locator(".stark-app-bar-content-right");
+	const languageSelector = controls.locator("stark-language-selector");
+	const language = languageSelector.getByRole("combobox");
+	for (let press = 0; press < 20; press++) {
+		await page.keyboard.press("Tab");
+		if (await language.evaluate((element) => element === document.activeElement)) {
+			break;
+		}
+	}
+	await expect(language).toBeFocused();
+	await stabilizeVisualPage(page);
+	expect(await languageSelector.boundingBox()).toEqual({ x: 1079, y: 45, width: 100, height: 65 });
+	await expect(languageSelector).toHaveScreenshot("header-controls-language-focus.png", {
+		animations: "disabled",
+		caret: "hide",
+		mask: [],
+		maxDiffPixels: 0,
+		threshold: 0
+	});
+	await page.keyboard.press("Enter");
+	await expect(page.getByRole("listbox")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("listbox")).toBeHidden();
+	await expect(language).toBeFocused();
+	await page.keyboard.press("Tab");
+	await expect(language).not.toBeFocused();
 });
