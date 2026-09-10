@@ -3,6 +3,14 @@
 @mixin stark-date-time-picker() {
   .mat-form-field-type-stark-date-time-picker,
   .mat-mdc-form-field-type-stark-date-time-picker {
+    --mat-form-field-container-height: 44px;
+    --mat-form-field-container-text-size: 15px;
+    --mat-form-field-container-text-line-height: 24px;
+    --mat-form-field-filled-label-text-size: 15px;
+    --mat-form-field-filled-with-label-container-padding-top: 17px;
+    --mat-form-field-filled-with-label-container-padding-bottom: 2px;
+    --mat-form-field-filled-container-color: transparent;
+
     width: 280px;
 
     .mat-mdc-text-field-wrapper {
@@ -17,14 +25,30 @@
 
     .mat-mdc-form-field-infix {
       min-height: 44px;
-      padding: 6px 0;
+      padding: 17px 0 2px;
+    }
+
+    .mat-mdc-form-field-subscript-wrapper {
+      height: 18px;
+    }
+
+    .mat-mdc-floating-label {
+      font-size: 15.5px;
+      translate: 0 -4px;
     }
   }
 
   .stark-date-time-picker {
     display: flex;
     align-items: center;
+    position: relative;
+    top: -4px;
     width: 100%;
+
+    // Compound date/time controls keep their calibrated inline button layout.
+    .mat-mdc-icon-button.mat-mdc-button-base {
+      display: inline-block;
+    }
 
     .date-time-wrapper {
       width: 100%;
@@ -32,13 +56,18 @@
       align-items: center;
 
       input {
+        font-size: 14px;
         text-align: left;
       }
 
       /* Date */
       > .stark-date-picker {
-        flex: 2;
+        flex: 0 0 200px;
         max-width: 200px;
+
+        .mat-datepicker-toggle-default-icon {
+          transform: translateX(1px);
+        }
       }
 
       /* Time */
@@ -51,6 +80,8 @@
           max-width: 60px;
           height: 21px;
           line-height: 21px;
+          position: relative;
+          left: -1px;
         }
       }
     }
@@ -61,6 +92,7 @@
       align-items: center;
       justify-content: center;
       height: 24px;
+      color: rgba(0, 0, 0, 0.54);
       transition: color 500ms;
 
       .mat-mdc-icon-button {
@@ -79,9 +111,16 @@
       }
 
       .mat-icon {
-        width: 18px;
-        height: 18px;
-        font-size: 18px;
+        width: 14px;
+        height: 14px;
+        font-size: 14px;
+
+        svg {
+          width: 14px;
+          height: 14px;
+        }
+
+        transform: translate(2px, -1px);
       }
     }
 

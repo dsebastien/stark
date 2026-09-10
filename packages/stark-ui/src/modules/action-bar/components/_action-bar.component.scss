@@ -13,6 +13,11 @@
     overflow: visible;
     transform-origin: bottom;
 
+    // These composite icon/caption controls retain their existing inline flow.
+    .mat-mdc-icon-button {
+      display: block;
+    }
+
     &.extended {
       .stark-action-bar-action {
         width: auto;
@@ -45,11 +50,17 @@
       }
     }
 
+    &.extended .stark-action-bar-action.mat-mdc-icon-button {
+      width: auto;
+      padding-right: 0;
+      padding-left: 0;
+    }
+
     &.stark-action-bar-full {
       bottom: 0;
       left: 0;
       margin-bottom: 0;
-      padding: 4px 0;
+      padding: 0;
       position: fixed;
       right: 0;
       z-index: 4;
@@ -76,9 +87,17 @@
     }
   }
 
-  .stark-action-bar-menu-item {
-    .stark-small-icon {
+  .mat-mdc-menu-item.stark-action-bar-menu-item {
+    .mat-icon.stark-small-icon {
+      height: 18px;
       margin-bottom: 4px;
+      width: 18px;
+
+      svg {
+        display: block;
+        height: 100%;
+        width: 100%;
+      }
     }
   }
 

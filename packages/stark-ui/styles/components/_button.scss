@@ -1,4 +1,13 @@
+@use "@angular/material" as mat;
+
 @mixin stark-button() {
+  @include mat.button-overrides(
+    (
+      text-horizontal-padding: 16px,
+      text-with-icon-horizontal-padding: 16px
+    )
+  );
+
   .mdc-button,
   .mat-mdc-button.mat-mdc-button-base,
   .mat-mdc-icon-button.mat-mdc-button-base,
@@ -14,9 +23,37 @@
     --mdc-icon-button-state-layer-size: 40px;
     --mat-icon-button-state-layer-size: 40px;
     --mat-icon-button-touch-target-size: 40px;
+    --mat-icon-button-state-layer-color: #000;
 
     width: 40px;
     height: 40px;
     padding: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mat-mdc-button-base {
+    // Inline SVG descenders must not enlarge Material's fit-content icon box.
+    .mat-icon svg {
+      display: block;
+    }
+  }
+
+  // Outrank Material's runtime-inserted label styles to keep legacy paint order.
+  .mdc-button.mat-mdc-button-base .mdc-button__label {
+    position: static;
+    z-index: auto;
+  }
+
+  .mat-mdc-raised-button.mat-mdc-button-base {
+    // Preserve the legacy elevation surface's compositing and edge rendering.
+    transform: translate3d(0, 0, 0);
+  }
+
+  .mat-mdc-fab.mat-mdc-button-base:not(.mat-mdc-extended-fab):where(:not(.cdk-focused)),
+  .mat-mdc-mini-fab.mat-mdc-button-base:where(:not(.cdk-focused)) {
+    // Restore resting FAB surfaces without changing Material's focus-layer paint.
+    transform: translate3d(0, 0, 0);
   }
 }

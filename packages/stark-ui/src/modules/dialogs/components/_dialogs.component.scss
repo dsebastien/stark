@@ -6,7 +6,8 @@
 @mixin stark-dialogs() {
   .stark-alert-dialog,
   .stark-confirm-dialog,
-  .stark-prompt-dialog {
+  .stark-prompt-dialog,
+  .stark-table-dialog-multisort {
     --mat-dialog-actions-padding: 8px 0;
     --mat-dialog-content-padding: 0 24px;
     --mat-dialog-headline-padding: 0;
@@ -36,7 +37,31 @@
     }
 
     .mat-mdc-dialog-actions {
+      box-sizing: content-box;
+      min-height: 51px;
       margin: 0 -16px -24px 0;
+
+      // Preserve the existing dialog action shadow/text paint surface.
+      .mat-mdc-raised-button {
+        transform: none;
+      }
+    }
+
+    &:not(.stark-table-dialog-multisort) .mat-mdc-dialog-actions button {
+      position: relative;
+      top: -1px;
+
+      &.mat-mdc-raised-button.cdk-focused {
+        // Legacy raised buttons darken their themed container by a 12.5%
+        // black focus layer. Apply that blend directly while suppressing the
+        // structurally different MDC state layer below.
+        background-color: var(--stark-dialog-focused-button-color);
+      }
+
+      &.cdk-focused .mat-mdc-button-persistent-ripple::before {
+        background-color: #000;
+        opacity: 0;
+      }
     }
   }
 }
