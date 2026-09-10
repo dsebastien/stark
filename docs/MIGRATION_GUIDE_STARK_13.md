@@ -522,22 +522,23 @@ Material's old display classes are no longer the correct public hierarchy names.
 
 Use `.mat-body-1`, `.mat-body-2`, and `.mat-caption` for body and caption text.
 
-### Use dynamic form-field subscript sizing
+### Preserve form-field spacing
 
-Material's MDC form-field spacing differs from the legacy implementation. The starter configures dynamic subscript sizing application-wide:
+Material's MDC form-field spacing differs from the legacy implementation. Keep Material's fixed subscript sizing as the application default so fields retain the space expected by existing Stark layouts. Use `subscriptSizing="dynamic"` only on an individual field whose surrounding layout explicitly supports a changing height.
+
+Stark's date, date-range, date-time, and compact table-dialog styles apply narrowly scoped MDC sizing tokens to preserve their legacy geometry. Avoid a global `MAT_FORM_FIELD_DEFAULT_OPTIONS` override: it changes every field's height and can reintroduce label/value overlap or clipped dialog content.
+
+### Preserve overlay dismissal behavior
+
+Angular CDK 22 enables native popover-backed overlays by default. Stark applications that retain the established overlay layout and backdrop behavior must opt out at the application root:
 
 ```ts
-import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from "@angular/material/form-field";
+import { OVERLAY_DEFAULT_CONFIG } from "@angular/cdk/overlay";
 
-providers: [
-  {
-    provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
-    useValue: { subscriptSizing: "dynamic" }
-  }
-];
+providers: [{ provide: OVERLAY_DEFAULT_CONFIG, useValue: { usePopover: false } }];
 ```
 
-Use `subscriptSizing="fixed"` only on controls that require reserved hint/error space, such as a fixed-height table dialog row.
+This keeps selects, menus, date pickers, and dialogs on the connected-overlay path used by Stark 12, including dismissal when the user clicks the backdrop. Apply the provider once in the root application module; do not add it independently to feature modules.
 
 ### Review Material selectors
 
