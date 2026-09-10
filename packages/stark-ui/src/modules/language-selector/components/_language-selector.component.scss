@@ -53,7 +53,8 @@
 
       .mat-mdc-form-field-flex {
         height: 45px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.87);
+        // Keep the field metrics while Material paints the single underline.
+        border-bottom: 1px solid transparent;
       }
 
       .mat-mdc-form-field-infix {
@@ -90,7 +91,20 @@
 
       .mdc-line-ripple::before,
       .mdc-line-ripple::after {
+        // Both lines start above the reserved space below the select trigger.
+        top: 44px;
+        bottom: auto;
         border-bottom-color: currentColor;
+      }
+
+      &.mat-focused {
+        .mdc-line-ripple::after {
+          border-bottom-color: var(--mat-form-field-filled-focus-active-indicator-color, var(--mat-sys-primary)) !important;
+        }
+
+        .mat-mdc-select-arrow {
+          color: var(--mat-select-focused-arrow-color, var(--mat-sys-primary)) !important;
+        }
       }
     }
   }
