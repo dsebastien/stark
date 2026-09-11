@@ -20,6 +20,7 @@ import {
 	stateRequirements,
 	validateVisualCoverage,
 	type ExecutableVisualScenario,
+	type GenericSearchStateScenario,
 	type MissingVisualFixtureState,
 	type RouteSearchStateScenario,
 	type StateAxisReview,
@@ -189,7 +190,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(278);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(291);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -252,6 +253,200 @@ test("covers all nine Route Search states without claiming Generic Search, focus
 	expect(
 		executableScenariosForRunner("navigation-control-states").filter(({ surfaceId }) => surfaceId === "route-search-component")
 	).toHaveLength(2);
+});
+
+test("covers reachable Generic Search states and explicitly records the absent disabled fixture", () => {
+	const ownedStates = sourceBackedStates.filter(
+		({ surfaceId, ownerBead }) => surfaceId === "generic-search-component" && ownerBead === "stark-4sp.4.8"
+	);
+	const scenarios = executableScenariosForRunner("generic-search-states");
+	const missing = missingVisualFixtureStates.filter(({ sourceStateId }) => sourceStateId.startsWith("generic-search-component."));
+	expect(ownedStates).toHaveLength(6);
+	expect(scenarios).toHaveLength(13);
+	expect(
+		[...new Set(scenarios.map(({ sourceStateId }) => sourceStateId)), ...missing.map(({ sourceStateId }) => sourceStateId)].sort()
+	).toEqual(ownedStates.map(({ id }) => id).sort());
+	expect(missing.map(({ sourceStateId }) => sourceStateId)).toEqual(["generic-search-component.availability.disabled"]);
+	expect(
+		sourceBackedStates
+			.filter(({ surfaceId, axis }) => surfaceId === "generic-search-component" && axis === "responsive")
+			.every(({ ownerBead }) => ownerBead === "stark-4sp.4.14")
+	).toBe(true);
+});
+
+test("pins Generic Search data, loading capture, and narrow journeys without taking responsive ownership", () => {
+	const scenarios = executableScenariosForRunner("generic-search-states");
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, maxDiffPixels, threshold }) =>
+				capture.scope === "component" && maskSelectors.length === 0 && maxDiffPixels === 0 && threshold === 0
+		)
+	).toBe(true);
+	const narrow = scenarios.filter(({ payload }) => payload.viewport.width === 390);
+	expect(narrow.map(({ sourceStateId }) => sourceStateId)).toEqual([
+		"generic-search-component.availability.enabled",
+		"generic-search-component.disclosure.form-closed"
+	]);
+	expect(narrow.every(({ payload }) => payload.viewport.height === 844)).toBe(true);
+	const heroSearch = scenarios.find(({ id }) => id === "generic-search-hero-matches")!;
+	expect(heroSearch.payload.criteria).toEqual({ year: "", hero: "iRoN", movie: "" });
+	expect(heroSearch.payload.expectedRows).toEqual([
+		["Iron Man", "Iron Man", "2008"],
+		["Iron Man", "Iron Man 2", "2010"],
+		["Iron Man", "Iron Man 3", "2013"]
+	]);
+	expect(scenarios.find(({ id }) => id === "generic-search-keyboard-year-matches")?.payload.expectedRows).toEqual([
+		["Iron Man", "Iron Man", "2008"],
+		["Batman", "The Dark Knight", "2008"]
+	]);
+	expect(scenarios.find(({ id }) => id === "generic-search-all-results")?.payload.expectedRows).toHaveLength(8);
+	for (const scenario of scenarios) {
+		const expectedSelector =
+			scenario.payload.journey === "close"
+				? "example-viewer#generic-search-component mat-slide-toggle"
+				: scenario.payload.journey === "loading"
+					? "example-viewer#generic-search-component stark-progress-indicator"
+					: "#demo-generic-search-form";
+		expect(scenario.capture.selector).toBe(expectedSelector);
+	}
+});
+
+const invalidGenericSearchChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: GenericSearchStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "an unaudited fixture",
+		id: "generic-search-hero-matches",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, fixtureSelector: "example-viewer#unknown" }
+			}) as unknown as GenericSearchStateScenario
+	},
+	{
+		name: "an unsupported journey",
+		id: "generic-search-hero-matches",
+		change: (scenario) =>
+			({ ...scenario, payload: { ...scenario.payload, journey: "sort-table" } }) as unknown as GenericSearchStateScenario
+	},
+	{
+		name: "changed search criteria",
+		id: "generic-search-hero-matches",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, criteria: { year: "", hero: "", movie: "" } } })
+	},
+	{
+		name: "missing result cell assertions",
+		id: "generic-search-hero-matches",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, expectedRows: [] } })
+	},
+	{
+		name: "stale rows after no matches",
+		id: "generic-search-no-matches",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, expectedRows: [["Iron Man", "Iron Man", "2008"]] } })
+	},
+	{
+		name: "reset criteria that retain an old value",
+		id: "generic-search-reset",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, expectedCriteria: scenario.payload.criteria } })
+	},
+	{
+		name: "incorrect closed-form expectations",
+		id: "generic-search-form-closed",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, expectedFormOpen: true } })
+	},
+	{
+		name: "a keyboard journey that omits focus assertions",
+		id: "generic-search-keyboard-year-matches",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, expectedKeyboardFocus: false } })
+	},
+	{
+		name: "an unreviewed viewport",
+		id: "generic-search-narrow-hero-matches",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 400, height: 844 } } })
+	},
+	{
+		name: "the inline host as a form capture",
+		id: "generic-search-form-open",
+		change: (scenario) => ({
+			...scenario,
+			capture: { scope: "component", selector: "example-viewer#generic-search-component stark-generic-search" }
+		})
+	},
+	{
+		name: "a table capture in place of the loading indicator",
+		id: "generic-search-loading",
+		change: (scenario) => ({
+			...scenario,
+			capture: { scope: "component", selector: "example-viewer#generic-search-component stark-table" }
+		})
+	},
+	{
+		name: "a page capture",
+		id: "generic-search-hero-matches",
+		change: (scenario) => ({ ...scenario, capture: { scope: "page" } }) as unknown as GenericSearchStateScenario
+	},
+	{
+		name: "a masked screenshot",
+		id: "generic-search-hero-matches",
+		change: (scenario) => ({ ...scenario, maskSelectors: ["input"] }) as unknown as GenericSearchStateScenario
+	},
+	{
+		name: "a pixel allowance",
+		id: "generic-search-hero-matches",
+		change: (scenario) => ({ ...scenario, maxDiffPixels: 1 })
+	},
+	{
+		name: "a nonzero threshold",
+		id: "generic-search-hero-matches",
+		change: (scenario) => ({ ...scenario, threshold: 0.1 }) as unknown as GenericSearchStateScenario
+	}
+];
+
+for (const { name, id, change } of invalidGenericSearchChanges) {
+	test(`rejects Generic Search coverage with ${name}`, () => {
+		const scenarios = executableVisualScenarios.map((scenario) =>
+			scenario.runner === "generic-search-states" && scenario.id === id ? change(scenario) : scenario
+		);
+		expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+			`${id} does not use the audited Generic Search fixture and interaction flow`
+		);
+	});
+}
+
+test("fails closed when Generic Search loses a reachable state or the disabled-fixture disposition", () => {
+	const withoutClosed = executableVisualScenarios.filter(
+		({ sourceStateId }) => sourceStateId !== "generic-search-component.disclosure.form-closed"
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, withoutClosed)).toContain(
+		"generic-search-component.disclosure.form-closed must have exactly one executable or missing-fixture disposition"
+	);
+	const withoutDisabled = missingVisualFixtureStates.filter(
+		({ sourceStateId }) => sourceStateId !== "generic-search-component.availability.disabled"
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, executableVisualScenarios, withoutDisabled)).toContain(
+		"generic-search-component.availability.disabled must have exactly one executable or missing-fixture disposition"
+	);
+});
+
+test("rejects Generic Search coverage that claims disabled configuration or changes runner ownership", () => {
+	const disabled = executableVisualScenarios.map((scenario) =>
+		scenario.id === "generic-search-hero-matches"
+			? { ...scenario, state: "disabled", sourceStateId: "generic-search-component.availability.disabled" }
+			: scenario
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, disabled)).toContain(
+		"generic-search-hero-matches does not use the audited Generic Search fixture and interaction flow"
+	);
+	const changedRunner = executableVisualScenarios.map((scenario) =>
+		scenario.id === "generic-search-hero-matches"
+			? ({ ...scenario, runner: "navigation-control-states" } as unknown as ExecutableVisualScenario)
+			: scenario
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, changedRunner)).toContain(
+		"generic-search-hero-matches must use the Generic Search state runner"
+	);
 });
 
 test("pins Route Search variants, real navigation results, and strict capture boundaries", () => {
@@ -1155,7 +1350,7 @@ test("fails closed when an owned state loses its explicit fixture disposition", 
 	);
 
 	const errors = validate(undefined, undefined, undefined, undefined, withoutFooterDisposition);
-	expect(errors).toContain("reviewed baseline requires 21 missing visual fixtures, received 20");
+	expect(errors).toContain("reviewed baseline requires 22 missing visual fixtures, received 21");
 	expect(errors).toContain("app-footer-component.content.without-links must have exactly one executable or missing-fixture disposition");
 });
 

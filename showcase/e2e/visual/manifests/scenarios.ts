@@ -69,6 +69,7 @@ export const visualScenarioRunnerIds = [
 	"collapsible-states",
 	"date-control-states",
 	"feedback-states",
+	"generic-search-states",
 	"input-family-states",
 	"minimap-states",
 	"navigation-control-states",
@@ -625,6 +626,40 @@ export type RouteSearchStateScenario = ExecutableVisualScenarioCore<
 	}
 > & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
 
+type GenericSearchCriteria = Readonly<{ year: string; hero: string; movie: string }>;
+type GenericSearchRow = readonly [hero: string, movie: string, year: string];
+type GenericSearchJourney =
+	| "initial"
+	| "close"
+	| "reopen"
+	| "hero-search"
+	| "year-keyboard"
+	| "loading"
+	| "no-matches"
+	| "reset"
+	| "all-results"
+	| "movie-action-bar";
+
+export type GenericSearchStateScenario = ExecutableVisualScenarioCore<
+	"generic-search-states",
+	{
+		readonly fixtureSelector: "example-viewer#generic-search-component";
+		readonly formSelector: "#demo-generic-search-form";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: GenericSearchJourney;
+		readonly criteria: GenericSearchCriteria;
+		readonly expectedCriteria: GenericSearchCriteria;
+		readonly expectedRows: readonly GenericSearchRow[];
+		readonly expectedFormOpen: boolean;
+		readonly expectedKeyboardFocus: boolean;
+	}
+> & {
+	readonly surfaceId: "generic-search-component";
+	readonly routeId: "generic-search";
+	readonly ownerBead: "stark-4sp.4.8";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -635,6 +670,7 @@ export type ExecutableVisualScenario =
 	| CollapsibleStateScenario
 	| DateControlStateScenario
 	| FeedbackStateScenario
+	| GenericSearchStateScenario
 	| InputFamilyStateScenario
 	| MinimapStateScenario
 	| NavigationControlStateScenario
@@ -1405,8 +1441,15 @@ export const sourceBackedStates: readonly SourceBackedState[] = stateRequirement
 	)
 );
 
-/** Source-backed .4.2 states that the pinned legacy Showcase cannot render. */
+/** Source-backed states that the pinned legacy Showcase cannot render. */
 export const missingVisualFixtureStates: readonly MissingVisualFixtureState[] = [
+	{
+		sourceStateId: "generic-search-component.availability.disabled",
+		ownerBead: "stark-4sp.4.8",
+		status: "missing-fixture",
+		rationale:
+			"The pinned legacy Generic Search demo mounts the default enabled Search actions and exposes no disabled form-button configuration."
+	},
 	{
 		sourceStateId: "app-menu-component.content.empty",
 		ownerBead: "stark-4sp.4.3",
@@ -3796,6 +3839,154 @@ const feedbackScenarios: readonly FeedbackStateScenario[] = [
 	...toastFeedbackScenarios
 ];
 
+export const genericSearchFixtureSelector = "example-viewer#generic-search-component";
+export const genericSearchFormSelector = "#demo-generic-search-form";
+export const genericSearchToggleSelector = `${genericSearchFixtureSelector} mat-slide-toggle`;
+export const genericSearchSpinnerSelector = `${genericSearchFixtureSelector} stark-progress-indicator`;
+
+export const genericSearchCriteria = {
+	empty: { year: "", hero: "", movie: "" },
+	hero: { year: "", hero: "iRoN", movie: "" },
+	year: { year: "2008", hero: "", movie: "" },
+	movie: { year: "", hero: "", movie: "iRoN MaN 2" },
+	combined: { year: "2008", hero: "iRoN", movie: "Iron Man" },
+	unmatched: { year: "", hero: "__stark_unmatched_hero__", movie: "" }
+} as const satisfies Readonly<Record<string, GenericSearchCriteria>>;
+
+/** Exact demo rows, in source order; these are assertions, not a replica filter. */
+export const genericSearchRows = {
+	hero: [
+		["Iron Man", "Iron Man", "2008"],
+		["Iron Man", "Iron Man 2", "2010"],
+		["Iron Man", "Iron Man 3", "2013"]
+	],
+	year: [
+		["Iron Man", "Iron Man", "2008"],
+		["Batman", "The Dark Knight", "2008"]
+	],
+	movie: [["Iron Man", "Iron Man 2", "2010"]],
+	combined: [["Iron Man", "Iron Man", "2008"]],
+	all: [
+		["Black Panther", "Black Panther", "2018"],
+		["Wonder Woman", "Wonder Woman", "2017"],
+		["Ant-Man", "Ant-Man", "2015"],
+		["Iron Man", "Iron Man", "2008"],
+		["Batman", "The Dark Knight", "2008"],
+		["Batman", "Batman", "1989"],
+		["Iron Man", "Iron Man 2", "2010"],
+		["Iron Man", "Iron Man 3", "2013"]
+	]
+} as const satisfies Readonly<Record<string, readonly GenericSearchRow[]>>;
+
+function genericSearchPayload(
+	journey: GenericSearchJourney,
+	viewport: GenericSearchStateScenario["payload"]["viewport"]
+): GenericSearchStateScenario["payload"] | undefined {
+	const criteria = genericSearchCriteria;
+	let initialCriteria: GenericSearchCriteria;
+	let expectedCriteria: GenericSearchCriteria;
+	let expectedRows: readonly GenericSearchRow[] = [];
+	switch (journey) {
+		case "initial":
+			initialCriteria = expectedCriteria = criteria.empty;
+			break;
+		case "close":
+		case "reopen":
+			initialCriteria = expectedCriteria = criteria.combined;
+			break;
+		case "hero-search":
+		case "loading":
+			initialCriteria = expectedCriteria = criteria.hero;
+			expectedRows = genericSearchRows.hero;
+			break;
+		case "year-keyboard":
+			initialCriteria = expectedCriteria = criteria.year;
+			expectedRows = genericSearchRows.year;
+			break;
+		case "movie-action-bar":
+			initialCriteria = expectedCriteria = criteria.movie;
+			expectedRows = genericSearchRows.movie;
+			break;
+		case "no-matches":
+			initialCriteria = criteria.hero;
+			expectedCriteria = criteria.unmatched;
+			break;
+		case "reset":
+		case "all-results":
+			initialCriteria = criteria.combined;
+			expectedCriteria = criteria.empty;
+			expectedRows = journey === "all-results" ? genericSearchRows.all : [];
+			break;
+		default:
+			return undefined;
+	}
+	return {
+		fixtureSelector: genericSearchFixtureSelector,
+		formSelector: genericSearchFormSelector,
+		viewport,
+		journey,
+		criteria: initialCriteria,
+		expectedCriteria,
+		expectedRows,
+		expectedFormOpen: journey !== "close",
+		expectedKeyboardFocus: journey === "year-keyboard"
+	};
+}
+
+function genericSearchCaptureSelector(journey: GenericSearchJourney): string {
+	return journey === "close"
+		? genericSearchToggleSelector
+		: journey === "loading"
+			? genericSearchSpinnerSelector
+			: genericSearchFormSelector;
+}
+
+function genericSearchScenario(
+	suffix: string,
+	axis: "disclosure" | "availability" | "focus",
+	state: string,
+	journey: GenericSearchJourney,
+	viewport = { width: 1280, height: 900 }
+): GenericSearchStateScenario {
+	const id = `generic-search-${suffix}`;
+	const payload = genericSearchPayload(journey, viewport);
+	if (!payload) {
+		throw new Error(`Unsupported Generic Search journey: ${journey}`);
+	}
+	return {
+		id,
+		sourceStateId: `generic-search-component.${axis}.${state}`,
+		surfaceId: "generic-search-component",
+		axis,
+		state,
+		ownerBead: "stark-4sp.4.8",
+		routeId: "generic-search",
+		runner: "generic-search-states",
+		capture: { scope: "component", selector: genericSearchCaptureSelector(journey) },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload
+	};
+}
+
+const genericSearchScenarios: readonly GenericSearchStateScenario[] = [
+	genericSearchScenario("form-open", "disclosure", "form-open", "initial"),
+	genericSearchScenario("form-closed", "disclosure", "form-closed", "close"),
+	genericSearchScenario("form-reopened", "disclosure", "form-open", "reopen"),
+	genericSearchScenario("hero-matches", "availability", "enabled", "hero-search"),
+	genericSearchScenario("keyboard-year-matches", "focus", "keyboard", "year-keyboard"),
+	genericSearchScenario("loading", "availability", "enabled", "loading"),
+	genericSearchScenario("no-matches", "availability", "enabled", "no-matches"),
+	genericSearchScenario("reset", "availability", "enabled", "reset"),
+	genericSearchScenario("all-results", "availability", "enabled", "all-results"),
+	genericSearchScenario("focus-rest", "focus", "rest", "initial"),
+	genericSearchScenario("action-bar-movie-matches", "availability", "enabled", "movie-action-bar"),
+	genericSearchScenario("narrow-hero-matches", "availability", "enabled", "hero-search", { width: 390, height: 844 }),
+	genericSearchScenario("narrow-form-closed", "disclosure", "form-closed", "close", { width: 390, height: 844 })
+];
+
 export const routeSearchPanelSelector = ".search-route-autocomplete[role=listbox]";
 const routeSearchLeftFixture = "example-viewer#direction-left";
 const routeSearchRightFixture = "example-viewer#direction-right";
@@ -5028,6 +5219,7 @@ export const executableVisualScenarios = [
 	...dateControlScenarios,
 	...inputFamilyScenarios,
 	...feedbackScenarios,
+	...genericSearchScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -5044,8 +5236,8 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 278,
-	missingVisualFixtures: 21,
+	executableScenarios: 291,
+	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
 		"action-bar-states": 9,
@@ -5056,6 +5248,7 @@ export const reviewedCoverageBaseline = {
 		"collapsible-states": 5,
 		"date-control-states": 31,
 		"feedback-states": 66,
+		"generic-search-states": 13,
 		"input-family-states": 66,
 		"minimap-states": 7,
 		"navigation-control-states": 38,
@@ -5277,7 +5470,8 @@ export function validateVisualCoverage(
 	for (const { id } of requirementStates.filter(
 		({ requirement }) =>
 			["stark-4sp.4.2", "stark-4sp.4.3", "stark-4sp.4.4", "stark-4sp.4.5"].includes(requirement.ownerBead) ||
-			(requirement.surfaceId === "route-search-component" && requirement.ownerBead === "stark-4sp.4.8")
+			(["route-search-component", "generic-search-component"].includes(requirement.surfaceId) &&
+				requirement.ownerBead === "stark-4sp.4.8")
 	)) {
 		const dispositions =
 			Number(executableScenarios.some(({ sourceStateId }) => sourceStateId === id)) +
@@ -5320,6 +5514,13 @@ export function validateVisualCoverage(
 			scenario.runner !== "route-search-states"
 		) {
 			errors.push(`${scenario.id} must use the Route Search state runner`);
+		}
+		if (
+			scenario.surfaceId === "generic-search-component" &&
+			requirementEntry?.ownerBead === "stark-4sp.4.8" &&
+			scenario.runner !== "generic-search-states"
+		) {
+			errors.push(`${scenario.id} must use the Generic Search state runner`);
 		}
 		const surface = surfaceById.get(scenario.surfaceId);
 		if (!routes.some(({ id }) => id === scenario.routeId)) {
@@ -5591,6 +5792,37 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "generic-search-states") {
+			const { journey, viewport } = scenario.payload;
+			const expectedPayload = genericSearchPayload(journey, viewport);
+			const allowedStates: Readonly<Record<string, boolean>> = {
+				"disclosure.form-open": journey === "initial" || journey === "reopen",
+				"disclosure.form-closed": journey === "close",
+				"availability.enabled": ["hero-search", "loading", "no-matches", "reset", "all-results", "movie-action-bar"].includes(
+					journey
+				),
+				"focus.rest": journey === "initial",
+				"focus.keyboard": journey === "year-keyboard"
+			};
+			const desktop = viewport.width === 1280 && viewport.height === 900;
+			const narrow = viewport.width === 390 && viewport.height === 844 && ["hero-search", "close"].includes(journey);
+			if (
+				scenario.surfaceId !== "generic-search-component" ||
+				scenario.routeId !== "generic-search" ||
+				scenario.ownerBead !== "stark-4sp.4.8" ||
+				!allowedStates[`${scenario.axis}.${scenario.state}`] ||
+				(!desktop && !narrow) ||
+				expectedPayload === undefined ||
+				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== genericSearchCaptureSelector(journey) ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited Generic Search fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "route-search-states") {
 			const { action, expected, fixtureSelector } = scenario.payload;
