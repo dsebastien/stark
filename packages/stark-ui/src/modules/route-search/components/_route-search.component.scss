@@ -7,6 +7,11 @@
 @mixin stark-route-search() {
   .search-button {
     height: 40px;
+
+    &.cdk-mouse-focused {
+      // Retain the legacy FAB shadow rendering after a pointer toggles the field.
+      transform: translate3d(0, 0, 0);
+    }
   }
 
   .route-search-left {
@@ -28,12 +33,33 @@
       display: none;
     }
 
-    .search-field {
+    .search-field.mat-mdc-form-field {
+      --mat-form-field-container-text-line-height: 1.125;
+      --mat-form-field-filled-label-text-size: 15px;
+
+      display: inline-block;
+      position: relative;
+      line-height: 1.125;
+
       .mat-mdc-floating-label {
         font-size: 15px;
+        line-height: 19px;
+        // Preserve the legacy never-floating label's em-based position.
+        top: calc(4px + 1.28125em - 0.84375 * var(--mat-form-field-container-text-size, 14px));
+        left: 0;
+        width: 100%;
+        max-width: 100%;
+        margin-top: 0 !important;
+        transform: perspective(100px) !important;
+      }
+
+      &:has(input:not(:placeholder-shown)) .mat-mdc-floating-label {
+        opacity: 0;
+        pointer-events: none;
       }
 
       .mat-mdc-text-field-wrapper {
+        box-sizing: content-box;
         margin-left: 5px;
         margin-right: 5px;
         width: 210px;
@@ -48,13 +74,22 @@
 
       .mat-mdc-input-element {
         width: 200px;
+        line-height: 1.125;
+        margin-top: -0.0625em;
       }
 
       .mat-mdc-form-field-infix {
         border: 0;
-        min-height: 40px;
+        min-height: 0;
+        padding: 0;
         text-indent: 5px;
-        margin-top: 4px;
+        margin-top: 0;
+      }
+
+      .route-search-field-content {
+        // Include the legacy infix's top spacing in the overlay origin so both
+        // above-field and below-field panels align with the compact content.
+        padding: calc(4px + 0.4375em) 0 0.4375em;
       }
 
       .mat-mdc-form-field-subscript-wrapper {
@@ -64,6 +99,16 @@
       .mdc-line-ripple {
         display: none;
       }
+    }
+  }
+
+  .search-route-autocomplete.mat-mdc-autocomplete-panel {
+    padding: 0;
+
+    .mat-mdc-option {
+      height: 48px;
+      min-height: 48px;
+      overflow: hidden;
     }
   }
 
@@ -88,7 +133,8 @@
 
       .mat-mdc-form-field-infix {
         border: 0;
-        min-height: 40px;
+        min-height: 0;
+        padding: 0;
         text-indent: 5px;
         margin-top: 4px;
       }

@@ -4,13 +4,17 @@
 	</button>
 	<div [ngClass]="{ hide: hide }" class="route-search-input-wrapper">
 		<mat-form-field class="search-field">
-			<input
-				class="search-field-input"
-				matInput
-				[matAutocomplete]="autocompleteComp"
-				[placeholder]="'STARK.ROUTE_SEARCH.PLACEHOLDER' | translate"
-				[formControl]="searchField"
-			/>
+			<mat-label>{{ "STARK.ROUTE_SEARCH.PLACEHOLDER" | translate }}</mat-label>
+			<div class="route-search-field-content" matAutocompleteOrigin #searchOrigin="matAutocompleteOrigin">
+				<input
+					class="search-field-input"
+					matInput
+					[matAutocomplete]="autocompleteComp"
+					[matAutocompleteConnectedTo]="searchOrigin"
+					[placeholder]="'STARK.ROUTE_SEARCH.PLACEHOLDER' | translate"
+					[formControl]="searchField"
+				/>
+			</div>
 			<mat-autocomplete #autocompleteComp="matAutocomplete" autoActiveFirstOption class="search-route-autocomplete">
 				<mat-option
 					(onSelectionChange)="redirect(option)"

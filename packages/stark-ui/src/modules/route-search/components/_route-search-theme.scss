@@ -9,6 +9,16 @@
   $grey-palette: map.get($stark-theme-config, grey-palette);
 
   .search-field {
+    @include mat.form-field-overrides(
+      (
+        filled-container-color: #fff,
+        filled-input-text-color: mat.m2-get-color-from-palette($grey-palette, 900),
+        filled-input-text-placeholder-color: transparent,
+        filled-label-text-color: mat.get-theme-color($material-theme-config, foreground, secondary-text),
+        filled-focus-label-text-color: mat.get-theme-color($material-theme-config, primary)
+      )
+    );
+
     .mat-mdc-text-field-wrapper {
       border: 1px solid mat.m2-get-color-from-palette($grey-palette, 400);
       background-color: #fff;
@@ -16,7 +26,32 @@
     }
   }
 
+  .search-route-autocomplete.mat-mdc-autocomplete-panel {
+    @include mat.elevation(4);
+
+    @include mat.option-overrides(
+      (
+        label-text-size: 16px,
+        label-text-line-height: 48px,
+        label-text-color: mat.get-theme-color($material-theme-config, foreground, text),
+        focus-state-layer-color: mat.get-theme-color($material-theme-config, background, hover)
+      )
+    );
+  }
+
   button.search-button {
+    @include mat.fab-overrides(
+      (
+        small-hover-state-layer-opacity: 0
+      )
+    );
+
+    // The legacy icon-button/FAB combination kept its resting shadow on hover.
+    &:hover,
+    &.cdk-mouse-focused {
+      @include mat.elevation(6);
+    }
+
     background-color: mat.m2-get-color-from-palette(map.get($material-theme-config, accent), 500);
     /* stylelint-disable-next-line value-keyword-case */
     color: mat.m2-get-color-from-palette($grey-palette, A100);
