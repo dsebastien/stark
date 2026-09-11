@@ -21,6 +21,7 @@ import {
 	validateVisualCoverage,
 	type ExecutableVisualScenario,
 	type MissingVisualFixtureState,
+	type RouteSearchStateScenario,
 	type StateAxisReview,
 	type StateRequirement,
 	type VisualScenarioRunnerId
@@ -188,7 +189,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(262);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(278);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -233,6 +234,177 @@ test("gives every navigation and application-control state one explicit fixture 
 	expect(executableOwnedStateIds).toHaveLength(36);
 	expect(missingStateIds).toEqual(["app-menu-component.content.empty", "app-menu-item-component.focus.keyboard"]);
 	expect([...executableOwnedStateIds, ...missingStateIds].sort()).toEqual(ownedStateIds);
+});
+
+test("covers all nine Route Search states without claiming Generic Search, focus, or responsive ownership", () => {
+	const ownedStates = sourceBackedStates.filter(
+		({ surfaceId, ownerBead }) => surfaceId === "route-search-component" && ownerBead === "stark-4sp.4.8"
+	);
+	const scenarios = executableVisualScenarios.filter(
+		({ surfaceId, ownerBead }) => surfaceId === "route-search-component" && ownerBead === "stark-4sp.4.8"
+	);
+
+	expect(ownedStates).toHaveLength(9);
+	expect(scenarios).toHaveLength(16);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))].sort()).toEqual(ownedStates.map(({ id }) => id).sort());
+	expect(scenarios.every(({ runner }) => runner === "route-search-states")).toBe(true);
+	expect(missingVisualFixtureStates.filter(({ sourceStateId }) => ownedStates.some(({ id }) => id === sourceStateId))).toEqual([]);
+	expect(
+		executableScenariosForRunner("navigation-control-states").filter(({ surfaceId }) => surfaceId === "route-search-component")
+	).toHaveLength(2);
+});
+
+test("pins Route Search variants, real navigation results, and strict capture boundaries", () => {
+	const scenarios = executableScenariosForRunner("route-search-states");
+	expect([...new Set(scenarios.map(({ payload }) => payload.fixtureSelector))].sort()).toEqual([
+		"example-viewer#direction-left",
+		"example-viewer#direction-right",
+		"example-viewer#with-menu-config-and-custom-color"
+	]);
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, maxDiffPixels, threshold }) =>
+				capture.scope === "component" && maskSelectors.length === 0 && maxDiffPixels === 0 && threshold === 0
+		)
+	).toBe(true);
+	const selections = scenarios.filter(({ payload }) => payload.action.kind === "select");
+	expect(selections.map(({ payload }) => payload.expected)).toEqual([
+		{ kind: "destination", path: "/demo-ui/breadcrumb", heading: "Breadcrumb" },
+		{ kind: "destination", path: "/demo-ui/breadcrumb", heading: "Breadcrumb" },
+		{ kind: "destination", path: "/styleguide/typography", heading: "Typography" },
+		{ kind: "destination", path: "/demo-ui/date-range-picker", heading: "Date range picker" }
+	]);
+	for (const scenario of scenarios) {
+		if (scenario.payload.expected.kind === "destination") {
+			expect(scenario.capture.selector).toBe(`ui-view h1:text-is("${scenario.payload.expected.heading}")`);
+		} else if (
+			scenario.axis === "disclosure" ||
+			scenario.sourceStateId === "route-search-component.overlay.closed" ||
+			scenario.state === "no-matches"
+		) {
+			expect(scenario.capture.selector).toBe(scenario.payload.fixtureSelector);
+		} else {
+			expect(scenario.capture.selector).toBe(".search-route-autocomplete[role=listbox]");
+		}
+	}
+});
+
+const invalidRouteSearchChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: RouteSearchStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "an unaudited fixture",
+		id: "route-search-left-matches",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, fixtureSelector: "example-viewer#unknown" }
+			}) as unknown as RouteSearchStateScenario
+	},
+	{
+		name: "an unsupported action",
+		id: "route-search-left-matches",
+		change: (scenario) =>
+			({ ...scenario, payload: { ...scenario.payload, action: { kind: "hover" } } }) as unknown as RouteSearchStateScenario
+	},
+	{
+		name: "a lazy menu query in the router-only fixture",
+		id: "route-search-left-matches",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, action: { kind: "filter", query: "typography" } } })
+	},
+	{
+		name: "a selection action claiming an unselected state",
+		id: "route-search-left-unselected",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, action: { kind: "select", query: "brEAd", via: "pointer" } }
+		})
+	},
+	{
+		name: "missing matching-result assertions",
+		id: "route-search-left-matches",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, expected: { kind: "search", inputVisible: true, value: "brEAd", results: [] } }
+		})
+	},
+	{
+		name: "dismissal that incorrectly clears the query",
+		id: "route-search-left-escape",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, expected: { kind: "search", inputVisible: true, value: "", results: null } }
+		})
+	},
+	{
+		name: "a keyboard selection with the wrong destination",
+		id: "route-search-right-second-enter-selection",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, expected: { kind: "destination", path: "/demo-ui/date-picker", heading: "Date picker" } }
+		})
+	},
+	{
+		name: "an unrelated page capture",
+		id: "route-search-left-matches",
+		change: (scenario) => ({ ...scenario, capture: { scope: "page" } }) as unknown as RouteSearchStateScenario
+	},
+	{
+		name: "a control capture that clips the overflowing field",
+		id: "route-search-right-open",
+		change: (scenario) => ({
+			...scenario,
+			capture: { scope: "component", selector: `${scenario.payload.fixtureSelector} stark-route-search` }
+		})
+	},
+	{
+		name: "a masked comparison",
+		id: "route-search-left-matches",
+		change: (scenario) => ({ ...scenario, maskSelectors: [".search-field-input"] }) as unknown as RouteSearchStateScenario
+	},
+	{
+		name: "a pixel allowance",
+		id: "route-search-left-matches",
+		change: (scenario) => ({ ...scenario, maxDiffPixels: 1 })
+	},
+	{
+		name: "a nonzero screenshot threshold",
+		id: "route-search-left-matches",
+		change: (scenario) => ({ ...scenario, threshold: 0.1 }) as unknown as RouteSearchStateScenario
+	}
+];
+
+for (const { name, id, change } of invalidRouteSearchChanges) {
+	test(`rejects Route Search coverage with ${name}`, () => {
+		const scenarios = executableVisualScenarios.map((scenario) =>
+			scenario.runner === "route-search-states" && scenario.id === id ? change(scenario) : scenario
+		);
+		expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+			`${id} does not use the audited Route Search fixture and interaction flow`
+		);
+	});
+}
+
+test("fails closed when a Route Search state loses its executable disposition", () => {
+	const scenarios = executableVisualScenarios.filter(
+		({ sourceStateId }) => sourceStateId !== "route-search-component.selection.selected"
+	);
+	const errors = validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios);
+	expect(errors).toContain("route-search-component.selection.selected must have exactly one executable or missing-fixture disposition");
+	expect(errors.some((error) => error.includes("generic-search") && error.includes("disposition"))).toBe(false);
+});
+
+test("rejects Route Search states assigned to another registered runner", () => {
+	const scenarios = executableVisualScenarios.map((scenario) =>
+		scenario.id === "route-search-left-matches"
+			? ({ ...scenario, runner: "navigation-control-states" } as unknown as ExecutableVisualScenario)
+			: scenario
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+		"route-search-left-matches must use the Route Search state runner"
+	);
 });
 
 test("runs every date, date-range, and date-time state owned by the date-control bead", () => {

@@ -73,7 +73,8 @@ export const visualScenarioRunnerIds = [
 	"minimap-states",
 	"navigation-control-states",
 	"pagination-states",
-	"pretty-print-states"
+	"pretty-print-states",
+	"route-search-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -602,6 +603,28 @@ export type NavigationControlStateScenario = ExecutableVisualScenarioCore<
 	}
 > & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
 
+type RouteSearchFixture =
+	| "example-viewer#direction-left"
+	| "example-viewer#direction-right"
+	| "example-viewer#with-menu-config-and-custom-color";
+type RouteSearchQuery = "brEAd" | "typography" | "date" | "__stark_unmatched_route__";
+type RouteSearchAction =
+	| Readonly<{ kind: "initial" | "open" }>
+	| Readonly<{ kind: "filter" | "clear" | "escape" | "toggle-close" | "toggle-reopen"; query: RouteSearchQuery }>
+	| Readonly<{ kind: "select"; query: RouteSearchQuery; via: "pointer" | "enter" | "second-enter" }>;
+type RouteSearchExpectation =
+	| Readonly<{ kind: "search"; inputVisible: boolean; value: string; results: "all" | readonly string[] | null }>
+	| Readonly<{ kind: "destination"; path: string; heading: string }>;
+
+export type RouteSearchStateScenario = ExecutableVisualScenarioCore<
+	"route-search-states",
+	{
+		readonly fixtureSelector: RouteSearchFixture;
+		readonly action: RouteSearchAction;
+		readonly expected: RouteSearchExpectation;
+	}
+> & { readonly capture: Readonly<{ scope: "component"; selector: string }> };
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -616,7 +639,8 @@ export type ExecutableVisualScenario =
 	| MinimapStateScenario
 	| NavigationControlStateScenario
 	| PaginationStateScenario
-	| PrettyPrintStateScenario;
+	| PrettyPrintStateScenario
+	| RouteSearchStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -3772,6 +3796,137 @@ const feedbackScenarios: readonly FeedbackStateScenario[] = [
 	...toastFeedbackScenarios
 ];
 
+export const routeSearchPanelSelector = ".search-route-autocomplete[role=listbox]";
+const routeSearchLeftFixture = "example-viewer#direction-left";
+const routeSearchRightFixture = "example-viewer#direction-right";
+const routeSearchMenuFixture = "example-viewer#with-menu-config-and-custom-color";
+
+function expectedRouteSearchOutcome(fixture: RouteSearchFixture, action: RouteSearchAction): RouteSearchExpectation | undefined {
+	if (![routeSearchLeftFixture, routeSearchRightFixture, routeSearchMenuFixture].includes(fixture)) {
+		return undefined;
+	}
+	const menuConfig = fixture === routeSearchMenuFixture;
+	if (action.kind === "initial") {
+		return { kind: "search", inputVisible: false, value: "", results: null };
+	}
+	if (action.kind === "open") {
+		return menuConfig ? undefined : { kind: "search", inputVisible: true, value: "", results: "all" };
+	}
+	if (!("query" in action)) {
+		return undefined;
+	}
+	const matchingQuery = menuConfig ? "typography" : "brEAd";
+	const matchingLabel = menuConfig ? "Typography" : "Breadcrumb";
+	if (action.kind === "select") {
+		if (action.via === "second-enter" && action.query === "date" && fixture === routeSearchRightFixture) {
+			return { kind: "destination", path: "/demo-ui/date-range-picker", heading: "Date range picker" };
+		}
+		if (action.query !== matchingQuery || !["pointer", "enter"].includes(action.via)) {
+			return undefined;
+		}
+		return {
+			kind: "destination",
+			path: menuConfig ? "/styleguide/typography" : "/demo-ui/breadcrumb",
+			heading: matchingLabel
+		};
+	}
+	if (action.kind === "filter" && action.query === "__stark_unmatched_route__") {
+		return { kind: "search", inputVisible: true, value: action.query, results: [] };
+	}
+	if (action.query !== matchingQuery) {
+		return undefined;
+	}
+	switch (action.kind) {
+		case "filter":
+		case "toggle-reopen":
+			return { kind: "search", inputVisible: true, value: action.query, results: [matchingLabel] };
+		case "clear":
+			return menuConfig ? undefined : { kind: "search", inputVisible: true, value: "", results: "all" };
+		case "escape":
+		case "toggle-close":
+			return { kind: "search", inputVisible: action.kind === "escape", value: action.query, results: null };
+		default:
+			return undefined;
+	}
+}
+
+function routeSearchCaptureSelector(sourceState: string, fixture: RouteSearchFixture, expected: RouteSearchExpectation): string {
+	if (expected.kind === "destination") {
+		return `ui-view h1:text-is("${expected.heading}")`;
+	}
+	return ["content.empty-query", "content.matches", "selection.unselected", "overlay.open"].includes(sourceState)
+		? routeSearchPanelSelector
+		: fixture;
+}
+
+function routeSearchScenario(
+	idSuffix: string,
+	fixtureSelector: RouteSearchFixture,
+	axis: "content" | "disclosure" | "selection" | "overlay",
+	state: string,
+	action: RouteSearchAction
+): RouteSearchStateScenario {
+	const expected = expectedRouteSearchOutcome(fixtureSelector, action);
+	if (!expected) {
+		throw new Error(`Unsupported Route Search interaction: ${idSuffix}`);
+	}
+	const id = `route-search-${idSuffix}`;
+	return {
+		id,
+		sourceStateId: `route-search-component.${axis}.${state}`,
+		surfaceId: "route-search-component",
+		axis,
+		state,
+		ownerBead: "stark-4sp.4.8",
+		routeId: "route-search",
+		runner: "route-search-states",
+		capture: { scope: "component", selector: routeSearchCaptureSelector(`${axis}.${state}`, fixtureSelector, expected) },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: { fixtureSelector, action, expected }
+	};
+}
+
+const routeSearchScenarios: readonly RouteSearchStateScenario[] = [
+	routeSearchScenario("left-empty-query", routeSearchLeftFixture, "content", "empty-query", { kind: "open" }),
+	routeSearchScenario("left-matches", routeSearchLeftFixture, "content", "matches", { kind: "filter", query: "brEAd" }),
+	routeSearchScenario("left-no-matches", routeSearchLeftFixture, "content", "no-matches", {
+		kind: "filter",
+		query: "__stark_unmatched_route__"
+	}),
+	routeSearchScenario("left-closed", routeSearchLeftFixture, "disclosure", "closed", { kind: "initial" }),
+	routeSearchScenario("right-open", routeSearchRightFixture, "disclosure", "open", { kind: "open" }),
+	routeSearchScenario("left-unselected", routeSearchLeftFixture, "selection", "unselected", { kind: "filter", query: "brEAd" }),
+	routeSearchScenario("left-pointer-selection", routeSearchLeftFixture, "selection", "selected", {
+		kind: "select",
+		query: "brEAd",
+		via: "pointer"
+	}),
+	routeSearchScenario("right-enter-selection", routeSearchRightFixture, "selection", "selected", {
+		kind: "select",
+		query: "brEAd",
+		via: "enter"
+	}),
+	routeSearchScenario("left-escape", routeSearchLeftFixture, "overlay", "closed", { kind: "escape", query: "brEAd" }),
+	routeSearchScenario("right-overlay-open", routeSearchRightFixture, "overlay", "open", { kind: "filter", query: "brEAd" }),
+	routeSearchScenario("right-toggle-closed", routeSearchRightFixture, "disclosure", "closed", { kind: "toggle-close", query: "brEAd" }),
+	routeSearchScenario("right-reopened", routeSearchRightFixture, "disclosure", "open", { kind: "toggle-reopen", query: "brEAd" }),
+	routeSearchScenario("right-cleared-query", routeSearchRightFixture, "content", "empty-query", { kind: "clear", query: "brEAd" }),
+	routeSearchScenario("menu-matches", routeSearchMenuFixture, "content", "matches", { kind: "filter", query: "typography" }),
+	routeSearchScenario("menu-enter-selection", routeSearchMenuFixture, "selection", "selected", {
+		kind: "select",
+		query: "typography",
+		via: "enter"
+	}),
+	routeSearchScenario("right-second-enter-selection", routeSearchRightFixture, "selection", "selected", {
+		kind: "select",
+		query: "date",
+		via: "second-enter"
+	})
+];
+
 /**
  * Runnable scenarios are added only after their route, interaction, assertion,
  * and component-only capture selectors have been audited in both applications.
@@ -4872,7 +5027,8 @@ export const executableVisualScenarios = [
 	...navigationControlScenarios,
 	...dateControlScenarios,
 	...inputFamilyScenarios,
-	...feedbackScenarios
+	...feedbackScenarios,
+	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
 export function executableScenariosForRunner<RunnerId extends VisualScenarioRunnerId>(
@@ -4888,7 +5044,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 262,
+	executableScenarios: 278,
 	missingVisualFixtures: 21,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -4904,7 +5060,8 @@ export const reviewedCoverageBaseline = {
 		"minimap-states": 7,
 		"navigation-control-states": 38,
 		"pagination-states": 9,
-		"pretty-print-states": 13
+		"pretty-print-states": 13,
+		"route-search-states": 16
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -5117,8 +5274,10 @@ export function validateVisualCoverage(
 			errors.push(`${missingFixture.sourceStateId} is both executable and marked as a missing fixture`);
 		}
 	}
-	for (const { id } of requirementStates.filter(({ requirement }) =>
-		["stark-4sp.4.2", "stark-4sp.4.3", "stark-4sp.4.4", "stark-4sp.4.5"].includes(requirement.ownerBead)
+	for (const { id } of requirementStates.filter(
+		({ requirement }) =>
+			["stark-4sp.4.2", "stark-4sp.4.3", "stark-4sp.4.4", "stark-4sp.4.5"].includes(requirement.ownerBead) ||
+			(requirement.surfaceId === "route-search-component" && requirement.ownerBead === "stark-4sp.4.8")
 	)) {
 		const dispositions =
 			Number(executableScenarios.some(({ sourceStateId }) => sourceStateId === id)) +
@@ -5154,6 +5313,13 @@ export function validateVisualCoverage(
 		}
 		if (requirementEntry && scenario.ownerBead !== requirementEntry.ownerBead) {
 			errors.push(`${scenario.id} expected owner ${requirementEntry.ownerBead}, received ${scenario.ownerBead}`);
+		}
+		if (
+			scenario.surfaceId === "route-search-component" &&
+			requirementEntry?.ownerBead === "stark-4sp.4.8" &&
+			scenario.runner !== "route-search-states"
+		) {
+			errors.push(`${scenario.id} must use the Route Search state runner`);
 		}
 		const surface = surfaceById.get(scenario.surfaceId);
 		if (!routes.some(({ id }) => id === scenario.routeId)) {
@@ -5425,6 +5591,38 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "route-search-states") {
+			const { action, expected, fixtureSelector } = scenario.payload;
+			const expectedOutcome = expectedRouteSearchOutcome(fixtureSelector, action);
+			const sourceState = `${scenario.axis}.${scenario.state}`;
+			const noMatches = action.kind === "filter" && action.query === "__stark_unmatched_route__";
+			const allowedStates: Readonly<Record<string, boolean>> = {
+				"content.empty-query": action.kind === "open" || action.kind === "clear",
+				"content.matches": action.kind === "filter" && !noMatches,
+				"content.no-matches": noMatches,
+				"disclosure.closed": action.kind === "initial" || action.kind === "toggle-close",
+				"disclosure.open": action.kind === "open" || action.kind === "toggle-reopen",
+				"selection.unselected": action.kind === "filter" && !noMatches,
+				"selection.selected": action.kind === "select",
+				"overlay.closed": action.kind === "escape",
+				"overlay.open": action.kind === "filter" && !noMatches
+			};
+			if (
+				scenario.surfaceId !== "route-search-component" ||
+				scenario.routeId !== "route-search" ||
+				scenario.ownerBead !== "stark-4sp.4.8" ||
+				!allowedStates[sourceState] ||
+				expectedOutcome === undefined ||
+				JSON.stringify(expected) !== JSON.stringify(expectedOutcome) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== routeSearchCaptureSelector(sourceState, fixtureSelector, expectedOutcome) ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited Route Search fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "collapsible-states") {
 			const { action, componentSelector, contentSelector, headerSelector, statusSelector } = scenario.payload;
