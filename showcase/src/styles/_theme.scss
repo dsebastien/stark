@@ -31,5 +31,15 @@ Use the local variables file first to set the correct variables, see:
 //  you can delete this line and instead use:
 //    `@include mat.typography-hierarchy(stark-ui.$typography-config);`
 @include mat.all-component-typographies(stark-ui.$typography-config);
+
+// These Showcase display headings previously used Material's default typography.
+.mat-headline-2 {
+  font-family:
+    Roboto,
+    Helvetica Neue,
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
 @include mat.core();
 @include stark-ui.set-stark-ui-styles();
