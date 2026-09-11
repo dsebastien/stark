@@ -7,7 +7,7 @@
 		filesPath="generic-search/demo-generic-search-page.component"
 		[exampleTitle]="'SHOWCASE.DEMO.GENERIC_SEARCH.BASIC_IMPLEMENTATION' | translate"
 	>
-		<mat-slide-toggle color="primary" [checked]="!hideSearch" (change)="hideSearch = !hideSearch">
+		<mat-slide-toggle color="primary" [hideIcon]="true" [checked]="!hideSearch" (change)="hideSearch = !hideSearch">
 			{{ "SHOWCASE.DEMO.GENERIC_SEARCH.TOGGLE" | translate }}
 		</mat-slide-toggle>
 		<stark-generic-search
