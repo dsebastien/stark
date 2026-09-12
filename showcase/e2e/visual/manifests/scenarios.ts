@@ -75,7 +75,8 @@ export const visualScenarioRunnerIds = [
 	"navigation-control-states",
 	"pagination-states",
 	"pretty-print-states",
-	"route-search-states"
+	"route-search-states",
+	"table-selection-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -660,6 +661,34 @@ export type GenericSearchStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableSelectionJourney = "initial" | "pointer-one" | "retained-one" | "all-first" | "all-last" | "clear" | "keyboard-one";
+type TableSelectionCheckpoint = {
+	readonly action:
+		| Readonly<{ kind: "initial" | "header-checkbox" | "next-page" | "first-page" }>
+		| Readonly<{ kind: "row-checkbox" | "row-space"; rowId: string }>;
+	readonly page: 1 | 2 | 3;
+	readonly expectedRowIds: readonly string[];
+	readonly expectedSelectedRowIds: readonly string[];
+	readonly expectedHeaderChecked: boolean;
+	readonly expectedHeaderIndeterminate: boolean;
+};
+
+export type TableSelectionStateScenario = ExecutableVisualScenarioCore<
+	"table-selection-states",
+	{
+		readonly fixtureSelector: "example-viewer#selection";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: TableSelectionJourney;
+		readonly checkpoints: readonly TableSelectionCheckpoint[];
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "selection";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -676,7 +705,8 @@ export type ExecutableVisualScenario =
 	| NavigationControlStateScenario
 	| PaginationStateScenario
 	| PrettyPrintStateScenario
-	| RouteSearchStateScenario;
+	| RouteSearchStateScenario
+	| TableSelectionStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -3839,6 +3869,146 @@ const feedbackScenarios: readonly FeedbackStateScenario[] = [
 	...toastFeedbackScenarios
 ];
 
+export const tableSelectionPageIds = {
+	1: ["1", "10", "12", "2", "23"],
+	2: ["222", "112", "232", "154", "27"],
+	3: ["86", "44"]
+} as const;
+const tableSelectionAllIds = [...tableSelectionPageIds[1], ...tableSelectionPageIds[2], ...tableSelectionPageIds[3]];
+const tableSelectionFixtureSelector = "example-viewer#selection";
+const tableSelectionCaptureSelector = `${tableSelectionFixtureSelector} .table-container`;
+
+function tableSelectionCheckpoint(
+	action: TableSelectionCheckpoint["action"],
+	page: TableSelectionCheckpoint["page"],
+	selectedIds: readonly string[] = []
+): TableSelectionCheckpoint {
+	return {
+		action,
+		page,
+		expectedRowIds: tableSelectionPageIds[page],
+		expectedSelectedRowIds: tableSelectionPageIds[page].filter((id) => selectedIds.includes(id)),
+		expectedHeaderChecked: selectedIds.length === 12,
+		expectedHeaderIndeterminate: selectedIds.length > 0 && selectedIds.length < 12
+	};
+}
+
+function tableSelectionCheckpoints(journey: TableSelectionJourney): readonly TableSelectionCheckpoint[] | undefined {
+	const initial = tableSelectionCheckpoint({ kind: "initial" }, 1);
+	const one = tableSelectionCheckpoint({ kind: "row-checkbox", rowId: "1" }, 1, ["1"]);
+	const all = tableSelectionAllIds;
+	switch (journey) {
+		case "initial":
+			return [initial];
+		case "pointer-one":
+			return [initial, one];
+		case "keyboard-one":
+			return [initial, tableSelectionCheckpoint({ kind: "row-space", rowId: "1" }, 1, ["1"])];
+		case "retained-one":
+			return [
+				initial,
+				one,
+				tableSelectionCheckpoint({ kind: "next-page" }, 2, ["1"]),
+				tableSelectionCheckpoint({ kind: "next-page" }, 3, ["1"]),
+				tableSelectionCheckpoint({ kind: "first-page" }, 1, ["1"])
+			];
+		case "all-first":
+			return [
+				initial,
+				tableSelectionCheckpoint({ kind: "header-checkbox" }, 1, all),
+				tableSelectionCheckpoint({ kind: "next-page" }, 2, all),
+				tableSelectionCheckpoint({ kind: "next-page" }, 3, all),
+				tableSelectionCheckpoint({ kind: "first-page" }, 1, all)
+			];
+		case "all-last":
+			return [
+				initial,
+				one,
+				tableSelectionCheckpoint({ kind: "next-page" }, 2, ["1"]),
+				tableSelectionCheckpoint({ kind: "next-page" }, 3, ["1"]),
+				tableSelectionCheckpoint({ kind: "header-checkbox" }, 3, all),
+				tableSelectionCheckpoint({ kind: "first-page" }, 1, all),
+				tableSelectionCheckpoint({ kind: "next-page" }, 2, all),
+				tableSelectionCheckpoint({ kind: "next-page" }, 3, all)
+			];
+		case "clear":
+			return [
+				initial,
+				tableSelectionCheckpoint({ kind: "header-checkbox" }, 1, all),
+				tableSelectionCheckpoint({ kind: "next-page" }, 2, all),
+				tableSelectionCheckpoint(
+					{ kind: "row-checkbox", rowId: "222" },
+					2,
+					all.filter((id) => id !== "222")
+				),
+				tableSelectionCheckpoint({ kind: "header-checkbox" }, 2, all),
+				tableSelectionCheckpoint({ kind: "header-checkbox" }, 2),
+				tableSelectionCheckpoint({ kind: "next-page" }, 3),
+				tableSelectionCheckpoint({ kind: "first-page" }, 1)
+			];
+		default:
+			return undefined;
+	}
+}
+
+function tableSelectionSourceState(journey: TableSelectionJourney): string | undefined {
+	switch (journey) {
+		case "initial":
+		case "clear":
+			return "none-selected";
+		case "pointer-one":
+		case "retained-one":
+		case "keyboard-one":
+			return "one-selected";
+		case "all-first":
+		case "all-last":
+			return "all-selected";
+		default:
+			return undefined;
+	}
+}
+
+function tableSelectionScenario(
+	suffix: string,
+	journey: TableSelectionJourney,
+	viewport = { width: 1280, height: 900 }
+): TableSelectionStateScenario {
+	const checkpoints = tableSelectionCheckpoints(journey);
+	const state = tableSelectionSourceState(journey);
+	if (!checkpoints || !state) {
+		throw new Error(`Unsupported Table selection journey: ${journey}`);
+	}
+	const id = `table-selection-${suffix}`;
+	return {
+		id,
+		sourceStateId: `table-component.selection.${state}`,
+		surfaceId: "table-component",
+		axis: "selection",
+		state,
+		ownerBead: "stark-4sp.4.9",
+		routeId: "table",
+		runner: "table-selection-states",
+		capture: { scope: "component", selector: tableSelectionCaptureSelector },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: { fixtureSelector: tableSelectionFixtureSelector, viewport, journey, checkpoints }
+	};
+}
+
+const tableSelectionScenarios: readonly TableSelectionStateScenario[] = [
+	tableSelectionScenario("none", "initial"),
+	tableSelectionScenario("one", "pointer-one"),
+	tableSelectionScenario("retained-one", "retained-one"),
+	tableSelectionScenario("all-first-page", "all-first"),
+	tableSelectionScenario("all-last-page", "all-last"),
+	tableSelectionScenario("cleared", "clear"),
+	tableSelectionScenario("keyboard-one", "keyboard-one"),
+	tableSelectionScenario("narrow-one", "pointer-one", { width: 390, height: 900 }),
+	tableSelectionScenario("narrow-cleared", "clear", { width: 390, height: 900 })
+];
+
 export const genericSearchFixtureSelector = "example-viewer#generic-search-component";
 export const genericSearchFormSelector = "#demo-generic-search-form";
 export const genericSearchToggleSelector = `${genericSearchFixtureSelector} mat-slide-toggle`;
@@ -5220,6 +5390,7 @@ export const executableVisualScenarios = [
 	...inputFamilyScenarios,
 	...feedbackScenarios,
 	...genericSearchScenarios,
+	...tableSelectionScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -5236,7 +5407,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 291,
+	executableScenarios: 300,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -5254,7 +5425,8 @@ export const reviewedCoverageBaseline = {
 		"navigation-control-states": 38,
 		"pagination-states": 9,
 		"pretty-print-states": 13,
-		"route-search-states": 16
+		"route-search-states": 16,
+		"table-selection-states": 9
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -5471,7 +5643,8 @@ export function validateVisualCoverage(
 		({ requirement }) =>
 			["stark-4sp.4.2", "stark-4sp.4.3", "stark-4sp.4.4", "stark-4sp.4.5"].includes(requirement.ownerBead) ||
 			(["route-search-component", "generic-search-component"].includes(requirement.surfaceId) &&
-				requirement.ownerBead === "stark-4sp.4.8")
+				requirement.ownerBead === "stark-4sp.4.8") ||
+			(requirement.surfaceId === "table-component" && requirement.axis === "selection")
 	)) {
 		const dispositions =
 			Number(executableScenarios.some(({ sourceStateId }) => sourceStateId === id)) +
@@ -5521,6 +5694,9 @@ export function validateVisualCoverage(
 			scenario.runner !== "generic-search-states"
 		) {
 			errors.push(`${scenario.id} must use the Generic Search state runner`);
+		}
+		if (scenario.surfaceId === "table-component" && scenario.axis === "selection" && scenario.runner !== "table-selection-states") {
+			errors.push(`${scenario.id} must use the Table selection state runner`);
 		}
 		const surface = surfaceById.get(scenario.surfaceId);
 		if (!routes.some(({ id }) => id === scenario.routeId)) {
@@ -5792,6 +5968,31 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-selection-states") {
+			const { fixtureSelector, journey, checkpoints, viewport } = scenario.payload;
+			const expectedCheckpoints = tableSelectionCheckpoints(journey);
+			const expectedState = tableSelectionSourceState(journey);
+			const desktop = viewport.width === 1280 && viewport.height === 900;
+			const narrow = viewport.width === 390 && viewport.height === 900 && ["pointer-one", "clear"].includes(journey);
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "selection" ||
+				scenario.state !== expectedState ||
+				expectedCheckpoints === undefined ||
+				JSON.stringify(checkpoints) !== JSON.stringify(expectedCheckpoints) ||
+				fixtureSelector !== tableSelectionFixtureSelector ||
+				(!desktop && !narrow) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableSelectionCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited Table selection fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "generic-search-states") {
 			const { journey, viewport } = scenario.payload;

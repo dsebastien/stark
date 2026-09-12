@@ -25,6 +25,7 @@ import {
 	type RouteSearchStateScenario,
 	type StateAxisReview,
 	type StateRequirement,
+	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
 import { visualRouteManifest } from "../manifests/routes";
@@ -190,7 +191,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(291);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(300);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -272,6 +273,219 @@ test("covers reachable Generic Search states and explicitly records the absent d
 			.filter(({ surfaceId, axis }) => surfaceId === "generic-search-component" && axis === "responsive")
 			.every(({ ownerBead }) => ownerBead === "stark-4sp.4.14")
 	).toBe(true);
+});
+
+test("covers exactly the three core Table selection states without claiming other table axes", () => {
+	const scenarios = executableScenariosForRunner("table-selection-states");
+	const owned = sourceBackedStates.filter(({ surfaceId, axis }) => surfaceId === "table-component" && axis === "selection");
+	expect(owned).toHaveLength(3);
+	expect(scenarios).toHaveLength(9);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))].sort()).toEqual(owned.map(({ id }) => id).sort());
+	expect(
+		scenarios.every(
+			({ ownerBead, axis, surfaceId }) => ownerBead === "stark-4sp.4.9" && axis === "selection" && surfaceId === "table-component"
+		)
+	).toBe(true);
+	expect(missingVisualFixtureStates.filter(({ sourceStateId }) => sourceStateId.startsWith("table-component.selection."))).toEqual([]);
+});
+
+test("pins Table selection page identities, off-page checks, keyboard action, and narrow captures", () => {
+	const scenarios = executableScenariosForRunner("table-selection-states");
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, maxDiffPixels, threshold }) =>
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#selection .table-container" &&
+				maskSelectors.length === 0 &&
+				maxDiffPixels === 0 &&
+				threshold === 0
+		)
+	).toBe(true);
+	const allFirst = scenarios.find(({ id }) => id === "table-selection-all-first-page")!;
+	expect(allFirst.payload.checkpoints.slice(1).map(({ expectedRowIds }) => expectedRowIds)).toEqual([
+		["1", "10", "12", "2", "23"],
+		["222", "112", "232", "154", "27"],
+		["86", "44"],
+		["1", "10", "12", "2", "23"]
+	]);
+	expect(
+		allFirst.payload.checkpoints
+			.slice(1)
+			.every(
+				({ expectedRowIds, expectedSelectedRowIds, expectedHeaderChecked, expectedHeaderIndeterminate }) =>
+					JSON.stringify(expectedRowIds) === JSON.stringify(expectedSelectedRowIds) &&
+					expectedHeaderChecked &&
+					!expectedHeaderIndeterminate
+			)
+	).toBe(true);
+	const retained = scenarios.find(({ id }) => id === "table-selection-retained-one")!;
+	expect(retained.payload.checkpoints.map(({ expectedSelectedRowIds }) => expectedSelectedRowIds)).toEqual([[], ["1"], [], [], ["1"]]);
+	expect(
+		retained.payload.checkpoints
+			.slice(1)
+			.every(({ expectedHeaderChecked, expectedHeaderIndeterminate }) => !expectedHeaderChecked && expectedHeaderIndeterminate)
+	).toBe(true);
+	const keyboard = scenarios.find(({ id }) => id === "table-selection-keyboard-one")!;
+	expect(keyboard.payload.checkpoints[1].action).toEqual({ kind: "row-space", rowId: "1" });
+	expect(keyboard.sourceStateId).toBe("table-component.selection.one-selected");
+	expect(
+		scenarios
+			.filter(({ payload }) => payload.viewport.width === 390)
+			.map(({ payload }) => ({ journey: payload.journey, height: payload.viewport.height }))
+	).toEqual([
+		{ journey: "pointer-one", height: 900 },
+		{ journey: "clear", height: 900 }
+	]);
+	for (const axis of ["focus", "overlay", "disclosure"] as const) {
+		expect(stateRequirements.find(({ id }) => id === `table-component.${axis}`)?.ownerBead).toBe("stark-4sp.4.10");
+	}
+});
+
+const invalidTableSelectionChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableSelectionStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "an unaudited fixture",
+		id: "table-selection-one",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, fixtureSelector: "example-viewer#regular" }
+			}) as unknown as TableSelectionStateScenario
+	},
+	{
+		name: "an unsupported journey",
+		id: "table-selection-one",
+		change: (scenario) =>
+			({ ...scenario, payload: { ...scenario.payload, journey: "row-click" } }) as unknown as TableSelectionStateScenario
+	},
+	{
+		name: "wrong visible row IDs",
+		id: "table-selection-one",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({ ...checkpoint, expectedRowIds: ["1"] }))
+			}
+		})
+	},
+	{
+		name: "wrong selected row IDs",
+		id: "table-selection-one",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({ ...checkpoint, expectedSelectedRowIds: [] }))
+			}
+		})
+	},
+	{
+		name: "a header that loses off-page indeterminate state",
+		id: "table-selection-retained-one",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) =>
+					checkpoint.page === 2 ? { ...checkpoint, expectedHeaderIndeterminate: false } : checkpoint
+				)
+			}
+		})
+	},
+	{
+		name: "a checked header before all rows are selected",
+		id: "table-selection-one",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({ ...checkpoint, expectedHeaderChecked: true }))
+			}
+		})
+	},
+	{
+		name: "deleted off-page selection checks",
+		id: "table-selection-all-first-page",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, checkpoints: scenario.payload.checkpoints.slice(0, 2) } })
+	},
+	{
+		name: "pointer selection substituted for keyboard Space",
+		id: "table-selection-keyboard-one",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) =>
+					checkpoint.action.kind === "row-space" ? { ...checkpoint, action: { kind: "row-checkbox", rowId: "1" } } : checkpoint
+				)
+			}
+		})
+	},
+	{
+		name: "an incorrect source selection state",
+		id: "table-selection-one",
+		change: (scenario) => ({ ...scenario, state: "all-selected", sourceStateId: "table-component.selection.all-selected" })
+	},
+	{
+		name: "an unreviewed narrow viewport",
+		id: "table-selection-narrow-one",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 400, height: 900 } } })
+	},
+	{
+		name: "a page capture",
+		id: "table-selection-one",
+		change: (scenario) => ({ ...scenario, capture: { scope: "page" } }) as unknown as TableSelectionStateScenario
+	},
+	{
+		name: "a capture that drops the selection header",
+		id: "table-selection-one",
+		change: (scenario) => ({ ...scenario, capture: { scope: "component", selector: "example-viewer#selection tbody" } })
+	},
+	{
+		name: "a masked screenshot",
+		id: "table-selection-one",
+		change: (scenario) => ({ ...scenario, maskSelectors: ["mat-checkbox"] }) as unknown as TableSelectionStateScenario
+	},
+	{
+		name: "a pixel allowance",
+		id: "table-selection-one",
+		change: (scenario) => ({ ...scenario, maxDiffPixels: 1 })
+	},
+	{
+		name: "a nonzero threshold",
+		id: "table-selection-one",
+		change: (scenario) => ({ ...scenario, threshold: 0.1 }) as unknown as TableSelectionStateScenario
+	}
+];
+
+for (const { name, id, change } of invalidTableSelectionChanges) {
+	test(`rejects Table selection coverage with ${name}`, () => {
+		const scenarios = executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-selection-states" && scenario.id === id ? change(scenario) : scenario
+		);
+		expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+			`${id} does not use the audited Table selection fixture and interaction flow`
+		);
+	});
+}
+
+test("fails closed when a Table selection state is missing or assigned to a different runner", () => {
+	const withoutAll = executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId !== "table-component.selection.all-selected");
+	const errors = validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, withoutAll);
+	expect(errors).toContain("table-component.selection.all-selected must have exactly one executable or missing-fixture disposition");
+	expect(errors.some((error) => error.includes("table-component.content") && error.includes("disposition"))).toBe(false);
+	const wrongRunner = executableVisualScenarios.map((scenario) =>
+		scenario.id === "table-selection-one"
+			? ({ ...scenario, runner: "navigation-control-states" } as unknown as ExecutableVisualScenario)
+			: scenario
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, wrongRunner)).toContain(
+		"table-selection-one must use the Table selection state runner"
+	);
 });
 
 test("pins Generic Search data, loading capture, and narrow journeys without taking responsive ownership", () => {
