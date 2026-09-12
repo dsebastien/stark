@@ -11,6 +11,20 @@
   $accent-palette: map.get($material-theme-config, accent);
 
   .stark-table {
+    @include mat.table-overrides(
+      (
+        header-headline-color: mat.get-theme-color($material-theme-config, foreground, secondary-text)
+      )
+    );
+
+    .mat-column-select .mat-mdc-checkbox {
+      @include mat.checkbox-overrides(
+        (
+          selected-checkmark-color: mat.m2-get-color-from-palette($grey-palette, 50)
+        )
+      );
+    }
+
     tr {
       &:hover td {
         background-color: mat.m2-get-color-from-palette($grey-palette, 100);

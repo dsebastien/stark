@@ -1,0 +1,11 @@
+// Preserve the shared demo spacing formerly supplied by an unscoped example style.
+demo-table .stark-table table {
+  td.mat-mdc-cell,
+  th.mat-mdc-header-cell {
+    white-space: nowrap;
+  }
+
+  td.mat-mdc-cell {
+    padding-right: 20px;
+  }
+}

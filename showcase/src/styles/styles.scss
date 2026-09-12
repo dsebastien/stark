@@ -11,6 +11,7 @@ IMPORTANT: Stark styles are provided as SCSS styles so they should be imported i
 @use "../app/welcome/components/news-item/news-item.component";
 @use "../app/demo-ui/pages/message-pane/demo-message-pane-page.component";
 @use "../app/demo-ui/pages/generic-search/demo-generic-search-page.component";
+@use "../app/demo-ui/pages/table/demo-table-page.component";
 @use "../app/demo-ui/components/table-regular/table-regular.component";
 @use "../app/styleguide/pages/layout/styleguide-layout-page.component";
 
