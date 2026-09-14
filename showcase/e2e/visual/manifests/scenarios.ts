@@ -79,7 +79,8 @@ export const visualScenarioRunnerIds = [
 	"table-selection-states",
 	"table-regular-states",
 	"table-page-size-states",
-	"table-row-index-states"
+	"table-row-index-states",
+	"table-styling-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -821,6 +822,59 @@ export type TableRowIndexStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableStylingJourney =
+	| "initial"
+	| "next"
+	| "last"
+	| "id-asc"
+	| "sorted-next"
+	| "id-desc"
+	| "keyboard-last"
+	| "sort-cleared-last"
+	| "restored"
+	| "hover-even"
+	| "hover-odd";
+type TableStylingTone = "danger" | "warning" | "success";
+type TableStylingRow = Readonly<{ id: string; title: string; description: string; titleClass: TableStylingTone; rowClass: "even" | "odd" }>;
+type TableStylingCheckpoint = {
+	readonly action: "initial" | "next" | "first" | "sort-id" | "keyboard-last";
+	readonly expectedPage: number;
+	readonly expectedSort: "none" | "asc" | "desc";
+	readonly expectedRows: readonly TableStylingRow[];
+};
+type TableStylingStyles = {
+	readonly lineHeight: string;
+	readonly idFontSize: string;
+	readonly idFontWeight: string;
+	readonly bodyFontSize: string;
+	readonly bodyFontWeight: string;
+	readonly bodyColor: string;
+	readonly headerFontSize: string;
+	readonly headerFontWeight: string;
+	readonly headerColor: string;
+	readonly backgrounds: Readonly<{ even: string; odd: string; hover: string }>;
+	readonly titleColors: Readonly<Record<TableStylingTone, string>>;
+};
+
+export type TableStylingStateScenario = ExecutableVisualScenarioCore<
+	"table-styling-states",
+	{
+		readonly fixtureSelector: "example-viewer#custom-styling";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: TableStylingJourney;
+		readonly hoverRowIndex: 0 | 1 | null;
+		readonly styles: TableStylingStyles;
+		readonly checkpoints: readonly TableStylingCheckpoint[];
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "content";
+	readonly state: "populated";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -841,7 +895,8 @@ export type ExecutableVisualScenario =
 	| TableSelectionStateScenario
 	| TableRegularStateScenario
 	| TablePageSizeStateScenario
-	| TableRowIndexStateScenario;
+	| TableRowIndexStateScenario
+	| TableStylingStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -4394,6 +4449,139 @@ const tableRowIndexScenarios: readonly TableRowIndexStateScenario[] = tableRowIn
 	};
 });
 
+const tableStylingFixtureSelector = "example-viewer#custom-styling";
+const tableStylingCaptureSelector = `${tableStylingFixtureSelector} showcase-table-with-custom-styling stark-table`;
+const tableStylingData: Readonly<Record<string, Omit<TableStylingRow, "id" | "rowClass">>> = {
+	"1": { title: "~first title (value: 1)", description: "number one", titleClass: "danger" },
+	"10": { title: "~second title (value: 2)", description: "second description", titleClass: "danger" },
+	"12": { title: "~third title (value: 3)", description: "the third description", titleClass: "danger" },
+	"2": { title: "~fourth title (value: 4)", description: "description number four", titleClass: "danger" },
+	"23": { title: "~fifth title (value: 5)", description: "fifth description", titleClass: "warning" },
+	"222": { title: "~sixth title (value: 6)", description: "the sixth description", titleClass: "warning" },
+	"112": { title: "~seventh title (value: 7)", description: "seventh description", titleClass: "warning" },
+	"232": { title: "~eighth title (value: 8)", description: "description number eight", titleClass: "warning" },
+	"154": { title: "~ninth title (value: 9)", description: "the ninth description", titleClass: "success" },
+	"27": { title: "~tenth title (value: 10)", description: "description number ten", titleClass: "success" },
+	"86": { title: "~eleventh title (value: 11)", description: "eleventh description", titleClass: "success" },
+	"44": { title: "~twelfth title (value: 12)", description: "the twelfth description", titleClass: "success" }
+};
+const tableStylingStyles: TableStylingStyles = {
+	lineHeight: "26px",
+	idFontSize: "20px",
+	idFontWeight: "700",
+	bodyFontSize: "14px",
+	bodyFontWeight: "400",
+	bodyColor: "rgba(0, 0, 0, 0.87)",
+	headerFontSize: "12px",
+	headerFontWeight: "500",
+	headerColor: "rgba(0, 0, 0, 0.54)",
+	backgrounds: { even: "rgb(209, 225, 255)", odd: "rgb(255, 255, 255)", hover: "rgb(245, 245, 245)" },
+	titleColors: { danger: "rgb(124, 0, 44)", warning: "rgb(255, 152, 0)", success: "rgb(60, 159, 64)" }
+};
+
+function tableStylingCheckpoint(
+	action: TableStylingCheckpoint["action"],
+	order: Extract<TableRegularOrder, "none" | "id-asc" | "id-desc"> = "none",
+	page = 1
+): TableStylingCheckpoint {
+	const rowClasses = ["even", "odd", "even", "odd", "even"] as const;
+	return {
+		action,
+		expectedPage: page,
+		expectedSort: order === "none" ? "none" : order === "id-asc" ? "asc" : "desc",
+		expectedRows: tableRegularOrderedIds[order]
+			.slice((page - 1) * 5, page * 5)
+			.map((id, index) => ({ id, ...tableStylingData[id], rowClass: rowClasses[index] }))
+	};
+}
+
+function tableStylingCheckpoints(journey: TableStylingJourney): readonly TableStylingCheckpoint[] | undefined {
+	const initial = tableStylingCheckpoint("initial");
+	const ascending = [initial, tableStylingCheckpoint("sort-id", "id-asc")];
+	const descending = [...ascending, tableStylingCheckpoint("sort-id", "id-desc")];
+	const keyboardLast = [...descending, tableStylingCheckpoint("keyboard-last", "id-desc", 3)];
+	const cleared = [...keyboardLast, tableStylingCheckpoint("sort-id", "none", 3)];
+	switch (journey) {
+		case "initial":
+		case "hover-even":
+		case "hover-odd":
+			return [initial];
+		case "next":
+			return [initial, tableStylingCheckpoint("next", "none", 2)];
+		case "last":
+			return [initial, tableStylingCheckpoint("next", "none", 2), tableStylingCheckpoint("next", "none", 3)];
+		case "id-asc":
+			return ascending;
+		case "sorted-next":
+			return [...ascending, tableStylingCheckpoint("next", "id-asc", 2)];
+		case "id-desc":
+			return descending;
+		case "keyboard-last":
+			return keyboardLast;
+		case "sort-cleared-last":
+			return cleared;
+		case "restored":
+			return [...cleared, tableStylingCheckpoint("first")];
+		default:
+			return undefined;
+	}
+}
+
+type TableStylingScenarioDefinition = Pick<TableStylingStateScenario, "id"> &
+	Pick<TableStylingStateScenario["payload"], "journey" | "viewport" | "hoverRowIndex">;
+const tableStylingDesktopViewport = { width: 1280, height: 900 } as const;
+const tableStylingScenarioDefinitions: readonly TableStylingScenarioDefinition[] = [
+	{ id: "table-styling-initial", journey: "initial", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-next", journey: "next", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-last", journey: "last", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-id-asc", journey: "id-asc", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-sorted-next", journey: "sorted-next", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-id-desc", journey: "id-desc", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-keyboard-last", journey: "keyboard-last", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-sort-cleared-last", journey: "sort-cleared-last", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-restored", journey: "restored", viewport: tableStylingDesktopViewport, hoverRowIndex: null },
+	{ id: "table-styling-hover-even", journey: "hover-even", viewport: tableStylingDesktopViewport, hoverRowIndex: 0 },
+	{ id: "table-styling-hover-odd", journey: "hover-odd", viewport: tableStylingDesktopViewport, hoverRowIndex: 1 },
+	{ id: "table-styling-tablet-last", journey: "last", viewport: { width: 768, height: 900 }, hoverRowIndex: null },
+	{ id: "table-styling-mobile-sorted-next", journey: "sorted-next", viewport: { width: 390, height: 900 }, hoverRowIndex: null }
+];
+
+const tableStylingScenarios: readonly TableStylingStateScenario[] = tableStylingScenarioDefinitions.map(
+	({ id, journey, viewport, hoverRowIndex }) => {
+		const checkpoints = tableStylingCheckpoints(journey);
+		if (!checkpoints) {
+			throw new Error(`Unsupported custom Table styling journey: ${journey}`);
+		}
+		return {
+			id,
+			sourceStateId: "table-component.content.populated",
+			surfaceId: "table-component",
+			axis: "content",
+			state: "populated",
+			ownerBead: "stark-4sp.4.9",
+			routeId: "table",
+			runner: "table-styling-states",
+			capture: { scope: "component", selector: tableStylingCaptureSelector },
+			snapshotName: `${id}.png`,
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			threshold: 0,
+			payload: {
+				fixtureSelector: tableStylingFixtureSelector,
+				viewport: { ...viewport },
+				journey,
+				hoverRowIndex,
+				checkpoints,
+				styles: {
+					...tableStylingStyles,
+					backgrounds: { ...tableStylingStyles.backgrounds },
+					titleColors: { ...tableStylingStyles.titleColors }
+				}
+			}
+		};
+	}
+);
+
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
 	2: ["222", "112", "232", "154", "27"],
@@ -5919,6 +6107,7 @@ export const executableVisualScenarios = [
 	...tableRegularScenarios,
 	...tablePageSizeScenarios,
 	...tableRowIndexScenarios,
+	...tableStylingScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -5935,7 +6124,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 337,
+	executableScenarios: 350,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -5957,7 +6146,8 @@ export const reviewedCoverageBaseline = {
 		"table-selection-states": 9,
 		"table-regular-states": 12,
 		"table-page-size-states": 11,
-		"table-row-index-states": 14
+		"table-row-index-states": 14,
+		"table-styling-states": 13
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -6234,7 +6424,7 @@ export function validateVisualCoverage(
 			scenario.surfaceId === "table-component" &&
 			scenario.axis === "content" &&
 			scenario.state === "populated" &&
-			!["table-regular-states", "table-page-size-states", "table-row-index-states"].includes(scenario.runner)
+			!["table-regular-states", "table-page-size-states", "table-row-index-states", "table-styling-states"].includes(scenario.runner)
 		) {
 			errors.push(`${scenario.id} must use an audited populated Table state runner`);
 		}
@@ -6508,6 +6698,36 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-styling-states") {
+			const { fixtureSelector, journey, checkpoints, viewport, hoverRowIndex, styles } = scenario.payload;
+			const definition = tableStylingScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const expectedCheckpoints = definition ? tableStylingCheckpoints(definition.journey) : undefined;
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				hoverRowIndex === definition.hoverRowIndex &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "content" ||
+				scenario.state !== "populated" ||
+				fixtureSelector !== tableStylingFixtureSelector ||
+				!matchesDefinition ||
+				expectedCheckpoints === undefined ||
+				JSON.stringify(checkpoints) !== JSON.stringify(expectedCheckpoints) ||
+				JSON.stringify(styles) !== JSON.stringify(tableStylingStyles) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableStylingCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited custom Table styling fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-row-index-states") {
 			const { fixtureSelector, journey, checkpoints, viewport } = scenario.payload;

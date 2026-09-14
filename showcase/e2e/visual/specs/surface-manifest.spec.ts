@@ -28,6 +28,7 @@ import {
 	type TableRegularStateScenario,
 	type TablePageSizeStateScenario,
 	type TableRowIndexStateScenario,
+	type TableStylingStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
@@ -194,7 +195,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(337);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(350);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -314,6 +315,174 @@ test("maps fourteen row-index configuration journeys only to populated Table con
 	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
 	expect(executableScenariosForRunner("table-regular-states")).toHaveLength(12);
 	expect(executableScenariosForRunner("table-page-size-states")).toHaveLength(11);
+});
+
+test("maps thirteen custom-styling journeys only to populated Table content", () => {
+	const scenarios = executableScenariosForRunner("table-styling-states");
+	expect(scenarios).toHaveLength(13);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
+	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+});
+
+test("pins custom Table class/data associations, local striping, CSS values, and hover targets", () => {
+	const scenarios = executableScenariosForRunner("table-styling-states");
+	const last = (id: string) => scenarios.find((scenario) => scenario.id === id)!.payload.checkpoints.at(-1)!;
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, threshold, maxDiffPixels }) =>
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#custom-styling showcase-table-with-custom-styling stark-table" &&
+				maskSelectors.length === 0 &&
+				threshold === 0 &&
+				maxDiffPixels === 0
+		)
+	).toBe(true);
+	expect(last("table-styling-next").expectedRows.map(({ rowClass }) => rowClass)).toEqual(["even", "odd", "even", "odd", "even"]);
+	expect(last("table-styling-id-desc").expectedRows.map(({ id, titleClass }) => [id, titleClass])).toEqual([
+		["232", "warning"],
+		["222", "warning"],
+		["154", "success"],
+		["112", "warning"],
+		["86", "success"]
+	]);
+	expect(last("table-styling-keyboard-last").expectedRows.map(({ id }) => id)).toEqual(["2", "1"]);
+	expect(last("table-styling-sort-cleared-last").expectedRows.map(({ id }) => id)).toEqual(["86", "44"]);
+	expect(last("table-styling-sort-cleared-last").expectedPage).toBe(3);
+	expect(last("table-styling-restored").expectedPage).toBe(1);
+	expect(scenarios[0].payload.styles).toEqual({
+		lineHeight: "26px",
+		idFontSize: "20px",
+		idFontWeight: "700",
+		bodyFontSize: "14px",
+		bodyFontWeight: "400",
+		bodyColor: "rgba(0, 0, 0, 0.87)",
+		headerFontSize: "12px",
+		headerFontWeight: "500",
+		headerColor: "rgba(0, 0, 0, 0.54)",
+		backgrounds: { even: "rgb(209, 225, 255)", odd: "rgb(255, 255, 255)", hover: "rgb(245, 245, 245)" },
+		titleColors: { danger: "rgb(124, 0, 44)", warning: "rgb(255, 152, 0)", success: "rgb(60, 159, 64)" }
+	});
+	expect(scenarios.filter(({ payload }) => payload.hoverRowIndex !== null).map(({ id, payload }) => [id, payload.hoverRowIndex])).toEqual(
+		[
+			["table-styling-hover-even", 0],
+			["table-styling-hover-odd", 1]
+		]
+	);
+	expect(
+		scenarios.filter(({ payload }) => payload.viewport.width !== 1280).map(({ payload }) => [payload.viewport.width, payload.journey])
+	).toEqual([
+		[768, "last"],
+		[390, "sorted-next"]
+	]);
+});
+
+function validateStylingChange(id: string, change: (scenario: TableStylingStateScenario) => ExecutableVisualScenario): string[] {
+	return validate(
+		visualSurfaceManifest,
+		stateRequirements,
+		stateAxisReviews,
+		executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-styling-states" && scenario.id === id ? change(scenario) : scenario
+		)
+	);
+}
+
+for (const [id, replacementId] of [
+	["table-styling-restored", "table-styling-initial"],
+	["table-styling-sort-cleared-last", "table-styling-last"]
+]) {
+	test(`rejects supported styling journey substitution for ${id}`, () => {
+		const replacement = executableScenariosForRunner("table-styling-states").find((scenario) => scenario.id === replacementId)!;
+		expect(
+			validateStylingChange(id, (scenario) => ({
+				...scenario,
+				payload: { ...scenario.payload, journey: replacement.payload.journey, checkpoints: replacement.payload.checkpoints }
+			}))
+		).toContain(`${id} does not use the audited custom Table styling fixture and interaction flow`);
+	});
+}
+
+const invalidStylingChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableStylingStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "weakened large font weight",
+		id: "table-styling-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, styles: { ...scenario.payload.styles, idFontWeight: "500" } }
+		})
+	},
+	{
+		name: "an incorrect authored color",
+		id: "table-styling-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				styles: { ...scenario.payload.styles, titleColors: { ...scenario.payload.styles.titleColors, warning: "rgb(124, 0, 44)" } }
+			}
+		})
+	},
+	{
+		name: "position-based color classes after sorting",
+		id: "table-styling-id-desc",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRows: checkpoint.expectedRows.map((row) => ({ ...row, titleClass: "danger" }))
+				}))
+			}
+		})
+	},
+	{
+		name: "global instead of page-local stripe parity",
+		id: "table-styling-next",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRows: checkpoint.expectedRows.map((row, index) => (index === 0 ? { ...row, rowClass: "odd" } : row))
+				}))
+			}
+		})
+	},
+	{
+		name: "a missing required hover",
+		id: "table-styling-hover-even",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, hoverRowIndex: null } })
+	},
+	{
+		name: "a supported viewport under the wrong ID",
+		id: "table-styling-sorted-next",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 900 } } })
+	},
+	{
+		name: "a capture excluding the styled header",
+		id: "table-styling-initial",
+		change: (scenario) => ({ ...scenario, capture: { scope: "component", selector: "example-viewer#custom-styling tbody" } })
+	}
+];
+for (const { name, id, change } of invalidStylingChanges) {
+	test(`rejects Table styling coverage with ${name}`, () => {
+		expect(validateStylingChange(id, change)).toContain(
+			`${id} does not use the audited custom Table styling fixture and interaction flow`
+		);
+	});
+}
+
+test("rejects assigning a custom-styling ID to another populated-table runner", () => {
+	const id = "table-styling-initial";
+	expect(
+		validateStylingChange(id, (scenario) => ({ ...scenario, runner: "table-regular-states" }) as unknown as ExecutableVisualScenario)
+	).toContain(`${id} does not use the audited regular Table fixture and interaction flow`);
 });
 
 test("pins row-index numbering, helper-column order, selection lifetime, and complete configuration captures", () => {
