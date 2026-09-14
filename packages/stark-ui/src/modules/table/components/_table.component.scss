@@ -22,7 +22,8 @@
       -webkit-font-smoothing: auto;
     }
 
-    .mat-mdc-header-cell {
+    .mat-mdc-header-cell,
+    .mat-mdc-cell {
       overflow: visible;
     }
 
@@ -38,6 +39,11 @@
       &:last-child {
         padding-inline-end: 24px;
       }
+    }
+
+    .mat-mdc-cell.mat-column-select {
+      // Preserve opacity compositing for the MDC selection controls.
+      overflow: hidden;
     }
 
     .mat-mdc-row:last-child > .mat-mdc-cell,
@@ -109,6 +115,12 @@
         }
 
         stark-minimap {
+          @include mat.icon-button-overrides(
+            (
+              icon-size: 18px
+            )
+          );
+
           mat-icon {
             width: 18px;
             height: 18px;

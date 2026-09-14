@@ -7,6 +7,10 @@
 @use "../../../../styles/media-queries" as *;
 
 @mixin stark-pagination() {
+  .stark-pagination {
+    font-size: mat.m2-font-size(stark-typography.$typography-config, caption);
+  }
+
   .stark-pagination > div {
     align-items: center;
     display: flex;

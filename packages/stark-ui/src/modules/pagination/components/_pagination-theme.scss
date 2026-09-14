@@ -9,6 +9,11 @@
 @use "../../../../styles/media-queries" as *;
 
 @mixin stark-pagination-theme($material-theme-config, $stark-theme-config) {
+  .stark-pagination {
+    color: mat.get-theme-color($material-theme-config, foreground, secondary-text);
+    background-color: mat.get-theme-color($material-theme-config, background, card);
+  }
+
   @media #{$tablet-query} {
     .stark-pagination > div {
       .pagination-enter-page {

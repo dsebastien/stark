@@ -12,6 +12,7 @@ export function registerMaterialIconSet(matIconRegistry: MatIconRegistry, domSan
 
 	matIconRegistry.addSvgIconSet(domSanitizer.bypassSecurityTrustResourceUrl(iconSetUrl));
 
-	// MDI changed this glyph; keep the established Showcase New action symbol.
+	// MDI changed these glyphs; keep the established Showcase action symbols.
 	matIconRegistry.addSvgIcon("note-plus", domSanitizer.bypassSecurityTrustResourceUrl("assets/material-icons/note-plus.svg"));
+	matIconRegistry.addSvgIcon("sort", domSanitizer.bypassSecurityTrustResourceUrl("assets/material-icons/sort.svg"));
 }
