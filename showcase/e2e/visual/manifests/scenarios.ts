@@ -77,7 +77,8 @@ export const visualScenarioRunnerIds = [
 	"pretty-print-states",
 	"route-search-states",
 	"table-selection-states",
-	"table-regular-states"
+	"table-regular-states",
+	"table-page-size-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -733,6 +734,49 @@ export type TableRegularStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TablePageSize = 5 | 10 | 15;
+type TablePageSizeJourney =
+	| "initial"
+	| "five-reset"
+	| "five-last"
+	| "fifteen-reset"
+	| "ten-restored"
+	| "same-ten"
+	| "sorted-five"
+	| "keyboard-five";
+type TablePageSizeCheckpoint = {
+	readonly action:
+		| Readonly<{ kind: "initial" | "next" | "sort-id" }>
+		| Readonly<{ kind: "keyboard-five" }>
+		| Readonly<{ kind: "choose-size"; size: TablePageSize }>;
+	readonly expectedSize: TablePageSize;
+	readonly expectedPage: number;
+	readonly expectedTotalPages: number;
+	readonly expectedRowIds: readonly string[];
+	readonly expectedSort: TableRegularSort;
+};
+
+export type TablePageSizeStateScenario = ExecutableVisualScenarioCore<
+	"table-page-size-states",
+	{
+		readonly fixtureSelector: "example-viewer#items-per-page-selection";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly selectorSnapshotName: `${string}.png` | null;
+		readonly journey: TablePageSizeJourney;
+		readonly options: readonly number[];
+		readonly totalItems: number;
+		readonly counterText: string;
+		readonly checkpoints: readonly TablePageSizeCheckpoint[];
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "content";
+	readonly state: "populated";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -751,7 +795,8 @@ export type ExecutableVisualScenario =
 	| PrettyPrintStateScenario
 	| RouteSearchStateScenario
 	| TableSelectionStateScenario
-	| TableRegularStateScenario;
+	| TableRegularStateScenario
+	| TablePageSizeStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -3926,32 +3971,34 @@ const tableRegularOrderedIds: Readonly<Record<TableRegularOrder, readonly string
 	"title-desc": ["44", "86", "27", "154", "232", "112", "222", "23", "2", "12", "10", "1"]
 };
 
+function tableSortForOrder(order: TableRegularOrder): TableRegularSort {
+	const none = { direction: "none", priority: null } as const;
+	return order === "initial"
+		? {
+				id: { direction: "asc", priority: 3 },
+				title: { direction: "asc", priority: 1 },
+				description: { direction: "desc", priority: 2 }
+			}
+		: {
+				id: order === "id-desc" || order === "id-asc" ? { direction: order === "id-desc" ? "desc" : "asc", priority: 1 } : none,
+				title:
+					order === "title-desc" || order === "title-asc"
+						? { direction: order === "title-desc" ? "desc" : "asc", priority: 1 }
+						: none,
+				description: none
+			};
+}
+
 function tableRegularCheckpoint(
 	action: TableRegularCheckpoint["action"],
 	order: TableRegularOrder = "initial",
 	page: 1 | 2 = 1
 ): TableRegularCheckpoint {
-	const none = { direction: "none", priority: null } as const;
-	const expectedSort: TableRegularSort =
-		order === "initial"
-			? {
-					id: { direction: "asc", priority: 3 },
-					title: { direction: "asc", priority: 1 },
-					description: { direction: "desc", priority: 2 }
-				}
-			: {
-					id: order === "id-desc" || order === "id-asc" ? { direction: order === "id-desc" ? "desc" : "asc", priority: 1 } : none,
-					title:
-						order === "title-desc" || order === "title-asc"
-							? { direction: order === "title-desc" ? "desc" : "asc", priority: 1 }
-							: none,
-					description: none
-				};
 	return {
 		action,
 		expectedPage: page,
 		expectedRowIds: tableRegularOrderedIds[order].slice((page - 1) * 10, page * 10),
-		expectedSort
+		expectedSort: tableSortForOrder(order)
 	};
 }
 
@@ -4049,6 +4096,114 @@ const tableRegularScenarioDefinitions: readonly TableRegularScenarioDefinition[]
 	{ id: "table-regular-mobile-sorted-next", journey: "sorted-next", viewport: tableRegularMobileViewport }
 ];
 const tableRegularScenarios: readonly TableRegularStateScenario[] = tableRegularScenarioDefinitions.map(tableRegularScenario);
+
+const tablePageSizeFixtureSelector = "example-viewer#items-per-page-selection";
+const tablePageSizeCaptureSelector = `${tablePageSizeFixtureSelector} stark-table`;
+const tablePageSizeOptions = [5, 10, 15] as const;
+
+function tablePageSizeCheckpoint(
+	action: TablePageSizeCheckpoint["action"],
+	size: TablePageSize = 10,
+	page = 1,
+	order: Extract<TableRegularOrder, "initial" | "id-desc"> = "initial"
+): TablePageSizeCheckpoint {
+	return {
+		action,
+		expectedSize: size,
+		expectedPage: page,
+		expectedTotalPages: Math.ceil(12 / size),
+		expectedRowIds: tableRegularOrderedIds[order].slice((page - 1) * size, page * size),
+		expectedSort: tableSortForOrder(order)
+	};
+}
+
+function tablePageSizeCheckpoints(journey: TablePageSizeJourney): readonly TablePageSizeCheckpoint[] | undefined {
+	const initial = tablePageSizeCheckpoint({ kind: "initial" });
+	const next = tablePageSizeCheckpoint({ kind: "next" }, 10, 2);
+	const fiveReset = [initial, next, tablePageSizeCheckpoint({ kind: "choose-size", size: 5 }, 5)];
+	const fiveLast = [...fiveReset, tablePageSizeCheckpoint({ kind: "next" }, 5, 2), tablePageSizeCheckpoint({ kind: "next" }, 5, 3)];
+	const fifteenReset = [...fiveLast, tablePageSizeCheckpoint({ kind: "choose-size", size: 15 }, 15)];
+	const sortedFive = [
+		initial,
+		tablePageSizeCheckpoint({ kind: "sort-id" }, 10, 1, "id-desc"),
+		tablePageSizeCheckpoint({ kind: "choose-size", size: 5 }, 5, 1, "id-desc")
+	];
+	switch (journey) {
+		case "initial":
+			return [initial];
+		case "five-reset":
+			return fiveReset;
+		case "five-last":
+			return fiveLast;
+		case "fifteen-reset":
+			return fifteenReset;
+		case "ten-restored":
+			return [...fifteenReset, tablePageSizeCheckpoint({ kind: "choose-size", size: 10 })];
+		case "same-ten":
+			return [initial, next, tablePageSizeCheckpoint({ kind: "choose-size", size: 10 }, 10, 2)];
+		case "sorted-five":
+			return sortedFive;
+		case "keyboard-five":
+			return [
+				...sortedFive,
+				tablePageSizeCheckpoint({ kind: "choose-size", size: 10 }, 10, 1, "id-desc"),
+				tablePageSizeCheckpoint({ kind: "keyboard-five" }, 5, 1, "id-desc")
+			];
+		default:
+			return undefined;
+	}
+}
+
+type TablePageSizeScenarioDefinition = Pick<TablePageSizeStateScenario, "id"> &
+	Pick<TablePageSizeStateScenario["payload"], "journey" | "viewport">;
+
+const tablePageSizeDesktopViewport = { width: 1280, height: 1200 } as const;
+const tablePageSizeMobileViewport = { width: 390, height: 1200 } as const;
+const tablePageSizeScenarioDefinitions: readonly TablePageSizeScenarioDefinition[] = [
+	{ id: "table-page-size-initial", journey: "initial", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-five-reset", journey: "five-reset", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-five-last", journey: "five-last", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-fifteen-reset", journey: "fifteen-reset", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-ten-restored", journey: "ten-restored", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-same-ten", journey: "same-ten", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-sorted-five", journey: "sorted-five", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-keyboard-five", journey: "keyboard-five", viewport: tablePageSizeDesktopViewport },
+	{ id: "table-page-size-tablet-fifteen", journey: "fifteen-reset", viewport: { width: 768, height: 1200 } },
+	{ id: "table-page-size-mobile-five", journey: "five-reset", viewport: tablePageSizeMobileViewport },
+	{ id: "table-page-size-mobile-fifteen", journey: "fifteen-reset", viewport: tablePageSizeMobileViewport }
+];
+
+const tablePageSizeScenarios: readonly TablePageSizeStateScenario[] = tablePageSizeScenarioDefinitions.map(({ id, journey, viewport }) => {
+	const checkpoints = tablePageSizeCheckpoints(journey);
+	if (!checkpoints) {
+		throw new Error(`Unsupported Table page-size journey: ${journey}`);
+	}
+	return {
+		id,
+		sourceStateId: "table-component.content.populated",
+		surfaceId: "table-component",
+		axis: "content",
+		state: "populated",
+		ownerBead: "stark-4sp.4.9",
+		routeId: "table",
+		runner: "table-page-size-states",
+		capture: { scope: "component", selector: tablePageSizeCaptureSelector },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			fixtureSelector: tablePageSizeFixtureSelector,
+			viewport: { ...viewport },
+			selectorSnapshotName: viewport.width === 390 ? `${id}-selector.png` : null,
+			journey,
+			options: [...tablePageSizeOptions],
+			totalItems: 12,
+			counterText: "12 item(s)",
+			checkpoints
+		}
+	};
+});
 
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
@@ -5573,6 +5728,7 @@ export const executableVisualScenarios = [
 	...genericSearchScenarios,
 	...tableSelectionScenarios,
 	...tableRegularScenarios,
+	...tablePageSizeScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -5589,7 +5745,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 312,
+	executableScenarios: 323,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -5609,7 +5765,8 @@ export const reviewedCoverageBaseline = {
 		"pretty-print-states": 13,
 		"route-search-states": 16,
 		"table-selection-states": 9,
-		"table-regular-states": 12
+		"table-regular-states": 12,
+		"table-page-size-states": 11
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -5886,9 +6043,9 @@ export function validateVisualCoverage(
 			scenario.surfaceId === "table-component" &&
 			scenario.axis === "content" &&
 			scenario.state === "populated" &&
-			scenario.runner !== "table-regular-states"
+			!["table-regular-states", "table-page-size-states"].includes(scenario.runner)
 		) {
-			errors.push(`${scenario.id} must use the regular Table state runner`);
+			errors.push(`${scenario.id} must use an audited populated Table state runner`);
 		}
 		const surface = surfaceById.get(scenario.surfaceId);
 		if (!routes.some(({ id }) => id === scenario.routeId)) {
@@ -6160,6 +6317,40 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-page-size-states") {
+			const { fixtureSelector, journey, checkpoints, viewport, selectorSnapshotName, options, totalItems, counterText } =
+				scenario.payload;
+			const definition = tablePageSizeScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const expectedCheckpoints = definition ? tablePageSizeCheckpoints(definition.journey) : undefined;
+			const expectedSelectorSnapshotName = definition && definition.viewport.width === 390 ? `${definition.id}-selector.png` : null;
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "content" ||
+				scenario.state !== "populated" ||
+				fixtureSelector !== tablePageSizeFixtureSelector ||
+				!matchesDefinition ||
+				selectorSnapshotName !== expectedSelectorSnapshotName ||
+				JSON.stringify(options) !== JSON.stringify(tablePageSizeOptions) ||
+				totalItems !== 12 ||
+				counterText !== "12 item(s)" ||
+				expectedCheckpoints === undefined ||
+				JSON.stringify(checkpoints) !== JSON.stringify(expectedCheckpoints) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tablePageSizeCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited Table page-size fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-regular-states") {
 			const { fixtureSelector, journey, checkpoints, viewport, totalItems, totalPages, counterText } = scenario.payload;

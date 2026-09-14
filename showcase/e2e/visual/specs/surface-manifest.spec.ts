@@ -26,6 +26,7 @@ import {
 	type StateAxisReview,
 	type StateRequirement,
 	type TableRegularStateScenario,
+	type TablePageSizeStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
@@ -192,7 +193,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(312);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(323);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -295,6 +296,205 @@ test("maps regular Table journeys only to the populated content state", () => {
 	expect(scenarios).toHaveLength(12);
 	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
 	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+});
+
+test("maps exactly eleven Table page-size journeys to populated content without changing regular coverage", () => {
+	const scenarios = executableScenariosForRunner("table-page-size-states");
+	expect(scenarios).toHaveLength(11);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
+	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+	expect(executableScenariosForRunner("table-regular-states")).toHaveLength(12);
+});
+
+test("pins Table size changes, same-size retention, ordering, and full closed-selector captures", () => {
+	const scenarios = executableScenariosForRunner("table-page-size-states");
+	const last = (id: string) => scenarios.find((scenario) => scenario.id === id)!.payload.checkpoints.at(-1)!;
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, threshold, maxDiffPixels, payload }) =>
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#items-per-page-selection stark-table" &&
+				maskSelectors.length === 0 &&
+				threshold === 0 &&
+				maxDiffPixels === 0 &&
+				payload.viewport.height === 1200 &&
+				payload.totalItems === 12 &&
+				payload.counterText === "12 item(s)" &&
+				JSON.stringify(payload.options) === "[5,10,15]"
+		)
+	).toBe(true);
+	expect(last("table-page-size-five-reset")).toMatchObject({
+		expectedSize: 5,
+		expectedPage: 1,
+		expectedTotalPages: 3,
+		expectedRowIds: ["1", "10", "12", "2", "23"]
+	});
+	expect(last("table-page-size-five-last")).toMatchObject({
+		expectedSize: 5,
+		expectedPage: 3,
+		expectedTotalPages: 3,
+		expectedRowIds: ["86", "44"]
+	});
+	expect(last("table-page-size-same-ten")).toMatchObject({
+		expectedSize: 10,
+		expectedPage: 2,
+		expectedTotalPages: 2,
+		expectedRowIds: ["86", "44"]
+	});
+	expect(last("table-page-size-fifteen-reset")).toMatchObject({ expectedSize: 15, expectedPage: 1, expectedTotalPages: 1 });
+	expect(last("table-page-size-fifteen-reset").expectedRowIds).toEqual([
+		"1",
+		"10",
+		"12",
+		"2",
+		"23",
+		"222",
+		"112",
+		"232",
+		"154",
+		"27",
+		"86",
+		"44"
+	]);
+	expect(last("table-page-size-ten-restored")).toMatchObject({ expectedSize: 10, expectedPage: 1, expectedTotalPages: 2 });
+	expect(last("table-page-size-sorted-five").expectedRowIds).toEqual(["232", "222", "154", "112", "86"]);
+	expect(last("table-page-size-sorted-five").expectedSort.id).toEqual({ direction: "desc", priority: 1 });
+	expect(last("table-page-size-keyboard-five").action).toEqual({ kind: "keyboard-five" });
+	expect(last("table-page-size-keyboard-five").expectedSize).toBe(5);
+	expect(
+		scenarios.filter(({ payload }) => payload.viewport.width !== 1280).map(({ payload }) => [payload.viewport.width, payload.journey])
+	).toEqual([
+		[768, "fifteen-reset"],
+		[390, "five-reset"],
+		[390, "fifteen-reset"]
+	]);
+});
+
+test("requires thirteen Table page-size snapshots with closed-selector captures only on mobile", () => {
+	const scenarios = executableScenariosForRunner("table-page-size-states");
+	const secondary = scenarios.flatMap(({ payload }) =>
+		typeof payload.selectorSnapshotName === "string" ? [payload.selectorSnapshotName] : []
+	);
+	expect(secondary).toEqual(["table-page-size-mobile-five-selector.png", "table-page-size-mobile-fifteen-selector.png"]);
+	expect(
+		scenarios.filter(({ payload }) => payload.viewport.width !== 390).every(({ payload }) => payload.selectorSnapshotName === null)
+	).toBe(true);
+	const snapshots = [...scenarios.map(({ snapshotName }) => snapshotName), ...secondary];
+	expect(snapshots).toHaveLength(13);
+	expect(new Set(snapshots).size).toBe(13);
+});
+
+function validatePageSizeChange(id: string, change: (scenario: TablePageSizeStateScenario) => ExecutableVisualScenario): string[] {
+	const scenarios = executableVisualScenarios.map((scenario) =>
+		scenario.runner === "table-page-size-states" && scenario.id === id ? change(scenario) : scenario
+	);
+	return validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios);
+}
+
+for (const id of ["table-page-size-same-ten", "table-page-size-fifteen-reset"]) {
+	test(`rejects a supported initial journey replacing ${id}`, () => {
+		const initial = executableScenariosForRunner("table-page-size-states").find(
+			(scenario) => scenario.id === "table-page-size-initial"
+		)!;
+		expect(
+			validatePageSizeChange(id, (scenario) => ({
+				...scenario,
+				payload: { ...scenario.payload, journey: initial.payload.journey, checkpoints: initial.payload.checkpoints }
+			}))
+		).toContain(`${id} does not use the audited Table page-size fixture and interaction flow`);
+	});
+}
+
+const invalidPageSizeChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TablePageSizeStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "a missing mobile selector snapshot",
+		id: "table-page-size-mobile-five",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, selectorSnapshotName: null } })
+	},
+	{
+		name: "an incorrectly named mobile selector snapshot",
+		id: "table-page-size-mobile-fifteen",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, selectorSnapshotName: "unbound-selector.png" } })
+	},
+	{
+		name: "an unaudited desktop selector snapshot",
+		id: "table-page-size-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, selectorSnapshotName: "table-page-size-initial-selector.png" }
+		})
+	},
+	{
+		name: "a supported viewport under the wrong ID",
+		id: "table-page-size-fifteen-reset",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 1200 } } })
+	},
+	{
+		name: "incorrect available sizes",
+		id: "table-page-size-initial",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, options: [5, 10, 20] } })
+	},
+	{
+		name: "resetting the page on an unchanged size",
+		id: "table-page-size-same-ten",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({ ...checkpoint, expectedPage: 1 }))
+			}
+		})
+	},
+	{
+		name: "losing sort order after resizing",
+		id: "table-page-size-sorted-five",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRowIds: ["1", "10", "12", "2", "23"]
+				}))
+			}
+		})
+	},
+	{
+		name: "an incorrect page count for all twelve rows",
+		id: "table-page-size-fifteen-reset",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({ ...checkpoint, expectedTotalPages: 2 }))
+			}
+		})
+	},
+	{
+		name: "a capture omitting the selector and counter",
+		id: "table-page-size-initial",
+		change: (scenario) => ({
+			...scenario,
+			capture: { scope: "component", selector: "example-viewer#items-per-page-selection .table-container" }
+		})
+	}
+];
+
+for (const { name, id, change } of invalidPageSizeChanges) {
+	test(`rejects Table page-size coverage with ${name}`, () => {
+		expect(validatePageSizeChange(id, change)).toContain(`${id} does not use the audited Table page-size fixture and interaction flow`);
+	});
+}
+
+test("rejects moving a Table page-size ID into the other populated-content runner", () => {
+	const id = "table-page-size-initial";
+	expect(
+		validatePageSizeChange(id, (scenario) => ({ ...scenario, runner: "table-regular-states" }) as unknown as ExecutableVisualScenario)
+	).toContain(`${id} does not use the audited regular Table fixture and interaction flow`);
 });
 
 test("pins regular Table ordering, page totals, complete capture, and viewport-specific journeys", () => {
@@ -458,8 +658,8 @@ test("rejects a supported regular Table viewport assigned to a different scenari
 });
 
 test("requires populated Table coverage without claiming its remaining content states", () => {
-	const withoutRegular = executableVisualScenarios.filter(({ runner }) => runner !== "table-regular-states");
-	const errors = validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, withoutRegular);
+	const withoutPopulated = executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId !== "table-component.content.populated");
+	const errors = validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, withoutPopulated);
 	expect(errors).toContain("table-component.content.populated must have exactly one executable or missing-fixture disposition");
 	expect(errors.some((error) => /table-component\.content\.(empty|footer|custom-cells).*disposition/u.test(error))).toBe(false);
 	const changedRunner = executableVisualScenarios.map((scenario) =>
@@ -468,7 +668,7 @@ test("requires populated Table coverage without claiming its remaining content s
 			: scenario
 	);
 	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, changedRunner)).toContain(
-		"table-regular-initial must use the regular Table state runner"
+		"table-regular-initial must use an audited populated Table state runner"
 	);
 });
 
