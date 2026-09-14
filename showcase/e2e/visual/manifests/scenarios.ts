@@ -76,7 +76,8 @@ export const visualScenarioRunnerIds = [
 	"pagination-states",
 	"pretty-print-states",
 	"route-search-states",
-	"table-selection-states"
+	"table-selection-states",
+	"table-regular-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -689,6 +690,49 @@ export type TableSelectionStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableRegularJourney =
+	| "initial"
+	| "next"
+	| "first"
+	| "keyboard-first"
+	| "id-desc"
+	| "id-none"
+	| "id-asc"
+	| "sorted-next"
+	| "title-desc";
+type TableRegularOrder = "initial" | "id-desc" | "none" | "id-asc" | "title-asc" | "title-desc";
+type TableRegularSort = Readonly<
+	Record<"id" | "title" | "description", Readonly<{ direction: "asc" | "desc" | "none"; priority: number | null }>>
+>;
+type TableRegularCheckpoint = {
+	readonly action:
+		| Readonly<{ kind: "initial" | "next" | "first" | "sort-id" | "sort-title" }>
+		| Readonly<{ kind: "page-input"; page: 1 | 2 }>;
+	readonly expectedPage: 1 | 2;
+	readonly expectedRowIds: readonly string[];
+	readonly expectedSort: TableRegularSort;
+};
+
+export type TableRegularStateScenario = ExecutableVisualScenarioCore<
+	"table-regular-states",
+	{
+		readonly fixtureSelector: "example-viewer#regular";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: TableRegularJourney;
+		readonly totalItems: number;
+		readonly totalPages: number;
+		readonly counterText: string;
+		readonly checkpoints: readonly TableRegularCheckpoint[];
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "content";
+	readonly state: "populated";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -706,7 +750,8 @@ export type ExecutableVisualScenario =
 	| PaginationStateScenario
 	| PrettyPrintStateScenario
 	| RouteSearchStateScenario
-	| TableSelectionStateScenario;
+	| TableSelectionStateScenario
+	| TableRegularStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -3869,6 +3914,142 @@ const feedbackScenarios: readonly FeedbackStateScenario[] = [
 	...toastFeedbackScenarios
 ];
 
+const tableRegularFixtureSelector = "example-viewer#regular";
+const tableRegularCaptureSelector = `${tableRegularFixtureSelector} stark-table`;
+const tableRegularOriginalIds = ["1", "10", "12", "2", "23", "222", "112", "232", "154", "27", "86", "44"];
+const tableRegularOrderedIds: Readonly<Record<TableRegularOrder, readonly string[]>> = {
+	initial: tableRegularOriginalIds,
+	none: tableRegularOriginalIds,
+	"id-desc": ["232", "222", "154", "112", "86", "44", "27", "23", "12", "10", "2", "1"],
+	"id-asc": ["1", "2", "10", "12", "23", "27", "44", "86", "112", "154", "222", "232"],
+	"title-asc": tableRegularOriginalIds,
+	"title-desc": ["44", "86", "27", "154", "232", "112", "222", "23", "2", "12", "10", "1"]
+};
+
+function tableRegularCheckpoint(
+	action: TableRegularCheckpoint["action"],
+	order: TableRegularOrder = "initial",
+	page: 1 | 2 = 1
+): TableRegularCheckpoint {
+	const none = { direction: "none", priority: null } as const;
+	const expectedSort: TableRegularSort =
+		order === "initial"
+			? {
+					id: { direction: "asc", priority: 3 },
+					title: { direction: "asc", priority: 1 },
+					description: { direction: "desc", priority: 2 }
+				}
+			: {
+					id: order === "id-desc" || order === "id-asc" ? { direction: order === "id-desc" ? "desc" : "asc", priority: 1 } : none,
+					title:
+						order === "title-desc" || order === "title-asc"
+							? { direction: order === "title-desc" ? "desc" : "asc", priority: 1 }
+							: none,
+					description: none
+				};
+	return {
+		action,
+		expectedPage: page,
+		expectedRowIds: tableRegularOrderedIds[order].slice((page - 1) * 10, page * 10),
+		expectedSort
+	};
+}
+
+function tableRegularCheckpoints(journey: TableRegularJourney): readonly TableRegularCheckpoint[] | undefined {
+	const initial = tableRegularCheckpoint({ kind: "initial" });
+	const next = tableRegularCheckpoint({ kind: "next" }, "initial", 2);
+	const idCycle = [
+		tableRegularCheckpoint({ kind: "sort-id" }, "id-desc"),
+		tableRegularCheckpoint({ kind: "sort-id" }, "none"),
+		tableRegularCheckpoint({ kind: "sort-id" }, "id-asc")
+	];
+	switch (journey) {
+		case "initial":
+			return [initial];
+		case "next":
+			return [initial, next];
+		case "first":
+			return [initial, next, tableRegularCheckpoint({ kind: "first" })];
+		case "keyboard-first":
+			return [initial, next, tableRegularCheckpoint({ kind: "page-input", page: 1 })];
+		case "id-desc":
+			return [initial, ...idCycle.slice(0, 1)];
+		case "id-none":
+			return [initial, ...idCycle.slice(0, 2)];
+		case "id-asc":
+			return [initial, ...idCycle];
+		case "sorted-next":
+			return [
+				initial,
+				...idCycle,
+				tableRegularCheckpoint({ kind: "next" }, "id-asc", 2),
+				tableRegularCheckpoint({ kind: "first" }, "id-asc"),
+				tableRegularCheckpoint({ kind: "next" }, "id-asc", 2)
+			];
+		case "title-desc":
+			return [
+				initial,
+				...idCycle,
+				tableRegularCheckpoint({ kind: "sort-title" }, "title-asc"),
+				tableRegularCheckpoint({ kind: "sort-title" }, "title-desc")
+			];
+		default:
+			return undefined;
+	}
+}
+
+type TableRegularScenarioDefinition = Pick<TableRegularStateScenario, "id"> &
+	Pick<TableRegularStateScenario["payload"], "journey" | "viewport">;
+
+function tableRegularScenario({ id, journey, viewport }: TableRegularScenarioDefinition): TableRegularStateScenario {
+	const checkpoints = tableRegularCheckpoints(journey);
+	if (!checkpoints) {
+		throw new Error(`Unsupported regular Table journey: ${journey}`);
+	}
+	return {
+		id,
+		sourceStateId: "table-component.content.populated",
+		surfaceId: "table-component",
+		axis: "content",
+		state: "populated",
+		ownerBead: "stark-4sp.4.9",
+		routeId: "table",
+		runner: "table-regular-states",
+		capture: { scope: "component", selector: tableRegularCaptureSelector },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			fixtureSelector: tableRegularFixtureSelector,
+			viewport: { ...viewport },
+			journey,
+			totalItems: 12,
+			totalPages: 2,
+			counterText: "12 item(s)",
+			checkpoints
+		}
+	};
+}
+
+const tableRegularDesktopViewport = { width: 1280, height: 1000 } as const;
+const tableRegularMobileViewport = { width: 390, height: 1000 } as const;
+const tableRegularScenarioDefinitions: readonly TableRegularScenarioDefinition[] = [
+	{ id: "table-regular-initial", journey: "initial", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-next", journey: "next", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-first", journey: "first", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-keyboard-first", journey: "keyboard-first", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-id-desc", journey: "id-desc", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-id-none", journey: "id-none", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-id-asc", journey: "id-asc", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-sorted-next", journey: "sorted-next", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-title-desc", journey: "title-desc", viewport: tableRegularDesktopViewport },
+	{ id: "table-regular-tablet-next", journey: "next", viewport: { width: 768, height: 1000 } },
+	{ id: "table-regular-mobile-initial", journey: "initial", viewport: tableRegularMobileViewport },
+	{ id: "table-regular-mobile-sorted-next", journey: "sorted-next", viewport: tableRegularMobileViewport }
+];
+const tableRegularScenarios: readonly TableRegularStateScenario[] = tableRegularScenarioDefinitions.map(tableRegularScenario);
+
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
 	2: ["222", "112", "232", "154", "27"],
@@ -5391,6 +5572,7 @@ export const executableVisualScenarios = [
 	...feedbackScenarios,
 	...genericSearchScenarios,
 	...tableSelectionScenarios,
+	...tableRegularScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -5407,7 +5589,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 300,
+	executableScenarios: 312,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -5426,7 +5608,8 @@ export const reviewedCoverageBaseline = {
 		"pagination-states": 9,
 		"pretty-print-states": 13,
 		"route-search-states": 16,
-		"table-selection-states": 9
+		"table-selection-states": 9,
+		"table-regular-states": 12
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -5640,11 +5823,12 @@ export function validateVisualCoverage(
 		}
 	}
 	for (const { id } of requirementStates.filter(
-		({ requirement }) =>
+		({ id, requirement }) =>
 			["stark-4sp.4.2", "stark-4sp.4.3", "stark-4sp.4.4", "stark-4sp.4.5"].includes(requirement.ownerBead) ||
 			(["route-search-component", "generic-search-component"].includes(requirement.surfaceId) &&
 				requirement.ownerBead === "stark-4sp.4.8") ||
-			(requirement.surfaceId === "table-component" && requirement.axis === "selection")
+			(requirement.surfaceId === "table-component" && requirement.axis === "selection") ||
+			id === "table-component.content.populated"
 	)) {
 		const dispositions =
 			Number(executableScenarios.some(({ sourceStateId }) => sourceStateId === id)) +
@@ -5697,6 +5881,14 @@ export function validateVisualCoverage(
 		}
 		if (scenario.surfaceId === "table-component" && scenario.axis === "selection" && scenario.runner !== "table-selection-states") {
 			errors.push(`${scenario.id} must use the Table selection state runner`);
+		}
+		if (
+			scenario.surfaceId === "table-component" &&
+			scenario.axis === "content" &&
+			scenario.state === "populated" &&
+			scenario.runner !== "table-regular-states"
+		) {
+			errors.push(`${scenario.id} must use the regular Table state runner`);
 		}
 		const surface = surfaceById.get(scenario.surfaceId);
 		if (!routes.some(({ id }) => id === scenario.routeId)) {
@@ -5968,6 +6160,37 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-regular-states") {
+			const { fixtureSelector, journey, checkpoints, viewport, totalItems, totalPages, counterText } = scenario.payload;
+			const definition = tableRegularScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const expectedCheckpoints = definition ? tableRegularCheckpoints(definition.journey) : undefined;
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "content" ||
+				scenario.state !== "populated" ||
+				fixtureSelector !== tableRegularFixtureSelector ||
+				!matchesDefinition ||
+				totalItems !== 12 ||
+				totalPages !== 2 ||
+				counterText !== "12 item(s)" ||
+				expectedCheckpoints === undefined ||
+				JSON.stringify(checkpoints) !== JSON.stringify(expectedCheckpoints) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableRegularCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited regular Table fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-selection-states") {
 			const { fixtureSelector, journey, checkpoints, viewport } = scenario.payload;

@@ -6,9 +6,7 @@ const targetKind = getVisualTarget();
 const targetBaseUrl = targetKind === "legacy" ? legacyOracle.baseUrl : candidateBaseUrl;
 const shouldUpdateSnapshots = isBaselineUpdateRequested();
 const shouldStartCandidateServer =
-	targetKind === "candidate" &&
-	process.env.STARK_VISUAL_BASE_URL === undefined &&
-	process.env.STARK_VISUAL_NO_SERVER !== "1";
+	targetKind === "candidate" && process.env.STARK_VISUAL_BASE_URL === undefined && process.env.STARK_VISUAL_NO_SERVER !== "1";
 
 export default defineConfig({
 	forbidOnly: Boolean(process.env.CI),
@@ -22,14 +20,12 @@ export default defineConfig({
 	fullyParallel: false,
 	updateSnapshots: shouldUpdateSnapshots ? "all" : "none",
 	outputDir: "../../test-results/visual",
-	reporter: [
-		["list"],
-		["html", { open: "never", outputFolder: "../../playwright-report/visual" }]
-	],
+	reporter: [["list"], ["html", { open: "never", outputFolder: "../../playwright-report/visual" }]],
 	retries: process.env.CI ? 2 : 0,
 	snapshotPathTemplate: "{testDir}/../snapshots/{projectName}/{arg}{ext}",
 	testDir: "./specs",
-	timeout: 60_000,
+	// The remote legacy bundle can take several minutes to start a fresh page.
+	timeout: targetKind === "legacy" ? 240_000 : 60_000,
 	use: {
 		...devices["Desktop Chrome"],
 		baseURL: targetBaseUrl,
@@ -52,14 +48,14 @@ export default defineConfig({
 	],
 	...(shouldStartCandidateServer
 		? {
-			webServer: {
-				command: "npm run server:dev -- --host 127.0.0.1 --port 4200",
-				reuseExistingServer: !process.env.CI,
-				stderr: "pipe",
-				stdout: "pipe",
-				timeout: 120_000,
-				url: candidateBaseUrl
+				webServer: {
+					command: "npm run server:dev -- --host 127.0.0.1 --port 4200",
+					reuseExistingServer: !process.env.CI,
+					stderr: "pipe",
+					stdout: "pipe",
+					timeout: 120_000,
+					url: candidateBaseUrl
+				}
 			}
-		}
 		: {})
 });

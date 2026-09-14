@@ -25,6 +25,7 @@ import {
 	type RouteSearchStateScenario,
 	type StateAxisReview,
 	type StateRequirement,
+	type TableRegularStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
@@ -191,7 +192,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(300);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(312);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -287,6 +288,188 @@ test("covers exactly the three core Table selection states without claiming othe
 		)
 	).toBe(true);
 	expect(missingVisualFixtureStates.filter(({ sourceStateId }) => sourceStateId.startsWith("table-component.selection."))).toEqual([]);
+});
+
+test("maps regular Table journeys only to the populated content state", () => {
+	const scenarios = executableScenariosForRunner("table-regular-states");
+	expect(scenarios).toHaveLength(12);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
+	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+});
+
+test("pins regular Table ordering, page totals, complete capture, and viewport-specific journeys", () => {
+	const scenarios = executableScenariosForRunner("table-regular-states");
+	expect(
+		scenarios.every(
+			({ capture, maxDiffPixels, threshold, maskSelectors }) =>
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#regular stark-table" &&
+				maxDiffPixels === 0 &&
+				threshold === 0 &&
+				maskSelectors.length === 0
+		)
+	).toBe(true);
+	expect(
+		scenarios.every(({ payload }) => payload.totalItems === 12 && payload.totalPages === 2 && payload.counterText === "12 item(s)")
+	).toBe(true);
+	const initial = scenarios.find(({ id }) => id === "table-regular-initial")!.payload.checkpoints[0];
+	expect(initial.expectedRowIds).toEqual(["1", "10", "12", "2", "23", "222", "112", "232", "154", "27"]);
+	expect(initial.expectedSort).toEqual({
+		id: { direction: "asc", priority: 3 },
+		title: { direction: "asc", priority: 1 },
+		description: { direction: "desc", priority: 2 }
+	});
+	const last = (id: string) => scenarios.find((scenario) => scenario.id === id)!.payload.checkpoints.at(-1)!;
+	expect(last("table-regular-next").expectedRowIds).toEqual(["86", "44"]);
+	expect(last("table-regular-sorted-next").expectedRowIds).toEqual(["222", "232"]);
+	expect(last("table-regular-title-desc").expectedRowIds).toEqual(["44", "86", "27", "154", "232", "112", "222", "23", "2", "12"]);
+	expect(last("table-regular-keyboard-first").action).toEqual({ kind: "page-input", page: 1 });
+	expect(
+		scenarios.filter(({ payload }) => payload.viewport.width !== 1280).map(({ payload }) => [payload.viewport.width, payload.journey])
+	).toEqual([
+		[768, "next"],
+		[390, "initial"],
+		[390, "sorted-next"]
+	]);
+	expect(
+		scenarios
+			.filter(({ payload }) => payload.viewport.width === 390)
+			.every(({ payload }) => payload.checkpoints.every(({ action }) => action.kind !== "page-input"))
+	).toBe(true);
+});
+
+const invalidRegularTableChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableRegularStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "a separate page-size fixture",
+		id: "table-regular-initial",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, fixtureSelector: "example-viewer#items-per-page" }
+			}) as unknown as TableRegularStateScenario
+	},
+	{
+		name: "the wrong sorted row order",
+		id: "table-regular-id-desc",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRowIds: [...checkpoint.expectedRowIds].reverse()
+				}))
+			}
+		})
+	},
+	{
+		name: "a contradictory page number",
+		id: "table-regular-next",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({ ...checkpoint, expectedPage: 1 }))
+			}
+		})
+	},
+	{
+		name: "an incorrect total count",
+		id: "table-regular-initial",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, totalItems: 10, counterText: "10 item(s)" } })
+	},
+	{
+		name: "an incorrect sort indicator",
+		id: "table-regular-id-desc",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedSort: { ...checkpoint.expectedSort, id: { direction: "none", priority: null } }
+				}))
+			}
+		})
+	},
+	{
+		name: "missing sorted-page retention checks",
+		id: "table-regular-sorted-next",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, checkpoints: scenario.payload.checkpoints.slice(0, 4) } })
+	},
+	{
+		name: "a hidden mobile page-input journey",
+		id: "table-regular-keyboard-first",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 1000 } } })
+	},
+	{
+		name: "an unsupported filter journey",
+		id: "table-regular-initial",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, journey: "filter" } }) as unknown as TableRegularStateScenario
+	},
+	{
+		name: "a capture that omits header controls and count",
+		id: "table-regular-initial",
+		change: (scenario) => ({ ...scenario, capture: { scope: "component", selector: "example-viewer#regular .table-container" } })
+	}
+];
+
+for (const { name, id, change } of invalidRegularTableChanges) {
+	test(`rejects regular Table coverage with ${name}`, () => {
+		const scenarios = executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-regular-states" && scenario.id === id ? change(scenario) : scenario
+		);
+		expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+			`${id} does not use the audited regular Table fixture and interaction flow`
+		);
+	});
+}
+
+for (const id of ["table-regular-id-none", "table-regular-first"]) {
+	test(`rejects a supported regular Table journey substituted for ${id}`, () => {
+		const initial = executableScenariosForRunner("table-regular-states").find((scenario) => scenario.id === "table-regular-initial")!;
+		const scenarios = executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-regular-states" && scenario.id === id
+				? {
+						...scenario,
+						payload: { ...scenario.payload, journey: initial.payload.journey, checkpoints: initial.payload.checkpoints }
+					}
+				: scenario
+		);
+		expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+			`${id} does not use the audited regular Table fixture and interaction flow`
+		);
+	});
+}
+
+test("rejects a supported regular Table viewport assigned to a different scenario ID", () => {
+	const scenarios = executableVisualScenarios.map((scenario) =>
+		scenario.runner === "table-regular-states" && scenario.id === "table-regular-initial"
+			? { ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 1000 } } }
+			: scenario
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+		"table-regular-initial does not use the audited regular Table fixture and interaction flow"
+	);
+});
+
+test("requires populated Table coverage without claiming its remaining content states", () => {
+	const withoutRegular = executableVisualScenarios.filter(({ runner }) => runner !== "table-regular-states");
+	const errors = validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, withoutRegular);
+	expect(errors).toContain("table-component.content.populated must have exactly one executable or missing-fixture disposition");
+	expect(errors.some((error) => /table-component\.content\.(empty|footer|custom-cells).*disposition/u.test(error))).toBe(false);
+	const changedRunner = executableVisualScenarios.map((scenario) =>
+		scenario.id === "table-regular-initial"
+			? ({ ...scenario, runner: "navigation-control-states" } as unknown as ExecutableVisualScenario)
+			: scenario
+	);
+	expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, changedRunner)).toContain(
+		"table-regular-initial must use the regular Table state runner"
+	);
 });
 
 test("pins Table selection page identities, off-page checks, keyboard action, and narrow captures", () => {
