@@ -78,7 +78,8 @@ export const visualScenarioRunnerIds = [
 	"route-search-states",
 	"table-selection-states",
 	"table-regular-states",
-	"table-page-size-states"
+	"table-page-size-states",
+	"table-row-index-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -777,6 +778,49 @@ export type TablePageSizeStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableRowIndexJourney =
+	| "initial"
+	| "next"
+	| "last"
+	| "sorted-selected"
+	| "sorted-next"
+	| "index-hidden"
+	| "index-restored"
+	| "selection-disabled"
+	| "both-disabled"
+	| "selection-restored"
+	| "keyboard-index";
+type TableRowIndexColumn = "select" | "rowIndex" | "id" | "title" | "description";
+type TableRowIndexCheckpoint = {
+	readonly action: "initial" | "next" | "first" | "select-ten" | "sort-id" | "toggle-index" | "toggle-selection" | "keyboard-index";
+	readonly expectedPage: number;
+	readonly expectedIds: readonly string[];
+	readonly expectedIndices: readonly string[];
+	readonly expectedColumns: readonly TableRowIndexColumn[];
+	readonly expectedIndexVisible: boolean;
+	readonly expectedSelectionEnabled: boolean;
+	readonly expectedSelectedIds: readonly string[];
+	readonly expectedHeaderSelection: Readonly<{ checked: boolean; indeterminate: boolean }> | null;
+	readonly expectedIdSorted: boolean;
+};
+
+export type TableRowIndexStateScenario = ExecutableVisualScenarioCore<
+	"table-row-index-states",
+	{
+		readonly fixtureSelector: "example-viewer#selection_and_rowindex";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: TableRowIndexJourney;
+		readonly checkpoints: readonly TableRowIndexCheckpoint[];
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "content";
+	readonly state: "populated";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -796,7 +840,8 @@ export type ExecutableVisualScenario =
 	| RouteSearchStateScenario
 	| TableSelectionStateScenario
 	| TableRegularStateScenario
-	| TablePageSizeStateScenario;
+	| TablePageSizeStateScenario
+	| TableRowIndexStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -4205,6 +4250,150 @@ const tablePageSizeScenarios: readonly TablePageSizeStateScenario[] = tablePageS
 	};
 });
 
+const tableRowIndexFixtureSelector = "example-viewer#selection_and_rowindex";
+const tableRowIndexCaptureSelector = `${tableRowIndexFixtureSelector} showcase-table-with-selection-and-row-index`;
+type TableRowIndexExpectedState = {
+	page: number;
+	idSorted: boolean;
+	indexVisible: boolean;
+	selectionEnabled: boolean;
+	selectedIds: readonly string[];
+};
+
+function tableRowIndexCheckpoint(
+	action: TableRowIndexCheckpoint["action"],
+	overrides: Partial<TableRowIndexExpectedState> = {}
+): TableRowIndexCheckpoint {
+	const { page, idSorted, indexVisible, selectionEnabled, selectedIds }: TableRowIndexExpectedState = {
+		page: 1,
+		idSorted: false,
+		indexVisible: true,
+		selectionEnabled: true,
+		selectedIds: [],
+		...overrides
+	};
+	const offset = (page - 1) * 5;
+	const ids = tableRegularOrderedIds[idSorted ? "id-asc" : "none"].slice(offset, offset + 5);
+	const columns: TableRowIndexColumn[] = [];
+	if (selectionEnabled) {
+		columns.push("select");
+	}
+	if (indexVisible) {
+		columns.push("rowIndex");
+	}
+	columns.push("id", "title", "description");
+	return {
+		action,
+		expectedPage: page,
+		expectedIds: ids,
+		expectedIndices: indexVisible ? ids.map((_, index) => String(offset + index + 1)) : [],
+		expectedColumns: columns,
+		expectedIndexVisible: indexVisible,
+		expectedSelectionEnabled: selectionEnabled,
+		expectedSelectedIds: selectionEnabled ? ids.filter((id) => selectedIds.includes(id)) : [],
+		expectedHeaderSelection: selectionEnabled ? { checked: false, indeterminate: selectedIds.length > 0 } : null,
+		expectedIdSorted: idSorted
+	};
+}
+
+function tableRowIndexCheckpoints(journey: TableRowIndexJourney): readonly TableRowIndexCheckpoint[] | undefined {
+	const initial = tableRowIndexCheckpoint("initial");
+	const next = tableRowIndexCheckpoint("next", { page: 2 });
+	const selectedSorted = { idSorted: true, selectedIds: ["10"] } as const;
+	const sorted = [
+		initial,
+		tableRowIndexCheckpoint("select-ten", { selectedIds: ["10"] }),
+		tableRowIndexCheckpoint("sort-id", selectedSorted)
+	];
+	const indexHidden = [...sorted, tableRowIndexCheckpoint("toggle-index", { ...selectedSorted, indexVisible: false })];
+	const indexRestored = [...indexHidden, tableRowIndexCheckpoint("toggle-index", selectedSorted)];
+	const selectionDisabled = [...indexRestored, tableRowIndexCheckpoint("toggle-selection", { idSorted: true, selectionEnabled: false })];
+	const bothDisabled = [
+		...selectionDisabled,
+		tableRowIndexCheckpoint("toggle-index", { idSorted: true, indexVisible: false, selectionEnabled: false })
+	];
+	const selectionRestored = [...bothDisabled, tableRowIndexCheckpoint("toggle-selection", { idSorted: true, indexVisible: false })];
+	switch (journey) {
+		case "initial":
+			return [initial];
+		case "next":
+			return [initial, next];
+		case "last":
+			return [initial, next, tableRowIndexCheckpoint("next", { page: 3 })];
+		case "sorted-selected":
+			return sorted;
+		case "sorted-next":
+			return [
+				...sorted,
+				tableRowIndexCheckpoint("next", { ...selectedSorted, page: 2 }),
+				tableRowIndexCheckpoint("first", selectedSorted),
+				tableRowIndexCheckpoint("next", { ...selectedSorted, page: 2 })
+			];
+		case "index-hidden":
+			return indexHidden;
+		case "index-restored":
+			return indexRestored;
+		case "selection-disabled":
+			return selectionDisabled;
+		case "both-disabled":
+			return bothDisabled;
+		case "selection-restored":
+			return selectionRestored;
+		case "keyboard-index":
+			return [
+				...selectionRestored,
+				tableRowIndexCheckpoint("toggle-index", { idSorted: true }),
+				tableRowIndexCheckpoint("keyboard-index", { idSorted: true, indexVisible: false })
+			];
+		default:
+			return undefined;
+	}
+}
+
+type TableRowIndexScenarioDefinition = Pick<TableRowIndexStateScenario, "id"> &
+	Pick<TableRowIndexStateScenario["payload"], "journey" | "viewport">;
+const tableRowIndexDesktopViewport = { width: 1280, height: 900 } as const;
+const tableRowIndexMobileViewport = { width: 390, height: 900 } as const;
+const tableRowIndexScenarioDefinitions: readonly TableRowIndexScenarioDefinition[] = [
+	{ id: "table-row-index-initial", journey: "initial", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-next", journey: "next", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-last", journey: "last", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-sorted-selected", journey: "sorted-selected", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-sorted-next", journey: "sorted-next", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-index-hidden", journey: "index-hidden", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-index-restored", journey: "index-restored", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-selection-disabled", journey: "selection-disabled", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-both-disabled", journey: "both-disabled", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-selection-restored", journey: "selection-restored", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-keyboard-index", journey: "keyboard-index", viewport: tableRowIndexDesktopViewport },
+	{ id: "table-row-index-tablet-last", journey: "last", viewport: { width: 768, height: 900 } },
+	{ id: "table-row-index-mobile-initial", journey: "initial", viewport: tableRowIndexMobileViewport },
+	{ id: "table-row-index-mobile-index-only", journey: "selection-disabled", viewport: tableRowIndexMobileViewport }
+];
+
+const tableRowIndexScenarios: readonly TableRowIndexStateScenario[] = tableRowIndexScenarioDefinitions.map(({ id, journey, viewport }) => {
+	const checkpoints = tableRowIndexCheckpoints(journey);
+	if (!checkpoints) {
+		throw new Error(`Unsupported Table row-index journey: ${journey}`);
+	}
+	return {
+		id,
+		sourceStateId: "table-component.content.populated",
+		surfaceId: "table-component",
+		axis: "content",
+		state: "populated",
+		ownerBead: "stark-4sp.4.9",
+		routeId: "table",
+		runner: "table-row-index-states",
+		capture: { scope: "component", selector: tableRowIndexCaptureSelector },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: { fixtureSelector: tableRowIndexFixtureSelector, viewport: { ...viewport }, journey, checkpoints }
+	};
+});
+
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
 	2: ["222", "112", "232", "154", "27"],
@@ -5729,6 +5918,7 @@ export const executableVisualScenarios = [
 	...tableSelectionScenarios,
 	...tableRegularScenarios,
 	...tablePageSizeScenarios,
+	...tableRowIndexScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -5745,7 +5935,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 323,
+	executableScenarios: 337,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -5766,7 +5956,8 @@ export const reviewedCoverageBaseline = {
 		"route-search-states": 16,
 		"table-selection-states": 9,
 		"table-regular-states": 12,
-		"table-page-size-states": 11
+		"table-page-size-states": 11,
+		"table-row-index-states": 14
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -6043,7 +6234,7 @@ export function validateVisualCoverage(
 			scenario.surfaceId === "table-component" &&
 			scenario.axis === "content" &&
 			scenario.state === "populated" &&
-			!["table-regular-states", "table-page-size-states"].includes(scenario.runner)
+			!["table-regular-states", "table-page-size-states", "table-row-index-states"].includes(scenario.runner)
 		) {
 			errors.push(`${scenario.id} must use an audited populated Table state runner`);
 		}
@@ -6317,6 +6508,34 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-row-index-states") {
+			const { fixtureSelector, journey, checkpoints, viewport } = scenario.payload;
+			const definition = tableRowIndexScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const expectedCheckpoints = definition ? tableRowIndexCheckpoints(definition.journey) : undefined;
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "content" ||
+				scenario.state !== "populated" ||
+				fixtureSelector !== tableRowIndexFixtureSelector ||
+				!matchesDefinition ||
+				expectedCheckpoints === undefined ||
+				JSON.stringify(checkpoints) !== JSON.stringify(expectedCheckpoints) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableRowIndexCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited Table row-index fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-page-size-states") {
 			const { fixtureSelector, journey, checkpoints, viewport, selectorSnapshotName, options, totalItems, counterText } =

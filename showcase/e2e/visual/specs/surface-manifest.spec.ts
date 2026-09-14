@@ -27,6 +27,7 @@ import {
 	type StateRequirement,
 	type TableRegularStateScenario,
 	type TablePageSizeStateScenario,
+	type TableRowIndexStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
@@ -193,7 +194,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(323);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(337);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -304,6 +305,164 @@ test("maps exactly eleven Table page-size journeys to populated content without 
 	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
 	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
 	expect(executableScenariosForRunner("table-regular-states")).toHaveLength(12);
+});
+
+test("maps fourteen row-index configuration journeys only to populated Table content", () => {
+	const scenarios = executableScenariosForRunner("table-row-index-states");
+	expect(scenarios).toHaveLength(14);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
+	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+	expect(executableScenariosForRunner("table-regular-states")).toHaveLength(12);
+	expect(executableScenariosForRunner("table-page-size-states")).toHaveLength(11);
+});
+
+test("pins row-index numbering, helper-column order, selection lifetime, and complete configuration captures", () => {
+	const scenarios = executableScenariosForRunner("table-row-index-states");
+	const last = (id: string) => scenarios.find((scenario) => scenario.id === id)!.payload.checkpoints.at(-1)!;
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, maxDiffPixels, threshold, payload }) =>
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#selection_and_rowindex showcase-table-with-selection-and-row-index" &&
+				maskSelectors.length === 0 &&
+				maxDiffPixels === 0 &&
+				threshold === 0 &&
+				payload.viewport.height === 900
+		)
+	).toBe(true);
+	expect(last("table-row-index-next").expectedIndices).toEqual(["6", "7", "8", "9", "10"]);
+	expect(last("table-row-index-last").expectedIndices).toEqual(["11", "12"]);
+	const sorted = last("table-row-index-sorted-selected");
+	expect(sorted.expectedIds).toEqual(["1", "2", "10", "12", "23"]);
+	expect(sorted.expectedIndices[sorted.expectedIds.indexOf("10")]).toBe("3");
+	expect(sorted.expectedSelectedIds).toEqual(["10"]);
+	expect(last("table-row-index-sorted-next")).toMatchObject({
+		expectedIndices: ["6", "7", "8", "9", "10"],
+		expectedSelectedIds: [],
+		expectedHeaderSelection: { checked: false, indeterminate: true }
+	});
+	expect(last("table-row-index-index-hidden")).toMatchObject({
+		expectedIndexVisible: false,
+		expectedIndices: [],
+		expectedSelectedIds: ["10"],
+		expectedColumns: ["select", "id", "title", "description"]
+	});
+	expect(last("table-row-index-index-restored").expectedColumns).toEqual(["select", "rowIndex", "id", "title", "description"]);
+	expect(last("table-row-index-selection-disabled")).toMatchObject({
+		expectedSelectionEnabled: false,
+		expectedHeaderSelection: null,
+		expectedColumns: ["rowIndex", "id", "title", "description"]
+	});
+	expect(last("table-row-index-both-disabled").expectedColumns).toEqual(["id", "title", "description"]);
+	expect(last("table-row-index-selection-restored")).toMatchObject({
+		expectedSelectionEnabled: true,
+		expectedSelectedIds: [],
+		expectedHeaderSelection: { checked: false, indeterminate: false },
+		expectedColumns: ["select", "id", "title", "description"]
+	});
+	expect(last("table-row-index-keyboard-index")).toMatchObject({ action: "keyboard-index", expectedIndexVisible: false });
+	expect(
+		scenarios.filter(({ payload }) => payload.viewport.width !== 1280).map(({ payload }) => [payload.viewport.width, payload.journey])
+	).toEqual([
+		[768, "last"],
+		[390, "initial"],
+		[390, "selection-disabled"]
+	]);
+});
+
+function validateRowIndexChange(id: string, change: (scenario: TableRowIndexStateScenario) => ExecutableVisualScenario): string[] {
+	return validate(
+		visualSurfaceManifest,
+		stateRequirements,
+		stateAxisReviews,
+		executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-row-index-states" && scenario.id === id ? change(scenario) : scenario
+		)
+	);
+}
+
+function changeLastRowIndexCheckpoint(
+	scenario: TableRowIndexStateScenario,
+	change: Partial<TableRowIndexStateScenario["payload"]["checkpoints"][number]>
+): TableRowIndexStateScenario {
+	const checkpoints = scenario.payload.checkpoints;
+	return {
+		...scenario,
+		payload: { ...scenario.payload, checkpoints: [...checkpoints.slice(0, -1), { ...checkpoints.at(-1)!, ...change }] }
+	};
+}
+
+for (const [id, replacementId] of [
+	["table-row-index-index-hidden", "table-row-index-initial"],
+	["table-row-index-selection-restored", "table-row-index-index-hidden"]
+] as const) {
+	test(`rejects supported journey substitution for ${id}`, () => {
+		const replacement = executableScenariosForRunner("table-row-index-states").find((scenario) => scenario.id === replacementId)!;
+		expect(
+			validateRowIndexChange(id, (scenario) => ({
+				...scenario,
+				payload: { ...scenario.payload, journey: replacement.payload.journey, checkpoints: replacement.payload.checkpoints }
+			}))
+		).toContain(`${id} does not use the audited Table row-index fixture and interaction flow`);
+	});
+}
+
+const invalidRowIndexChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableRowIndexStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "page-local row numbers",
+		id: "table-row-index-next",
+		change: (scenario) => changeLastRowIndexCheckpoint(scenario, { expectedIndices: ["1", "2", "3", "4", "5"] })
+	},
+	{
+		name: "incorrect restored helper-column order",
+		id: "table-row-index-index-restored",
+		change: (scenario) =>
+			changeLastRowIndexCheckpoint(scenario, { expectedColumns: ["rowIndex", "select", "id", "title", "description"] })
+	},
+	{
+		name: "a resurrected selection model",
+		id: "table-row-index-selection-restored",
+		change: (scenario) =>
+			changeLastRowIndexCheckpoint(scenario, {
+				expectedSelectedIds: ["10"],
+				expectedHeaderSelection: { checked: false, indeterminate: true }
+			})
+	},
+	{
+		name: "lost off-page selection state",
+		id: "table-row-index-sorted-next",
+		change: (scenario) => changeLastRowIndexCheckpoint(scenario, { expectedHeaderSelection: { checked: false, indeterminate: false } })
+	},
+	{
+		name: "a supported viewport under the wrong ID",
+		id: "table-row-index-initial",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 900 } } })
+	},
+	{
+		name: "a capture that omits configuration checkboxes",
+		id: "table-row-index-initial",
+		change: (scenario) => ({
+			...scenario,
+			capture: { scope: "component", selector: "example-viewer#selection_and_rowindex stark-table" }
+		})
+	}
+];
+
+for (const { name, id, change } of invalidRowIndexChanges) {
+	test(`rejects row-index coverage with ${name}`, () => {
+		expect(validateRowIndexChange(id, change)).toContain(`${id} does not use the audited Table row-index fixture and interaction flow`);
+	});
+}
+
+test("rejects assigning a row-index ID to another populated-table runner", () => {
+	const id = "table-row-index-initial";
+	expect(
+		validateRowIndexChange(id, (scenario) => ({ ...scenario, runner: "table-regular-states" }) as unknown as ExecutableVisualScenario)
+	).toContain(`${id} does not use the audited regular Table fixture and interaction flow`);
 });
 
 test("pins Table size changes, same-size retention, ordering, and full closed-selector captures", () => {
