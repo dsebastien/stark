@@ -30,9 +30,30 @@
     }
 
     .pagination-items-per-page {
-      // MDC stretches the select trigger across the whole legacy host width.
-      // Keep the pre-MDC trigger footprint so the value and arrow stay together.
-      width: 47px;
+      width: 50px;
+
+      @include mat.select-overrides(
+        (
+          trigger-text-size: mat.m2-font-size(stark-typography.$typography-config, caption)
+        )
+      );
+
+      // This standalone selector inherits pagination typography without form-field offsets.
+      .mat-mdc-select {
+        line-height: inherit;
+      }
+
+      .mat-mdc-select-trigger {
+        transform: none;
+      }
+
+      .mat-mdc-select-arrow-wrapper {
+        height: auto;
+      }
+
+      .mat-mdc-select-arrow {
+        margin: 0 4px;
+      }
     }
 
     .page-numbers {
