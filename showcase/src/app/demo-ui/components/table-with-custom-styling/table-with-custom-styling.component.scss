@@ -3,8 +3,8 @@
   background-color: #d1e1ff;
 }
 
-// Id cell class
-.large {
+// Id header/cell class: keep the custom weight above Material's header default.
+showcase-table-with-custom-styling .large {
   font-weight: bold;
   font-size: 20px;
 }

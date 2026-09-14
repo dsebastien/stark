@@ -200,6 +200,11 @@
               flex: 1 1 0%;
               user-select: none;
 
+              // Preserve the inline SVG baseline when header classes change the text size.
+              .mat-icon svg {
+                display: inline;
+              }
+
               &:hover {
                 .order-tip {
                   opacity: 0.3;
