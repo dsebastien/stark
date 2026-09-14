@@ -1,3 +1,5 @@
+@use "@angular/material" as mat;
+
 // Preserve the shared demo spacing formerly supplied by an unscoped example style.
 demo-table .stark-table table {
   td.mat-mdc-cell,
@@ -7,5 +9,65 @@ demo-table .stark-table table {
 
   td.mat-mdc-cell {
     padding-right: 20px;
+  }
+}
+
+// These two demo switches sit outside StarkTable's selection-cell styles.
+showcase-table-with-selection-and-row-index > div .mat-mdc-checkbox {
+  @include mat.checkbox-overrides(
+    (
+      label-text-line-height: 24px,
+      selected-checkmark-color: #fafafa,
+      unselected-focus-icon-color: rgba(0, 0, 0, 0.54),
+      unselected-focus-state-layer-color: black,
+      unselected-focus-state-layer-opacity: 0.12
+    )
+  );
+
+  .mdc-label {
+    padding-inline-start: 6px;
+  }
+
+  // Match the legacy path inside MDC's smaller checkmark content box.
+  .mdc-checkbox__checkmark {
+    scale: calc(40 / 39);
+    overflow: visible;
+  }
+
+  .mdc-checkbox__checkmark-path {
+    stroke-width: calc(32px / 15 * 1.3);
+  }
+
+  // The legacy checked fill paints over a separate translucent frame.
+  .mdc-checkbox__native-control:enabled:checked ~ .mdc-checkbox__background {
+    border-color: rgba(0, 0, 0, 0.54);
+    background-color: transparent;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      background-color: var(--mat-checkbox-selected-icon-color);
+      pointer-events: none;
+    }
+  }
+
+  .mdc-checkbox__ripple,
+  .mat-mdc-checkbox-ripple {
+    width: 40px;
+    height: 40px;
+    left: -12px;
+    top: -11px;
+    right: auto;
+    bottom: auto;
+  }
+
+  .mdc-checkbox__ripple {
+    z-index: 1;
+  }
+
+  .mdc-checkbox__native-control:focus:not(:focus-visible) + .mdc-checkbox__ripple {
+    opacity: 0;
   }
 }
