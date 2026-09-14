@@ -29,6 +29,7 @@ import {
 	type TablePageSizeStateScenario,
 	type TableRowIndexStateScenario,
 	type TableStylingStateScenario,
+	type TableCustomCellStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
@@ -195,7 +196,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(350);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(363);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -322,6 +323,220 @@ test("maps thirteen custom-styling journeys only to populated Table content", ()
 	expect(scenarios).toHaveLength(13);
 	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
 	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+});
+
+test("maps thirteen custom-cell journeys only to populated Table content", () => {
+	const scenarios = executableScenariosForRunner("table-custom-cell-states");
+	expect(scenarios).toHaveLength(13);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
+	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+});
+
+test("pins custom-cell tuples, projection branches, styles, and complete captures", () => {
+	const scenarios = executableScenariosForRunner("table-custom-cell-states");
+	const last = (id: string) => scenarios.find((scenario) => scenario.id === id)!.payload.checkpoints.at(-1)!;
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, threshold, maxDiffPixels }) =>
+				capture.scope === "component" &&
+				capture.selector ===
+					"example-viewer:has(showcase-table-with-custom-cell-rendering) showcase-table-with-custom-cell-rendering stark-table" &&
+				maskSelectors.length === 0 &&
+				threshold === 0 &&
+				maxDiffPixels === 0
+		)
+	).toBe(true);
+	expect(last("table-custom-cell-initial").expectedRows.slice(0, 3)).toEqual([
+		{ tuple: [1, 12, "number one"], branches: ["blue-span", "blue-span", "blue-span"], costClass: null },
+		{ tuple: [2, 23, "second description"], branches: ["red-span", "red-span", "red-span"], costClass: null },
+		{ tuple: [3, 5, "the third description"], branches: ["italic", "italic", "italic"], costClass: "danger" }
+	]);
+	expect(last("table-custom-cell-id-desc").expectedRows).toEqual([
+		{ tuple: [12, 6, "the twelfth description"], branches: ["plain", "plain", "plain"], costClass: null },
+		{ tuple: [11, 21, "eleventh description"], branches: ["plain", "plain", "plain"], costClass: "warning" },
+		{ tuple: [10, 10, "description number ten"], branches: ["plain", "plain", "plain"], costClass: null },
+		{ tuple: [9, 24, "description number eight"], branches: ["plain", "thumb-up", "plain"], costClass: null },
+		{ tuple: [9, 35, "the ninth description"], branches: ["plain", "thumb-up", "plain"], costClass: null }
+	]);
+	expect(last("table-custom-cell-asc-last").expectedRows.map(({ tuple }) => tuple)).toEqual([
+		[9, 35, "the ninth description"],
+		[5, 54, "fifth description"]
+	]);
+	expect(last("table-custom-cell-keyboard-desc-last").expectedRows.map(({ tuple }) => tuple)).toEqual([
+		[3, 5, "the third description"],
+		[6, 3, "the sixth description"]
+	]);
+	expect(last("table-custom-cell-cleared-last").expectedRows.map(({ tuple }) => tuple)).toEqual([
+		[11, 21, "eleventh description"],
+		[12, 6, "the twelfth description"]
+	]);
+	expect(last("table-custom-cell-cleared-last").expectedPage).toBe(3);
+	expect(last("table-custom-cell-restored").expectedPage).toBe(1);
+	expect(scenarios[0].payload.styles).toEqual({
+		fontSize: "14px",
+		lineHeight: "26px",
+		bodyColor: "rgba(0, 0, 0, 0.87)",
+		blue: "rgb(0, 0, 255)",
+		red: "rgb(255, 0, 0)",
+		danger: "rgb(124, 0, 44)",
+		warning: "rgb(255, 152, 0)",
+		iconSize: "24px"
+	});
+	expect(
+		scenarios.filter(({ payload }) => payload.viewport.width !== 1280).map(({ payload }) => [payload.viewport, payload.journey])
+	).toEqual([
+		[{ width: 768, height: 900 }, "next"],
+		[{ width: 390, height: 900 }, "asc-next"]
+	]);
+});
+
+function validateCustomCellChange(id: string, change: (scenario: TableCustomCellStateScenario) => ExecutableVisualScenario): string[] {
+	return validate(
+		visualSurfaceManifest,
+		stateRequirements,
+		stateAxisReviews,
+		executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-custom-cell-states" && scenario.id === id ? change(scenario) : scenario
+		)
+	);
+}
+
+for (const [id, replacementId] of [
+	["table-custom-cell-restored", "table-custom-cell-initial"],
+	["table-custom-cell-cleared-last", "table-custom-cell-last"],
+	["table-custom-cell-asc-next", "table-custom-cell-cost-asc"]
+]) {
+	test(`rejects supported custom-cell journey substitution for ${id}`, () => {
+		const replacement = executableScenariosForRunner("table-custom-cell-states").find((scenario) => scenario.id === replacementId)!;
+		expect(
+			validateCustomCellChange(id, (scenario) => ({
+				...scenario,
+				payload: { ...scenario.payload, journey: replacement.payload.journey, checkpoints: replacement.payload.checkpoints }
+			}))
+		).toContain(`${id} does not use the audited custom Table cell fixture and interaction flow`);
+	});
+}
+
+const invalidCustomCellChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableCustomCellStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "duplicate IDs collapsed to one tuple",
+		id: "table-custom-cell-id-desc",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRows: checkpoint.expectedRows.map((row) =>
+						row.tuple[1] === 35 ? { ...row, tuple: [9, 24, "description number eight"] as const } : row
+					)
+				}))
+			}
+		})
+	},
+	{
+		name: "a thumb icon projected in the wrong column",
+		id: "table-custom-cell-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRows: checkpoint.expectedRows.map((row) =>
+						row.tuple[0] === 4 ? { ...row, branches: ["thumb-up", "plain", "plain"] as const } : row
+					)
+				}))
+			}
+		})
+	},
+	{
+		name: "an omitted thumb icon",
+		id: "table-custom-cell-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRows: checkpoint.expectedRows.map((row) =>
+						row.tuple[0] === 4 ? { ...row, branches: ["plain", "plain", "plain"] as const } : row
+					)
+				}))
+			}
+		})
+	},
+	{
+		name: "the wrong class on the italic cost cell",
+		id: "table-custom-cell-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRows: checkpoint.expectedRows.map((row) =>
+						row.tuple[0] === 3 ? { ...row, costClass: "warning" as const } : row
+					)
+				}))
+			}
+		})
+	},
+	{
+		name: "an incorrect projected color",
+		id: "table-custom-cell-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, styles: { ...scenario.payload.styles, blue: "rgb(255, 0, 0)" } }
+		})
+	},
+	{
+		name: "the duplicated collapse fixture ID",
+		id: "table-custom-cell-initial",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, fixtureSelector: "example-viewer#collapse" }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "a supported viewport under the wrong ID",
+		id: "table-custom-cell-asc-next",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 900 } } })
+	},
+	{
+		name: "a crop excluding pagination",
+		id: "table-custom-cell-initial",
+		change: (scenario) => ({ ...scenario, capture: { scope: "component", selector: `${scenario.capture.selector} tbody` } })
+	},
+	{
+		name: "weakened screenshot comparison",
+		id: "table-custom-cell-initial",
+		change: (scenario) => ({ ...scenario, maxDiffPixels: 1 })
+	},
+	{
+		name: "a mask over projected icons",
+		id: "table-custom-cell-initial",
+		change: (scenario) => ({ ...scenario, maskSelectors: ["mat-icon"] }) as unknown as ExecutableVisualScenario
+	}
+];
+for (const { name, id, change } of invalidCustomCellChanges) {
+	test(`rejects custom-cell coverage with ${name}`, () => {
+		expect(validateCustomCellChange(id, change)).toContain(
+			`${id} does not use the audited custom Table cell fixture and interaction flow`
+		);
+	});
+}
+
+test("rejects assigning a custom-cell ID to another populated-table runner", () => {
+	const id = "table-custom-cell-initial";
+	expect(
+		validateCustomCellChange(id, (scenario) => ({ ...scenario, runner: "table-regular-states" }) as unknown as ExecutableVisualScenario)
+	).toContain(`${id} does not use the audited regular Table fixture and interaction flow`);
 });
 
 test("pins custom Table class/data associations, local striping, CSS values, and hover targets", () => {

@@ -80,7 +80,8 @@ export const visualScenarioRunnerIds = [
 	"table-regular-states",
 	"table-page-size-states",
 	"table-row-index-states",
-	"table-styling-states"
+	"table-styling-states",
+	"table-custom-cell-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -875,6 +876,59 @@ export type TableStylingStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableCustomCellJourney =
+	| "initial"
+	| "next"
+	| "last"
+	| "cost-asc"
+	| "asc-next"
+	| "asc-last"
+	| "cost-desc"
+	| "keyboard-desc-last"
+	| "cleared-last"
+	| "restored"
+	| "id-desc";
+type TableCustomCellBranch = "blue-span" | "red-span" | "italic" | "thumb-up" | "plain";
+type TableCustomCellRow = {
+	readonly tuple: readonly [number, number, string];
+	readonly branches: readonly [TableCustomCellBranch, TableCustomCellBranch, TableCustomCellBranch];
+	readonly costClass: "danger" | "warning" | null;
+};
+type TableCustomCellCheckpoint = {
+	readonly action: "initial" | "next" | "first" | "sort-cost" | "sort-id" | "keyboard-last";
+	readonly expectedPage: number;
+	readonly expectedSort: Readonly<{ column: "id" | "cost" | null; direction: "none" | "asc" | "desc" }>;
+	readonly expectedRows: readonly TableCustomCellRow[];
+};
+type TableCustomCellStyles = {
+	readonly fontSize: string;
+	readonly lineHeight: string;
+	readonly bodyColor: string;
+	readonly blue: string;
+	readonly red: string;
+	readonly danger: string;
+	readonly warning: string;
+	readonly iconSize: string;
+};
+
+export type TableCustomCellStateScenario = ExecutableVisualScenarioCore<
+	"table-custom-cell-states",
+	{
+		readonly fixtureSelector: "example-viewer:has(showcase-table-with-custom-cell-rendering)";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: TableCustomCellJourney;
+		readonly styles: TableCustomCellStyles;
+		readonly checkpoints: readonly TableCustomCellCheckpoint[];
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "content";
+	readonly state: "populated";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -896,7 +950,8 @@ export type ExecutableVisualScenario =
 	| TableRegularStateScenario
 	| TablePageSizeStateScenario
 	| TableRowIndexStateScenario
-	| TableStylingStateScenario;
+	| TableStylingStateScenario
+	| TableCustomCellStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -4582,6 +4637,145 @@ const tableStylingScenarios: readonly TableStylingStateScenario[] = tableStyling
 	}
 );
 
+const tableCustomCellFixtureSelector = "example-viewer:has(showcase-table-with-custom-cell-rendering)";
+const tableCustomCellCaptureSelector = `${tableCustomCellFixtureSelector} showcase-table-with-custom-cell-rendering stark-table`;
+// Preserve complete records: the two ID 9 rows are distinct, including during stable ID sorting.
+const tableCustomCellData: readonly TableCustomCellRow[] = [
+	{ tuple: [1, 12, "number one"], branches: ["blue-span", "blue-span", "blue-span"], costClass: null },
+	{ tuple: [2, 23, "second description"], branches: ["red-span", "red-span", "red-span"], costClass: null },
+	{ tuple: [3, 5, "the third description"], branches: ["italic", "italic", "italic"], costClass: "danger" },
+	{ tuple: [4, 33, "description number four"], branches: ["plain", "thumb-up", "plain"], costClass: null },
+	{ tuple: [5, 54, "fifth description"], branches: ["plain", "thumb-up", "plain"], costClass: null },
+	{ tuple: [6, 3, "the sixth description"], branches: ["plain", "plain", "plain"], costClass: null },
+	{ tuple: [7, 7, "seventh description"], branches: ["plain", "plain", "plain"], costClass: null },
+	{ tuple: [9, 24, "description number eight"], branches: ["plain", "thumb-up", "plain"], costClass: null },
+	{ tuple: [9, 35, "the ninth description"], branches: ["plain", "thumb-up", "plain"], costClass: null },
+	{ tuple: [10, 10, "description number ten"], branches: ["plain", "plain", "plain"], costClass: null },
+	{ tuple: [11, 21, "eleventh description"], branches: ["plain", "plain", "plain"], costClass: "warning" },
+	{ tuple: [12, 6, "the twelfth description"], branches: ["plain", "plain", "plain"], costClass: null }
+];
+type TableCustomCellOrder = "none" | "cost-asc" | "cost-desc" | "id-asc" | "id-desc";
+const tableCustomCellOrder: Readonly<Record<TableCustomCellOrder, readonly number[]>> = {
+	none: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+	"cost-asc": [5, 2, 11, 6, 9, 0, 10, 1, 7, 3, 8, 4],
+	"cost-desc": [4, 8, 3, 7, 1, 10, 0, 9, 6, 11, 2, 5],
+	"id-asc": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+	"id-desc": [11, 10, 9, 7, 8, 6, 5, 4, 3, 2, 1, 0]
+};
+const tableCustomCellStyles: TableCustomCellStyles = {
+	fontSize: "14px",
+	lineHeight: "26px",
+	bodyColor: "rgba(0, 0, 0, 0.87)",
+	blue: "rgb(0, 0, 255)",
+	red: "rgb(255, 0, 0)",
+	danger: "rgb(124, 0, 44)",
+	warning: "rgb(255, 152, 0)",
+	iconSize: "24px"
+};
+
+function tableCustomCellCheckpoint(
+	action: TableCustomCellCheckpoint["action"],
+	order: TableCustomCellOrder = "none",
+	page = 1
+): TableCustomCellCheckpoint {
+	return {
+		action,
+		expectedPage: page,
+		expectedSort: {
+			column: order === "none" ? null : order.startsWith("cost-") ? "cost" : "id",
+			direction: order === "none" ? "none" : order.endsWith("-asc") ? "asc" : "desc"
+		},
+		expectedRows: tableCustomCellOrder[order].slice((page - 1) * 5, page * 5).map((index) => {
+			const row = tableCustomCellData[index];
+			return { tuple: [...row.tuple], branches: [...row.branches], costClass: row.costClass };
+		})
+	};
+}
+
+function tableCustomCellCheckpoints(journey: TableCustomCellJourney): readonly TableCustomCellCheckpoint[] | undefined {
+	const initial = tableCustomCellCheckpoint("initial");
+	const ascending = [initial, tableCustomCellCheckpoint("sort-cost", "cost-asc")];
+	const ascendingNext = [...ascending, tableCustomCellCheckpoint("next", "cost-asc", 2)];
+	const descending = [...ascending, tableCustomCellCheckpoint("sort-cost", "cost-desc")];
+	const keyboardLast = [...descending, tableCustomCellCheckpoint("keyboard-last", "cost-desc", 3)];
+	const cleared = [...keyboardLast, tableCustomCellCheckpoint("sort-cost", "none", 3)];
+	switch (journey) {
+		case "initial":
+			return [initial];
+		case "next":
+			return [initial, tableCustomCellCheckpoint("next", "none", 2)];
+		case "last":
+			return [initial, tableCustomCellCheckpoint("next", "none", 2), tableCustomCellCheckpoint("next", "none", 3)];
+		case "cost-asc":
+			return ascending;
+		case "asc-next":
+			return ascendingNext;
+		case "asc-last":
+			return [...ascendingNext, tableCustomCellCheckpoint("next", "cost-asc", 3)];
+		case "cost-desc":
+			return descending;
+		case "keyboard-desc-last":
+			return keyboardLast;
+		case "cleared-last":
+			return cleared;
+		case "restored":
+			return [...cleared, tableCustomCellCheckpoint("first")];
+		case "id-desc":
+			return [initial, tableCustomCellCheckpoint("sort-id", "id-asc"), tableCustomCellCheckpoint("sort-id", "id-desc")];
+		default:
+			return undefined;
+	}
+}
+
+type TableCustomCellScenarioDefinition = Pick<TableCustomCellStateScenario, "id"> &
+	Pick<TableCustomCellStateScenario["payload"], "journey" | "viewport">;
+const tableCustomCellDesktopViewport = { width: 1280, height: 900 } as const;
+const tableCustomCellScenarioDefinitions: readonly TableCustomCellScenarioDefinition[] = [
+	{ id: "table-custom-cell-initial", journey: "initial", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-next", journey: "next", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-last", journey: "last", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-cost-asc", journey: "cost-asc", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-asc-next", journey: "asc-next", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-asc-last", journey: "asc-last", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-cost-desc", journey: "cost-desc", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-keyboard-desc-last", journey: "keyboard-desc-last", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-cleared-last", journey: "cleared-last", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-restored", journey: "restored", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-id-desc", journey: "id-desc", viewport: tableCustomCellDesktopViewport },
+	{ id: "table-custom-cell-tablet-next", journey: "next", viewport: { width: 768, height: 900 } },
+	{ id: "table-custom-cell-mobile-asc-next", journey: "asc-next", viewport: { width: 390, height: 900 } }
+];
+const tableCustomCellScenarios: readonly TableCustomCellStateScenario[] = tableCustomCellScenarioDefinitions.map(
+	({ id, journey, viewport }) => {
+		const checkpoints = tableCustomCellCheckpoints(journey);
+		if (!checkpoints) {
+			throw new Error(`Unsupported custom Table cell journey: ${journey}`);
+		}
+		return {
+			id,
+			sourceStateId: "table-component.content.populated",
+			surfaceId: "table-component",
+			axis: "content",
+			state: "populated",
+			ownerBead: "stark-4sp.4.9",
+			routeId: "table",
+			runner: "table-custom-cell-states",
+			capture: { scope: "component", selector: tableCustomCellCaptureSelector },
+			snapshotName: `${id}.png`,
+			maskSelectors: [],
+			maxDiffPixels: 0,
+			threshold: 0,
+			payload: {
+				fixtureSelector: tableCustomCellFixtureSelector,
+				viewport: { ...viewport },
+				journey,
+				styles: { ...tableCustomCellStyles },
+				checkpoints
+			}
+		};
+	}
+);
+
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
 	2: ["222", "112", "232", "154", "27"],
@@ -6108,6 +6302,7 @@ export const executableVisualScenarios = [
 	...tablePageSizeScenarios,
 	...tableRowIndexScenarios,
 	...tableStylingScenarios,
+	...tableCustomCellScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -6124,7 +6319,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 350,
+	executableScenarios: 363,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -6147,7 +6342,8 @@ export const reviewedCoverageBaseline = {
 		"table-regular-states": 12,
 		"table-page-size-states": 11,
 		"table-row-index-states": 14,
-		"table-styling-states": 13
+		"table-styling-states": 13,
+		"table-custom-cell-states": 13
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -6424,7 +6620,13 @@ export function validateVisualCoverage(
 			scenario.surfaceId === "table-component" &&
 			scenario.axis === "content" &&
 			scenario.state === "populated" &&
-			!["table-regular-states", "table-page-size-states", "table-row-index-states", "table-styling-states"].includes(scenario.runner)
+			![
+				"table-regular-states",
+				"table-page-size-states",
+				"table-row-index-states",
+				"table-styling-states",
+				"table-custom-cell-states"
+			].includes(scenario.runner)
 		) {
 			errors.push(`${scenario.id} must use an audited populated Table state runner`);
 		}
@@ -6698,6 +6900,35 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-custom-cell-states") {
+			const { fixtureSelector, journey, checkpoints, viewport, styles } = scenario.payload;
+			const definition = tableCustomCellScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const expectedCheckpoints = definition ? tableCustomCellCheckpoints(definition.journey) : undefined;
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "content" ||
+				scenario.state !== "populated" ||
+				fixtureSelector !== tableCustomCellFixtureSelector ||
+				!matchesDefinition ||
+				expectedCheckpoints === undefined ||
+				JSON.stringify(checkpoints) !== JSON.stringify(expectedCheckpoints) ||
+				JSON.stringify(styles) !== JSON.stringify(tableCustomCellStyles) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableCustomCellCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited custom Table cell fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-styling-states") {
 			const { fixtureSelector, journey, checkpoints, viewport, hoverRowIndex, styles } = scenario.payload;
