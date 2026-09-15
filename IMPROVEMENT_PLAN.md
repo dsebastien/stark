@@ -1,431 +1,84 @@
-# Angular 22 Review and Improvement Plan
-
-## Purpose
-
-Use this document to review and improve the Stark Angular 22 migration after the migration branches have been split into reviewable layers.
-
-This is the living quality record for the completed migration review. It records concrete findings, decisions, follow-up changes, verification evidence, and the few explicitly deferred interactive checks.
-
-## Branch stack
-
-Review the branches in order. Every branch is based on the branch immediately above it in this table.
-
-Read `MIGRATION_BRANCH_STRUCTURE.md` before amending, rebasing, deleting, or pushing any branch in the stack.
-
-| Order | Branch                                  | Parent                                 | Primary scope                                                                    |
-| ----- | --------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
-| 1     | `migration/angular-22/01-dependencies`  | `master`                               | Runtime, framework, lint, and package dependency baseline                        |
-| 2     | `migration/angular-22/02-build`         | `migration/angular-22/01-dependencies` | Native Angular builders, index generation, build scripts, and CI build wiring    |
-| 3     | `migration/angular-22/03-testing`       | `migration/angular-22/02-build`        | Vitest migration and retirement of Karma, Jasmine infrastructure, and Protractor |
-| 4     | `migration/angular-22/04-ui`            | `migration/angular-22/03-testing`      | Runtime, component, Material MDC, showcase, starter, and visual compatibility    |
-| 5     | `migration/angular-22/05-agent-context` | `migration/angular-22/04-ui`           | Agent guidance, consolidated downstream guide, and this improvement plan         |
-
-When a lower branch changes after a higher branch has been reviewed, rebase or rebuild every affected higher branch and repeat its relevant validation.
-
-### Pre-reconciliation backup and lease checkpoint
-
-After fresh `origin` and `upstream` fetches on 2026-08-14, the orchestrator recorded these committed branch tips before any rewrite or publication:
-
-| Layer              | Local tip                                  | Observed `origin` tip                      | Local backup ref                                                         |
-| ------------------ | ------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------ |
-| `01-dependencies`  | `472356292d0a156c962029f89f3ecf25c6e24ae4` | `d1bc45df5c3dbf01e33f13777a7b290b2e6d3103` | `refs/backup/angular-22/pre-reconcile-20260814T102547Z/01-dependencies`  |
-| `02-build`         | `7d82d1420a09feb6c487dc45ede13b38d84bb2ba` | `0f8b0c39d88227323d36e642033d213c5260dc14` | `refs/backup/angular-22/pre-reconcile-20260814T102547Z/02-build`         |
-| `03-testing`       | `9acf6e1d9306d97f017c14a44494c5b3923a7bc1` | `5ce8c7b004e6e7a57bdeae188579cd813b382586` | `refs/backup/angular-22/pre-reconcile-20260814T102547Z/03-testing`       |
-| `04-ui`            | `fa4af3e8f72743844d07ddd5d13992ff14aaff18` | `c31cf8d573f7508fb4297494cf5ccfc21d842771` | `refs/backup/angular-22/pre-reconcile-20260814T102547Z/04-ui`            |
-| `05-agent-context` | `ee4b1ab1d01f447d7ce90277e625c6af16f17efa` | `ba1b43e2d0d9760723e5ed6d8cb69aff7bfb4074` | `refs/backup/angular-22/pre-reconcile-20260814T102547Z/05-agent-context` |
-
-Each backup ref resolves to the recorded local SHA. These `origin` values are observations for any future explicit `--force-with-lease=<ref>:<sha>` approval; no push was performed. The `upstream` fetch URL remains `NationalBankBelgium/stark` and its local push URL is `DISABLED`.
-
-### Independent local-versus-origin reconciliation review
-
-Two independent read-only Copilot reviewers compared each local one-commit layer with its matching `origin` layer through direct-parent diffs and `git range-diff`.
-
-#### Standards
-
-- Layer 01 adds the migration guide and removes Karma/Protractor package wiring earlier than the ideal documentation/testing layers, but those files are byte-identical to `origin`. They are not local rewrite deltas and do not justify expanding this reconciliation into an unrelated history cleanup.
-- Layer 02 removes stale BrowserStack/Protractor workflow blocks. This is an attributable local delta under IMP-002/IMP-009 and the layer's documented CI build-wiring scope.
-- Layer 04 adds application typings and type-only exports. These are attributable compile/public-source compatibility fixes under IMP-005/IMP-010 and fit the layer's showcase, starter, runtime, and public API ownership.
-- Repeated package-list parsing, Vitest bootstraps, and mask lifecycle shapes were judged optional refactoring opportunities rather than migration defects. No speculative refactor is added without a failing behavior or maintenance requirement.
-
-No standards finding requires a content change or restack before personal-fork synchronization.
-
-#### Spec
-
-Every local-versus-origin changed file and file category is attributable to IMP-001 through IMP-012; there is no unexplained scope creep and no unattributed changed file. High-volume and behavior-sensitive deltas were explicitly checked:
-
-| Delta category                                      | Layer  | Attribution                           | Nature                                      |
-| --------------------------------------------------- | ------ | ------------------------------------- | ------------------------------------------- |
-| Root, Showcase, and Starter lockfiles               | 01, 04 | IMP-001/003/007/008/010/012 and D-001 | Generated install/runtime dependency graphs |
-| Showcase/Starter `custom-typings.d.ts`              | 04     | IMP-005/009/010                       | Manual compile-time cleanup                 |
-| Showcase/Starter `polyfills.browser.ts`             | 04     | IMP-007/009 and the migration guide   | Intentional browser runtime behavior        |
-| `.github/workflows/build.yml`                       | 02     | IMP-002/009                           | CI behavior                                 |
-| Showcase/Starter explicit environment typings       | 04     | IMP-005/009 and the migration guide   | Compile-time behavior                       |
-| Type-only barrels, Vitest types, and mask contracts | 03, 04 | IMP-005/006/008/010                   | Mechanical/public compile-time API          |
-
-The review found two follow-up needs: map every fork input to a deterministic local tarball, and complete the fresh-consumer guide validation before declaring the migration ready for upstream PRs. D-011 and D-012 record those decisions.
-
-## Review method
-
-For each branch:
-
-1. compare it with its direct parent, not with `master`;
-2. review findings before proposing broad cleanup;
-3. distinguish migration requirements from optional modernization;
-4. keep public API and downstream compatibility decisions explicit;
-5. add focused tests for confirmed defects;
-6. run the smallest relevant validation first, then the branch-level gate;
-7. record commands, results, and unresolved risks in this document.
-
-Use one of these statuses for every review item:
-
-- `[ ]` not reviewed;
-- `[x]` reviewed and accepted;
-- `[-]` reviewed and intentionally deferred, with a reason in the decision log.
-
-## 1. Dependencies review
-
-### Compatibility
-
-- [x] Verify the Node.js and npm engine ranges against Angular 22 and the supported CI images.
-- [x] Verify that all Angular framework, CLI, CDK, Material, and build packages use one compatible release line.
-- [x] Verify TypeScript, RxJS, Zone.js, NgRx, UI-Router, translation, and Angular ESLint compatibility from their official support statements.
-- [x] Verify every Stark package peer dependency range from a packed downstream consumer, not only from the monorepo.
-- [x] Verify compatible fork builds of `code-style`, `eslint-config`, and `ngx-form-errors` through generated local tarballs; validate the published `@uirouter/angular@22.0.0` package from npm instead of a fork.
-- [x] Ensure no machine-specific local `file:` path is committed; generate active sibling tarballs under ignored workspace storage and restore non-local references only for upstream PR preparation.
-
-### Dependency hygiene
-
-- [x] Find and remove unused dependencies left by Webpack, Karma, Jasmine, Protractor, BrowserStack, or old polyfills.
-- [x] Confirm each dependency is in `dependencies`, `devDependencies`, or `peerDependencies` for the correct reason.
-- [x] Review duplicate and conflicting transitive package versions.
-- [x] Review security and maintenance status without applying unrelated major upgrades.
-- [x] Verify clean `npm ci` installs at the root, in `starter`, and in `showcase`.
-
-### Evidence
-
-- [x] Record dependency tree and clean-install results in the validation log.
-- [x] Record every accepted temporary pin and its removal condition in the decision log.
-
-## 2. Build review
-
-### Native Angular builders
-
-- [x] Verify every maintained build, serve, extract-i18n, and library target uses a supported Angular 22 builder.
-- [x] Verify no live Stark path depends on custom Webpack, `indexTransform`, Webpack globals, or retired helper files.
-- [x] Verify development, HMR, production, and GitHub Pages configurations preserve their intended `baseHref`, assets, optimization, source-map, hashing, and integrity behavior.
-- [x] Verify CSP and other development-server headers are valid and are not mistaken for production security headers.
-- [x] Verify Browserslist queries stay inside Angular 22's supported browser set.
-
-### Generated index
-
-- [x] Review `index-html.generator.js` for path handling, escaping, configuration merging, and clear failures.
-- [x] Verify `stark-app-config.json`, `stark-app-metadata.json`, `fileReplacements`, `baseHref`, and `index-head-config.js` are applied in the correct order.
-- [x] Verify production replacement of metadata occurs before index generation.
-- [x] Verify generated values are escaped safely in attributes and text nodes.
-- [x] Verify `.stark/` remains ignored and no generated index is committed.
-- [x] Add tests for missing files, malformed JSON, unknown configurations, multiple configurations, and non-root base URLs where coverage is missing.
-
-### Packaging and CI
-
-- [x] Verify `stark-build` publishes every documented generator, typing, and helper file.
-- [x] Pack and consume `stark-build` from a temporary application.
-- [x] Verify CI uses Node 22 and executes the same maintained build commands documented for downstream applications.
-- [x] Verify no workflow references removed E2E, BrowserStack, Webpack, or Karma commands.
-
-## 3. Testing review
-
-### Test architecture
-
-- [x] Verify every maintained target uses Angular's unit-test builder and Vitest.
-- [x] Verify setup files, Zone.js integration, TypeScript includes, aliases, and dependency inlining are minimal and documented.
-- [x] Separate monorepo-only aliases from configuration required by published-package consumers.
-- [x] Verify shared Stark Vitest helpers have stable exports and useful types.
-- [x] Verify coverage and JUnit paths are deterministic on Windows and CI platforms.
-
-### Test quality
-
-- [x] Search for mechanical Jasmine-to-Vitest conversions that changed assertion meaning or asynchronous completion behavior.
-- [x] Review mocks for excessive `any`, unsafe casts, missing return values, and accidental coupling to implementation details.
-- [x] Review tests that were deleted or narrowed during migration and restore meaningful behavioral coverage where needed.
-- [x] Identify skipped, flaky, timing-dependent, or worker-sensitive tests and record a concrete fix or deferral.
-- [x] Verify focused suites and the full CI chain produce the same pass/fail result.
-
-### Browser testing policy
-
-- [x] Confirm that retiring shared Protractor and BrowserStack wiring is acceptable for Stark itself.
-- [x] Decide whether the showcase needs a maintained browser regression suite in a later improvement branch.
-- [x] Keep any future E2E solution application-owned and independent from the reusable Stark testing package.
-
-## 4. Runtime and UI review
-
-### Public APIs
-
-- [x] Compare package entry points and generated declarations against Stark 12.
-- [x] Inventory added, removed, and narrowed public types, inputs, outputs, tokens, services, and Sass symbols.
-- [x] Verify callback type narrowing accepts all documented consumer use cases.
-- [x] Verify standalone component changes preserve existing Stark NgModule imports.
-- [x] Pack each library and compile a representative downstream application.
-
-### Angular Material 22
-
-- [x] Review the Stark typography map against Angular Material 22's supported M2 APIs.
-- [x] Verify M2 compatibility is intentional and clearly separated from any future M3 redesign.
-- [x] Review every `.mat-mdc-*` selector and replace it with a Stark-owned hook or public Material API where possible.
-- [x] Verify downstream-visible Stark selectors remain stable.
-- [-] Review form-field subscript sizing, overlays, focus, ripples, density, typography, and high-contrast behavior.
-- [-] Check keyboard navigation, focus restoration, accessible names, roles, and screen-reader announcements for interactive components.
-
-### Component regression matrix
-
-- [-] Action bar
-- [-] App data
-- [-] App footer and logo
-- [-] App logout
-- [-] App menu and sidebar
-- [-] Breadcrumb
-- [-] Collapsible
-- [-] Date picker
-- [-] Date range picker
-- [-] Date-time picker
-- [-] Dialogs
-- [-] Dropdown
-- [-] Generic search
-- [-] Input masks
-- [-] Language selector
-- [-] Message pane
-- [-] Minimap
-- [-] Pagination
-- [-] Pretty print
-- [-] Progress indicator
-- [-] Restrict-input directive
-- [-] Route search
-- [-] Session UI
-- [-] Slider
-- [-] SVG view-box directive
-- [-] Table and multi-sort dialog
-- [-] Toast notifications
-- [-] Transform-input directive
-
-For each component, compare behavior, layout, typography, theming, responsive behavior, keyboard use, and error states with the Stark 12 showcase. Record intentional differences instead of silently accepting them.
-
-### Showcase and starter
-
-- [-] Load every configured showcase route and capture console and failed-network errors.
-- [x] Verify all examples demonstrate supported Angular 22 and Material 22 APIs.
-- [x] Verify the starter remains generic and contains no showcase-only or local migration assumptions.
-- [-] Verify RBAC routes, redirects, denied-access behavior, and protected-page examples.
-- [x] Verify translations, documentation links, news, getting-started content, and code samples.
-- [-] Check desktop, narrow mobile, zoomed, and reduced-motion presentation.
-
-## 5. Documentation and agent-context review
-
-- [x] Verify `docs/MIGRATION_GUIDE_STARK_13.md` contains every required downstream change and no monorepo-only instruction is presented as mandatory.
-- [-] Execute the guide against a fresh Stark 12-style sample application and record every missing or ambiguous step.
-- [x] Verify all links and anchors in the guide.
-- [x] Verify package READMEs point to the consolidated guide rather than removed documents.
-- [x] Verify historical changelog links remain understandable even when their old target is intentionally retired.
-- [x] Review every `AGENTS.md` for accurate scope, commands, package boundaries, and current paths.
-- [x] Ensure no agent instruction points to the retired migration plan or the retired `C:\LocalData\duboiss\wks\stark` clone.
-- [x] Ensure agent guidance distinguishes generated output from source and requires downstream validation for public changes.
-
-## Cross-cutting cleanup
-
-- [x] Search for `TODO`, `FIXME`, migration-only comments, obsolete version references, and dead compatibility code introduced or exposed by the migration.
-- [x] Search for references to Angular 6-16 that are no longer intentionally historical.
-- [x] Search for Karma, Jasmine, Protractor, BrowserStack, Webpack, and custom-Webpack references outside historical release notes.
-- [x] Search for stale Material 2 documentation URLs where current Material 3 or Angular Material documentation is intended.
-- [x] Review all lint-rule exceptions and keep only narrowly justified migration compatibility overrides.
-- [x] Verify no environment, script, documentation, or agent pointer references the retired local Stark clone.
-
-## Validation matrix
-
-Record the latest result for every required gate.
-
-| Area              | Command or check                                  | Result   | Date       | Notes                                                                                              |
-| ----------------- | ------------------------------------------------- | -------- | ---------- | -------------------------------------------------------------------------------------------------- |
-| Dependency sync   | `npm run check:packages-dependencies`             | Passed   | 2026-08-04 | Shared package dependencies are synchronized                                                       |
-| Install           | root, starter, showcase `npm ci`; strict `npm ls` | Passed   | 2026-08-04 | Locked installs include optional native dependencies without sibling repositories                  |
-| Production audit  | root, starter, showcase `npm audit --omit=dev`    | Passed   | 2026-08-04 | Zero production vulnerabilities in all three projects                                              |
-| Development audit | root, starter, showcase `npm audit`               | Accepted | 2026-08-04 | No app high findings; three root high findings are dev-only and require unrelated toolchain majors |
-| TypeScript        | all effective app/library configs and consumer    | Passed   | 2026-08-04 | Shared ng22 preset and packed public API consumer compile passed                                   |
-| Lint              | `npm run lint:all`                                | Passed   | 2026-08-04 | All five maintained lint targets passed                                                            |
-| Core tests        | `npm run test:ci:stark-core`                      | Passed   | 2026-08-04 | 46 files and 579 tests passed                                                                      |
-| UI tests          | `npm run test:ci:stark-ui`                        | Passed   | 2026-08-04 | 57 files and 713 tests passed; focused mask suite passed 79 tests                                  |
-| RBAC tests        | `npm run test:ci:stark-rbac`                      | Passed   | 2026-08-04 | 3 files and 28 tests passed                                                                        |
-| Starter tests     | `npm run test:ci:starter`                         | Passed   | 2026-08-04 | 3 files and 4 tests passed                                                                         |
-| Showcase tests    | `npm run test:ci:showcase`                        | Passed   | 2026-08-04 | 7 files and 20 tests passed                                                                        |
-| Package build     | `npm run build`                                   | Passed   | 2026-08-04 | All five libraries built and packed under Node 22.22.3                                             |
-| Starter build     | `starter` `npm run build`                         | Passed   | 2026-08-04 | Development build and generated index passed                                                       |
-| Showcase build    | `showcase` `npm run build:prod:ghpages`           | Passed   | 2026-08-04 | Production/GitHub Pages build passed; accepted CommonJS optimization warnings remain               |
-| Generated index   | generator tests and application builds            | Passed   | 2026-08-04 | Seven edge-case tests cover replacements, escaping, invalid input, and non-root URLs               |
-| Public API/Sass   | Stark 12.0.4 declaration, entrypoint, Sass diff   | Passed   | 2026-08-04 | No removed entrypoints, exported symbols, or Sass symbols; narrowed contracts are documented       |
-| HTTP routes       | 44 configured Showcase paths on dev server        | Passed   | 2026-08-04 | All returned HTTP 200; this does not substitute for client-side console or interaction checks      |
-| Browser           | interactive showcase component/a11y sweep         | Deferred | 2026-08-04 | No in-app or DevTools browser backend was attached; see D-005                                      |
-| Consumer          | packed package type-check and reference builds    | Passed   | 2026-08-04 | Public type imports compiled; Starter and Showcase consumed the generated tarballs successfully    |
-
-## Decision log
-
-Add one row for every intentional compatibility tradeoff, deferral, or public behavior change.
-
-| ID    | Area                         | Decision                                                                                                                 | Reason                                                                                                                                                                                                                                                                                                                                     | Downstream impact                                                                                       | Follow-up                                                                                                                          |
-| ----- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| D-001 | Dependency resolution        | Track the Starter lockfile and retain its compatible Angular CLI 22.0.8 graph                                            | An unlocked install selects Angular CLI 22.1.2, whose published `listr2` 10.2.2 dependency conflicts with the exact 10.2.1 peer declared by `@listr2/prompt-adapter-inquirer` 4.2.4 ([CLI metadata](https://registry.npmjs.org/@angular/cli/22.1.2), [adapter metadata](https://registry.npmjs.org/@listr2/prompt-adapter-inquirer/4.2.4)) | No runtime or public API change; clean installs become deterministic                                    | Retry an intentional `npm update` after the upstream CLI graph resolves strictly; do not bypass peer validation                    |
-| D-002 | Development audit            | Accept three root-only high findings in `lodash`, `postcss`, and `tmp` for this migration                                | Production audits are clean, app audits have no high findings, and npm's available fixes require unrelated major upgrades to release/style tooling                                                                                                                                                                                         | No shipped runtime exposure                                                                             | Re-evaluate with intentional `release-it` and Stylelint major upgrades                                                             |
-| D-003 | Browser E2E                  | Keep shared Protractor/BrowserStack retired; any future E2E suite is application-owned                                   | The reusable testing package now has a stable Vitest scope, while browser journeys depend on application routes and deployment behavior                                                                                                                                                                                                    | Consumers choose and maintain their own browser runner                                                  | Add a Showcase-owned suite only when a team commits to maintaining it                                                              |
-| D-004 | Material design system       | Retain Stark's established visual system through Material 22's supported M2 compatibility APIs                           | An M3 redesign is independent from framework compatibility and would deliberately change public visuals                                                                                                                                                                                                                                    | Existing typography and theme intent is preserved; scoped MDC bridges remain documented                 | Treat M3 as a separately designed and reviewed change                                                                              |
-| D-005 | Interactive validation       | Defer the visual, responsive, accessibility, console, and RBAC browser sweeps                                            | Both supported browser-control clients were tried, but this session had no attached browser backend; automated unit/build checks and a 44-route HTTP sweep passed                                                                                                                                                                          | Residual visual and interaction risk remains explicit                                                   | Run the deferred checklist when an in-app or DevTools browser backend is attached                                                  |
-| D-006 | Historical cleanup           | Preserve older migration guides, changelog/news history, and pre-existing product TODOs when they are clearly historical | Rewriting history would make old releases harder to understand and is outside the Angular 22 compatibility change                                                                                                                                                                                                                          | Active instructions are current; historical records retain their original terminology                   | Keep active-vs-historical searches scoped during future reviews                                                                    |
-| D-007 | CommonJS optimization        | Accept current Showcase warnings for `moment`, `cerialize`, `prismjs`, and `sql.js` tooling                              | They are known application dependencies and do not fail compilation or alter the Stark public API                                                                                                                                                                                                                                          | Showcase optimization may be lower for those paths                                                      | Migrate each dependency to an ESM alternative in a dedicated modernization change                                                  |
-| D-008 | Development security headers | Treat Angular dev-server CSP/CORS headers as development diagnostics only                                                | Deployment servers own production headers and must use the application's complete policy                                                                                                                                                                                                                                                   | No false claim that dev-server headers secure production                                                | Validate CSP in each application's deployment environment                                                                          |
-| D-009 | Browser baseline             | Match `.browserslistrc` to the 2026-05-07 Baseline date embedded in `@angular/build` 22.0.8                              | The older date selected unsupported releases and emitted Angular CLI warnings                                                                                                                                                                                                                                                              | Supported browser output is intentionally narrowed                                                      | Recheck the date with every Angular build upgrade                                                                                  |
-| D-010 | Public type changes          | Accept documented translation/callback narrowing and removal of protected `bootstrapHmr`                                 | Generated API comparison found no removed exports; the HMR method depended on retired Webpack internals, while narrowed types describe existing runtime contracts                                                                                                                                                                          | Consumers using invalid callback shapes, array operations on translations, or HMR overrides must update | Keep the migration guide and packed-consumer compile as migration-completion gates                                                 |
-| D-011 | Sibling fork development     | Build each upgraded sibling fork and consume its generated local tarball for every current cross-project relationship    | All related packages are evolving together on personal forks; local tarballs provide deterministic tested bytes without waiting for package publication or using stale registry versions                                                                                                                                                   | Local manifests and locks temporarily resolve sibling tarballs generated from recorded fork commits     | The environment epic automates local tarball generation/mapping; restore non-local references only when preparing each upstream PR |
-| D-012 | Fresh-consumer validation    | Complete the fresh Stark 12 consumer execution after local-tarball mode is deterministic                                 | The guide must be validated against the same sibling-fork artifacts used during migration work                                                                                                                                                                                                                                             | Migration completion and upstream PR readiness remain open until install, compile, test, and build pass | `stark-4sp.7.1` resumes after `stark-4sp.9.8` validates the local dependency workflow                                              |
-| D-013 | Fork collaboration workflow  | Synchronize reviewed WIP branches only to personal forks, then create separately reviewed upstream pull requests         | Personal-fork synchronization enables parallel work without claiming release readiness or writing directly to NationalBankBelgium repositories                                                                                                                                                                                             | No npm/package release or release-version work is performed                                             | Require exact-hash approval before force-with-lease fork synchronization; upstream changes arrive only through later PRs           |
-
-## Findings and improvement backlog
-
-Use one entry per finding. Keep severity and verification explicit.
-
-### IMP-001: Make dependency resolution self-contained
-
-- Status: Completed
-- Severity: Critical
-- Branch: `migration/angular-22/01-dependencies`
-- Evidence: The tracked baseline uses immutable commit archives, while D-011 now requires generated local tarballs for active coordinated sibling-fork work. The only other `file:` references target Stark tarballs generated by `npm run build`, and Starter tracks its lockfile.
-- Impact: A clean clone has a reproducible baseline, and active migration work can test the exact sibling-fork commits being changed.
-- Resolution: Automate local sibling tarball builds and reversible manifest/lock switching, generate internal Stark tarballs before application installs, track every application lockfile, and use strict installs.
-- Compatibility: Record each sibling source commit and tarball checksum. Restore repository-appropriate non-local references only when preparing an upstream PR; no package release work is required.
-- Verification: In an isolated clone with no sibling repositories, root `npm ci`, `npm run build`, Starter `npm ci`, and Showcase `npm ci` passed under Node 22.22.3 on 2026-08-04; `npm ls --depth=0` passed in all three projects.
-
-### IMP-002: Align CI with the declared Node baseline
-
-- Status: Completed
-- Severity: High
-- Branch: `migration/angular-22/02-build`
-- Evidence: `.github/workflows/build.yml` uses Node 22.22.3 for the required build-and-test job and release job, matching the root, starter, and showcase engine declarations.
-- Impact: Resolved. Every required CI path exercises the declared minimum Node version.
-- Resolution: Keep Node 22.22.3 as the single required baseline and add newer Node versions only as explicit compatibility jobs.
-- Compatibility: Downstream projects receive one unambiguous Node requirement.
-- Verification: Workflow configuration inspection passed, and the RBAC, starter, and showcase gates passed locally under Node 22.22.3 on 2026-08-03.
-
-### IMP-003: Restore strict peer dependency validation
-
-- Status: Completed
-- Severity: High
-- Branch: `migration/angular-22/01-dependencies`
-- Evidence: All three `.npmrc` files set `legacy-peer-deps=false`; incompatible NgRx logger, Angular Flex Layout, and text-mask packages are absent; clean locked installs and strict dependency-tree checks pass.
-- Impact: Resolved. Installation now rejects unsupported peer combinations instead of hiding them.
-- Resolution: Remove incompatible packages, retain the Stark-owned mask implementation, and enforce strict peer validation without per-package exceptions.
-- Compatibility: Dependency replacement may require documented downstream migration steps; do not publish an unsupported peer graph.
-- Verification: Root, Starter, and Showcase `npm ci` and `npm ls --depth=0` passed in an isolated clone under Node 22.22.3 on 2026-08-04.
-
-### IMP-004: Repair the mandatory dependency-sync gate
-
-- Status: Completed
-- Severity: High
-- Branch: `migration/angular-22/01-dependencies`
-- Evidence: Prettier is retained as root development tooling and is no longer published as a Stark UI runtime dependency.
-- Impact: Resolved. The mandatory dependency-sync gate no longer stops CI before compilation.
-- Resolution: Keep Prettier at the root and synchronize dependencies that intentionally remain shared.
-- Compatibility: No runtime API impact is expected.
-- Verification: `npm run check:packages-dependencies` passed on 2026-07-31.
-
-### IMP-005: Restore green lint gates
-
-- Status: Completed
-- Severity: High
-- Branch: `migration/angular-22/03-testing` and `migration/angular-22/04-ui`
-- Evidence: Vitest helper types and documentation are corrected, public type-only exports are explicit, compatibility lint exceptions are narrow, and duplicate Material imports are consolidated.
-- Impact: Resolved. The required lint gates are green.
-- Resolution: Preserve public marker interfaces with documented one-line exceptions and fix actionable lint findings in their owning layer.
-- Compatibility: No downstream behavior change is expected.
-- Verification: `npm run lint:all` passed; after the final IME change, `npm run lint:stark-ui` also passed on 2026-07-31.
-
-### IMP-006: Remove migration-only test scaffolding and stabilize the full suite
-
-- Status: Completed
-- Severity: Medium
-- Branch: `migration/angular-22/03-testing`
-- Evidence: Stark UI now uses the Angular test builder's spec discovery, contains no migration-only smoke target, and the root application test scripts use `npm --prefix` without shell-directory side effects.
-- Impact: Resolved. Newly added UI specs are discovered automatically and the complete sequential CI test chain is stable.
-- Resolution: Remove the frozen 57-file include list and broken smoke target, retain bounded Vitest workers, and invoke starter and showcase tests through npm's cross-platform prefix option.
-- Compatibility: Test-only change.
-- Verification: A temporary unlisted probe produced 58 files and 714 passing UI tests; after removing it, `npm run test:ci:all` passed all five suites in 333.7 seconds on 2026-08-03.
-
-### IMP-007: Remove unsupported and misplaced production dependencies
-
-- Status: Completed
-- Severity: High
-- Branch: `migration/angular-22/01-dependencies`
-- Evidence: Build/compiler and formatting packages are development-only; unused visualizer, cross-env, find-root, parse5, ts-node, obsolete typings, and the broken lint-fix path are removed. UUID is on the maintained release line, lockfiles include safe transitive security patches, and Stark's required external forks are pinned to immutable compatible commits.
-- Impact: Resolved. Production installs no longer include avoidable build tooling or known vulnerabilities.
-- Resolution: Correct dependency placement, remove unused packages, retain the supported code-style fork and Stark-owned text-mask implementation, and update vulnerable transitive packages within compatible ranges.
-- Compatibility: Package entrypoints and peer ranges were checked from packed artifacts; Starter and Showcase install and build from those tarballs.
-- Verification: Root, Starter, and Showcase production audits report zero vulnerabilities. Clean locked installs and strict dependency trees pass. Remaining root audit findings are dev-only and explicitly accepted in D-002.
-
-### IMP-008: Retire abandoned runtime libraries and RxJS APIs
-
-- Status: Completed
-- Severity: Medium
-- Branch: `migration/angular-22/01-dependencies` and `migration/angular-22/04-ui`
-- Evidence: Stark now owns the Angular forms mask adapter and engine; the abandoned text-mask packages are absent from manifests and lockfiles; tracked sources contain no `toPromise()` calls.
-- Impact: Resolved. Mask behavior no longer depends on abandoned Angular compatibility code, and RxJS promise conversion has explicit empty-stream semantics.
-- Resolution: Preserve the existing Stark directive API with an internal mask engine and replace `toPromise()` with `firstValueFrom` or `Promise.resolve` as appropriate.
-- Compatibility: Preserve all current Stark directive inputs, outputs, and formatted values or document deliberate API changes.
-- Verification: Runtime mask-change, enabled/disabled IME, reactive-form, empty-stream, and rejected-navigation behavior is covered. Full Stark Core (579 tests) and Stark UI (713 tests) suites passed on 2026-07-31.
-
-### IMP-009: Remove dead build and documentation legacy
-
-- Status: Completed
-- Severity: Medium
-- Branch: Lowest owning layer, followed by descendant restacking
-- Evidence: Unreferenced custom-Webpack files, obsolete TSLint comments/scripts, visualizer setup, old polyfill guidance, and stale build structure instructions are removed. Active root, package, contributor, CI, Prettier, and polyfill documentation now describes Angular 22, ESLint, Vitest, current Angular Package Format output, and cross-platform Node orchestration.
-- Impact: Resolved. Maintainers and downstream teams are directed only to maintained commands and configuration.
-- Resolution: Delete dead configuration in its owning branch, expand generator failure coverage, modernize active documentation, and preserve explicitly historical migration/changelog/news content.
-- Compatibility: No runtime change. Historical terminology remains where it documents an older release or a migration away from retired tooling.
-- Verification: Generator tests pass 7/7, testing helper tests pass 2/2, package/application builds and all lint targets pass, package READMEs link the consolidated guide, and active-document searches no longer advertise retired commands.
-
-### IMP-010: Complete the downstream API and style compatibility audit
-
-- Status: Completed
-- Severity: High
-- Branch: `migration/angular-22/04-ui`
-- Evidence: The Stark 12.0.4 comparison found no removed package entrypoints, exported symbols, or Sass symbols. Added callback and mask types compile from packed artifacts; existing NgModule imports and standalone components build. Every remaining Material internal selector is inventoried as a scoped compatibility bridge or replaced with a Stark-owned hook.
-- Impact: Resolved for public API, package, and source-level styling compatibility. Interactive visual/accessibility verification remains an explicit residual risk under D-005.
-- Resolution: Preserve Stark selectors and M2 theme intent, remove third-party mask-private access, publish mask contracts, document narrowed translations/callbacks and the removed Webpack HMR extension, and record the Material 22 selector inventory.
-- Compatibility: Existing valid callbacks, directive inputs, formatted mask values, NgModule imports, and public Sass symbols remain supported. Consumers relying on the documented narrowed/removed contracts must follow the Stark 13 guide.
-- Verification: Packed public imports type-check; all package builds, Starter development build, Showcase production/GitHub Pages build, 79 focused mask tests, 713 full UI tests, and Material NgModule/standalone builds pass. The deferred interactive sweep is recorded rather than claimed complete.
-
-### IMP-011: Make the maintained build orchestration cross-platform
-
-- Status: Completed
-- Severity: Medium
-- Branch: `migration/angular-22/02-build`
-- Evidence: The root `build` command invokes `scripts/build-packages.mjs`; package synchronization uses `scripts/sync-built-package.mjs`; neither maintained build path depends on Bash or Unix `cp`.
-- Impact: Resolved. Package builds and local package synchronization use cross-platform Node orchestration.
-- Resolution: Preserve the existing package order, trace behavior, tarball layout, and application synchronization in the Node scripts.
-- Compatibility: No application runtime impact is expected.
-- Verification: The root package build passed on Windows on 2026-07-31; the same `npm run build:trace` command is configured as the Linux CI package-build gate.
-
-### IMP-012: Restore the shared Angular 22 TypeScript configuration
-
-- Status: Completed
-- Severity: High
-- Branch: `migration/angular-22/01-dependencies`
-- Evidence: Code-style commit `24c0c62` now defines the Angular 22 preset with preserved modules, bundler resolution, isolated modules, and strict Angular compiler checks without copied legacy switches. Stark's root bridge extends that preset without overrides, while starter and showcase extend the package directly. The local tarball integrity is synchronized in tracked lockfiles, and the downstream guide documents the required `extends` value.
-- Impact: Resolved. Stark validates the shared preset, strict template settings are consistent, and starter/showcase no longer depend on a parent-repository tsconfig.
-- Resolution: Keep monorepo package configs behind the thin root bridge and keep standalone applications on the published preset directly. Application-specific paths, outputs, type roots, and exclusions remain local.
-- Compatibility: The strict settings exposed no new errors in the completed migration stack. Downstream applications must resolve any real strict-template or isolated-module errors instead of weakening the preset.
-- Verification: Angular's configuration reader resolved Stark Core, RBAC, UI, starter, and showcase to `Preserve` modules, `Bundler` resolution, ES2022, isolated modules, and strict Angular checks. Stark Core, RBAC, every Stark UI entry point, the starter development build, and the showcase production build passed. The starter config resolved the preset from its own `node_modules` without using a parent config. The showcase still reports the separately tracked CommonJS optimization warnings.
-
-## Completion criteria
-
-The improvement cycle is complete when:
-
-- [x] every checklist item is reviewed or explicitly deferred;
-- [x] all critical and high findings are resolved;
-- [x] every accepted public or visual change is documented;
-- [-] the complete validation matrix is green;
-- [-] a fresh downstream application can follow the migration guide successfully with local sibling tarballs; see D-012 and `stark-4sp.7.1`;
-- [x] the final branch stack is clean, ordered, and ready for sequential review.
+# Angular 22 Remaining Work
+
+Beads is the source of truth for task status, evidence, blockers, and next actions.
+This document is an index to outstanding work, reconciled on 2026-09-15.
+Read the referenced issue and its latest comments before starting a task.
+
+```text
+bd prime
+bd list --status open,in_progress,blocked,deferred --limit 0
+bd show <issue-id>
+bd comments <issue-id>
+```
+
+## Next step
+
+Complete `stark-4sp.4.9.8`:
+
+1. Map the existing custom-cell journeys to the dedicated custom-cell content state.
+2. Audit a native table filter path to zero visible rows and cover the empty state if
+   it is deterministic; record a missing-fixture disposition only if the audit proves
+   there is no stable path.
+3. Validate the updated coverage contract and affected browser journeys, review, and
+   push the completed step to the personal fork.
+
+UI parity remains the active priority. Canonical integration (`stark-4sp.8.1`) and
+the dependency-cycle work (`stark-4sp.9.8`) remain parked.
+
+## Remaining UI coverage
+
+| Work                                                                                          | Beads                              |
+| --------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Finish table content-state coverage                                                           | `stark-4sp.4.9.8`                  |
+| Advanced tables: filters, fixed headers/actions, expandable rows, row actions, and multi-sort | `stark-4sp.4.10`                   |
+| Add the SVG view-box example and disabled Generic Search fixture                              | `stark-4sp.4.6`, `stark-4sp.4.8.3` |
+| Session states and RBAC routes, redirects, and denied access                                  | `stark-4sp.4.11`, `stark-4sp.4.12` |
+| Complete route/shell and style-guide/validation coverage                                      | `stark-4sp.4.1`, `stark-4sp.4.13`  |
+| Complete responsive, zoom, motion, forced-color, and critical cross-browser checks            | `stark-4sp.4.14`, `stark-4sp.4.15` |
+
+The implementation and verification in `stark-4sp.4.2`–`stark-4sp.4.5` and
+`stark-4sp.4.7` are complete; those parents await the `stark-4sp.8.1` integration
+gate. Search and core-table parents also retain the specific remaining work above.
+Reuse completed journeys and their approved goldens.
+
+## Remaining infrastructure and acceptance
+
+| Work                                                                                                                                                                     | Beads                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| Complete clean-install acceptance for browser dependencies and resolve the prerequisite gates on the implemented runner, determinism, manifests, and comparison workflow | `stark-4sp.3.1`–`stark-4sp.3.5`, `stark-4sp.3.7`                 |
+| Add failure observability, accessibility fingerprints, and the complete representative foundation pilot                                                                  | `stark-4sp.3.6`, `stark-4sp.3.8`, `stark-4sp.3.9`                |
+| Add sharded browser CI and finish orchestration guardrails and Beads remote synchronization                                                                              | `stark-4sp.3.10`, `stark-4sp.2.3`, `stark-4sp.2.4`               |
+| Finish only uncovered legacy states, accept completed shards, review baseline completeness, and run the complete candidate suite                                         | `stark-4sp.5.1`–`stark-4sp.5.6`                                  |
+| Resolve defects discovered by the remaining coverage and final suite                                                                                                     | `stark-4sp.6.1`                                                  |
+| Finish the clean local-to-canonical package cycle and execute the guide on a fresh Stark 12 consumer                                                                     | `stark-4sp.9.8`, `stark-4sp.7.1`                                 |
+| Re-evaluate the strict-peer workaround, perform manual accessibility assessment, and run the full integrated validation matrix                                           | `stark-4sp.7.3`–`stark-4sp.7.5`                                  |
+| Reconcile the five canonical branches, integrate approved work by layer, independently review, and publish the final stack                                               | `stark-4sp.1.3`–`stark-4sp.1.5`, `stark-4sp.8.1`–`stark-4sp.8.9` |
+
+The implemented browser foundation is awaiting its recorded prerequisite and
+acceptance gates. Those obligations remain open; they are not implementation backlog.
+Existing approved goldens are reused. Baseline tasks cover missing states and final
+completeness checks.
+
+## Constraints and decision records
+
+- Preserve Stark's existing visual system through the Material M2 compatibility APIs
+  (D-004). Capture the legacy oracle only through the reviewed update command; normal
+  candidate comparisons must not update goldens.
+- Use generated local sibling tarballs for current migration work (D-011). A successful
+  existing-workspace build does not replace the clean dependency-cycle and fresh-consumer
+  gates (D-012).
+- Keep strict peer validation. The Angular CLI workaround remains subject to
+  `stark-4sp.7.3` (D-001).
+- Follow [the branch structure](MIGRATION_BRANCH_STRUCTURE.md) and
+  [execution contract](MIGRATION_EXECUTION_SPEC.md). Completed functional checkpoints
+  may be committed and pushed to the personal fork under the user's standing
+  authorization. Canonical restacking remains separate from that checkpoint workflow.
+- Use [the Stark 13 migration guide](docs/MIGRATION_GUIDE_STARK_13.md) for downstream
+  instructions.
+
+Completed checklists, resolved IMP-001–IMP-012 findings, previous validation results,
+backup hashes, and the full D-001–D-013 decision history are preserved in
+[the prior review record](https://github.com/dsebastien/stark/blob/8d116f2e665ef93d6a1adb7e4b0def3763cff498/IMPROVEMENT_PLAN.md)
+and Beads. The old D-005 deferral for lack of browser access is superseded by the
+working Playwright suite; remaining browser and accessibility checks have the owners
+listed above. Cleanup evidence is recorded in `stark-4sp.2.6`.

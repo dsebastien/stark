@@ -54,7 +54,7 @@ When a lower layer changes:
 6. push rewritten branches with `--force-with-lease`, never plain `--force`;
 7. return the working copy to `migration/angular-22/05-agent-context`.
 
-Do not add cleanup for one layer to an unrelated higher commit merely to avoid restacking. Do not rewrite already reviewed layers without recording why in `IMPROVEMENT_PLAN.md`.
+Do not add cleanup for one layer to an unrelated higher commit merely to avoid restacking. Do not rewrite already reviewed layers without recording why in the owning Beads issue.
 
 ## Required integrity checks
 
@@ -75,5 +75,5 @@ Also verify each remote branch hash after pushing and confirm the working tree i
 ## Supporting documents
 
 - `docs/MIGRATION_GUIDE_STARK_13.md` is the downstream application migration guide.
-- `IMPROVEMENT_PLAN.md` is the review checklist, decision log, and validation backlog.
+- `IMPROVEMENT_PLAN.md` indexes remaining Beads work and links to historical review records.
 - `AGENTS.md` and nested `AGENTS.md` files provide repository and folder-specific implementation guidance.

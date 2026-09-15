@@ -49,8 +49,8 @@ and next actions. Agents load that state directly with `bd prime` and `bd show`.
 - TypeScript `~6.0.3`
 - Vitest `^4.1.9`
 - Beads CLI `1.2.1`
-- Planned Playwright Test `1.62.1`
-- Planned `@axe-core/playwright` `4.13.0`
+- Playwright Test `1.62.1`
+- `@axe-core/playwright` `4.13.0`
 
 ## Commands
 
@@ -97,22 +97,28 @@ npm run build:starter
 npm run build:showcase:ghpages
 ```
 
-### Planned browser regression commands
+### Browser regression commands
 
-The implementation must expose stable npm scripts with these responsibilities:
+The Showcase exposes these browser regression scripts:
 
 ```bash
 npm --prefix showcase run test:visual:install
 npm --prefix showcase run test:visual:manifest
 npm --prefix showcase run test:visual:legacy:update
 npm --prefix showcase run test:visual:candidate
+```
+
+Critical cross-browser and merged-report command wiring remains under
+`stark-4sp.4.15` and `stark-4sp.3.10`:
+
+```bash
 npm --prefix showcase run test:visual:critical:cross-browser
 npm --prefix showcase run test:visual:report
 ```
 
 `test:visual:legacy:update` is a privileged maintenance command. Normal CI must never update golden files.
 
-### Planned execution-environment commands
+### Execution-environment commands
 
 Agents must invoke the configured Git Bash executable without interactive or login profiles:
 
@@ -140,7 +146,7 @@ bash scripts/with-project-node.sh --repo /c/LocalData/duboiss/wks/NGMigration/co
 
 It must fail closed when Git Bash, fnm, `.nvmrc`, Node, or npm does not match the repository contract.
 
-### Planned sibling-dependency commands
+### Sibling-dependency commands
 
 ```bash
 npm run deps:local
@@ -159,7 +165,7 @@ npm run deps:check
 .beads/                                      Beads workspace and tracked interchange data
 .github/copilot-instructions.md              Repository and Beads workflow instructions
 MIGRATION_EXECUTION_SPEC.md                  This specification
-IMPROVEMENT_PLAN.md                          Review status, decisions, and validation results
+IMPROVEMENT_PLAN.md                          Remaining-work index and historical review links
 scripts/
   with-project-node.sh                       Profile-free Git Bash/fnm command launcher
   manage-workspace-dependencies.mjs          Local/canonical dependency-mode switch
@@ -343,7 +349,7 @@ At a reviewed checkpoint:
 6. restack every descendant canonical branch in order;
 7. run the affected focused gates and the complete stack integrity checks;
 8. run an independent final review of each layer against its direct parent;
-9. record hashes, evidence, decisions, and known debt in Beads and `IMPROVEMENT_PLAN.md`;
+9. record hashes, evidence, decisions, and known debt in Beads; update `IMPROVEMENT_PLAN.md` when remaining scope changes;
 10. obtain explicit maintainer approval before any force-with-lease synchronization;
 11. synchronize rewritten branches from 01 through 05 to the personal `origin` fork only;
 12. verify remote hashes and return the primary worktree to `05-agent-context`.
