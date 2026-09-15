@@ -30,6 +30,7 @@ import {
 	type TableRowIndexStateScenario,
 	type TableStylingStateScenario,
 	type TableCustomCellStateScenario,
+	type TableFooterStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
 } from "../manifests/scenarios";
@@ -196,7 +197,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(363);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(376);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -330,6 +331,202 @@ test("maps thirteen custom-cell journeys only to populated Table content", () =>
 	expect(scenarios).toHaveLength(13);
 	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
 	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+});
+
+test("maps thirteen footer journeys to the dedicated Table footer state", () => {
+	const scenarios = executableScenariosForRunner("table-footer-states");
+	expect(scenarios).toHaveLength(13);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.footer"]);
+	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+});
+
+test("pins Table footer totals, semantic column order, styles and complete captures", () => {
+	const scenarios = executableScenariosForRunner("table-footer-states");
+	const last = (id: string) => scenarios.find((scenario) => scenario.id === id)!.payload.checkpoints.at(-1)!;
+	expect(
+		scenarios.every(
+			({ capture, maskSelectors, threshold, maxDiffPixels }) =>
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#footer stark-table" &&
+				maskSelectors.length === 0 &&
+				threshold === 0 &&
+				maxDiffPixels === 0
+		)
+	).toBe(true);
+	expect(scenarios[0].payload.footer).toEqual({
+		columns: ["id", "cost", "description"],
+		cells: ["Total", "233", ""],
+		styles: {
+			fontSize: "14px",
+			fontWeight: "700",
+			lineHeight: "26px",
+			color: "rgba(0, 0, 0, 0.87)",
+			rowHeight: 48,
+			padding: ["0px 0px 0px 24px", "0px", "0px 24px 0px 0px"]
+		}
+	});
+	expect(last("table-footer-next").expectedRows).toEqual([
+		[86, 21, "eleventh description"],
+		[44, 6, "the twelfth description"]
+	]);
+	expect(last("table-footer-asc-next").expectedRows).toEqual([
+		[154, 35, "the ninth description"],
+		[23, 54, "fifth description"]
+	]);
+	expect(last("table-footer-desc-next").expectedRows).toEqual([
+		[12, 5, "the third description"],
+		[222, 3, "the sixth description"]
+	]);
+	expect(last("table-footer-desc-next").action).toBe("sort-cost");
+	expect(last("table-footer-desc-next").expectedPage).toBe(2);
+	expect(last("table-footer-desc-next").expectedSort).toBe("desc");
+	expect(last("table-footer-cleared").expectedRows).toEqual(last("table-footer-initial").expectedRows);
+	expect(last("table-footer-cleared").expectedSort).toBe("none");
+	expect(last("table-footer-keyboard-last").action).toBe("keyboard-page");
+	expect(last("table-footer-keyboard-first").action).toBe("keyboard-page");
+	expect(
+		scenarios.filter(({ payload }) => payload.viewport.width !== 1280).map(({ payload }) => [payload.viewport, payload.journey])
+	).toEqual([
+		[{ width: 768, height: 900 }, "next"],
+		[{ width: 390, height: 1200 }, "initial"],
+		[{ width: 390, height: 1200 }, "next"]
+	]);
+});
+
+function validateFooterChange(id: string, change: (scenario: TableFooterStateScenario) => ExecutableVisualScenario): string[] {
+	return validate(
+		visualSurfaceManifest,
+		stateRequirements,
+		stateAxisReviews,
+		executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-footer-states" && scenario.id === id ? change(scenario) : scenario
+		)
+	);
+}
+
+test("rejects assigning footer coverage to another Table runner", () => {
+	const id = "table-footer-initial";
+	expect(
+		validateFooterChange(id, (scenario) => ({ ...scenario, runner: "table-custom-cell-states" }) as unknown as ExecutableVisualScenario)
+	).toContain(`${id} must use the Table footer state runner`);
+});
+
+for (const [id, replacementId] of [
+	["table-footer-cleared", "table-footer-initial"],
+	["table-footer-first", "table-footer-next"],
+	["table-footer-keyboard-first", "table-footer-first"]
+]) {
+	test(`rejects supported footer journey substitution for ${id}`, () => {
+		const replacement = executableScenariosForRunner("table-footer-states").find((scenario) => scenario.id === replacementId)!;
+		expect(
+			validateFooterChange(id, (scenario) => ({
+				...scenario,
+				payload: { ...scenario.payload, journey: replacement.payload.journey, checkpoints: replacement.payload.checkpoints }
+			}))
+		).toContain(`${id} does not use the audited Table footer fixture and interaction flow`);
+	});
+}
+
+const invalidFooterChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableFooterStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "a page-only total",
+		id: "table-footer-next",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, footer: { ...scenario.payload.footer, cells: ["Total", "27", ""] } }
+		})
+	},
+	{
+		name: "content in the blank description footer cell",
+		id: "table-footer-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, footer: { ...scenario.payload.footer, cells: ["Total", "233", "0"] } }
+		})
+	},
+	{
+		name: "footer columns out of order",
+		id: "table-footer-initial",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, footer: { ...scenario.payload.footer, columns: ["cost", "id", "description"] } }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "weakened footer typography",
+		id: "table-footer-initial",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				footer: { ...scenario.payload.footer, styles: { ...scenario.payload.footer.styles, fontWeight: "400" } }
+			}
+		})
+	},
+	{
+		name: "a sort that resets the current page",
+		id: "table-footer-desc-next",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({ ...checkpoint, expectedPage: 1 as const }))
+			}
+		})
+	},
+	{
+		name: "incorrect row tuples",
+		id: "table-footer-next",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				checkpoints: scenario.payload.checkpoints.map((checkpoint) => ({
+					...checkpoint,
+					expectedRows: checkpoint.expectedRows.map((row): typeof row => [row[0], row[1] + 1, row[2]])
+				}))
+			}
+		})
+	},
+	{
+		name: "an unaudited short mobile viewport",
+		id: "table-footer-mobile-initial",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 900 } } })
+	},
+	{
+		name: "a crop excluding the footer",
+		id: "table-footer-initial",
+		change: (scenario) => ({ ...scenario, capture: { scope: "component", selector: "example-viewer#footer tbody" } })
+	},
+	{
+		name: "a populated-state mapping",
+		id: "table-footer-initial",
+		change: (scenario) =>
+			({ ...scenario, sourceStateId: "table-component.content.populated", state: "populated" }) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "weakened screenshot comparison",
+		id: "table-footer-initial",
+		change: (scenario) => ({ ...scenario, threshold: 0.1 }) as unknown as ExecutableVisualScenario
+	}
+];
+for (const { name, id, change } of invalidFooterChanges) {
+	test(`rejects Table footer coverage with ${name}`, () => {
+		expect(validateFooterChange(id, change)).toContain(`${id} does not use the audited Table footer fixture and interaction flow`);
+	});
+}
+
+test("requires a Table footer disposition without claiming empty or custom-cell states", () => {
+	const scenarios = executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId !== "table-component.content.footer");
+	const errors = validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios);
+	expect(errors).toContain("table-component.content.footer must have exactly one executable or missing-fixture disposition");
+	expect(errors.some((error) => /table-component\.content\.(empty|custom-cells).*disposition/u.test(error))).toBe(false);
+	expect(errors).not.toContain("table-component.content.populated must have exactly one executable or missing-fixture disposition");
 });
 
 test("pins custom-cell tuples, projection branches, styles, and complete captures", () => {
@@ -1204,7 +1401,7 @@ test("requires populated Table coverage without claiming its remaining content s
 	const withoutPopulated = executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId !== "table-component.content.populated");
 	const errors = validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, withoutPopulated);
 	expect(errors).toContain("table-component.content.populated must have exactly one executable or missing-fixture disposition");
-	expect(errors.some((error) => /table-component\.content\.(empty|footer|custom-cells).*disposition/u.test(error))).toBe(false);
+	expect(errors.some((error) => /table-component\.content\.(empty|custom-cells).*disposition/u.test(error))).toBe(false);
 	const changedRunner = executableVisualScenarios.map((scenario) =>
 		scenario.id === "table-regular-initial"
 			? ({ ...scenario, runner: "navigation-control-states" } as unknown as ExecutableVisualScenario)

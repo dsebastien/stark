@@ -81,7 +81,8 @@ export const visualScenarioRunnerIds = [
 	"table-page-size-states",
 	"table-row-index-states",
 	"table-styling-states",
-	"table-custom-cell-states"
+	"table-custom-cell-states",
+	"table-footer-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -929,6 +930,55 @@ export type TableCustomCellStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableFooterJourney =
+	| "initial"
+	| "next"
+	| "first"
+	| "cost-asc"
+	| "asc-next"
+	| "cost-desc"
+	| "desc-next"
+	| "cleared"
+	| "keyboard-last"
+	| "keyboard-first";
+type TableFooterRow = readonly [number, number, string];
+type TableFooterCheckpoint = {
+	readonly action: "initial" | "next" | "first" | "sort-cost" | "keyboard-page";
+	readonly expectedPage: 1 | 2;
+	readonly expectedSort: "none" | "asc" | "desc";
+	readonly expectedRows: readonly TableFooterRow[];
+};
+type TableFooterContract = {
+	readonly columns: readonly ["id", "cost", "description"];
+	readonly cells: readonly [string, string, string];
+	readonly styles: Readonly<{
+		fontSize: string;
+		fontWeight: string;
+		lineHeight: string;
+		color: string;
+		rowHeight: number;
+		padding: readonly [string, string, string];
+	}>;
+};
+
+export type TableFooterStateScenario = ExecutableVisualScenarioCore<
+	"table-footer-states",
+	{
+		readonly fixtureSelector: "example-viewer#footer";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: TableFooterJourney;
+		readonly footer: TableFooterContract;
+		readonly checkpoints: readonly TableFooterCheckpoint[];
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "content";
+	readonly state: "footer";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -951,7 +1001,8 @@ export type ExecutableVisualScenario =
 	| TablePageSizeStateScenario
 	| TableRowIndexStateScenario
 	| TableStylingStateScenario
-	| TableCustomCellStateScenario;
+	| TableCustomCellStateScenario
+	| TableFooterStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -4776,6 +4827,138 @@ const tableCustomCellScenarios: readonly TableCustomCellStateScenario[] = tableC
 	}
 );
 
+const tableFooterFixtureSelector = "example-viewer#footer";
+const tableFooterCaptureSelector = `${tableFooterFixtureSelector} stark-table`;
+const tableFooterData: readonly TableFooterRow[] = [
+	[1, 12, "number one"],
+	[10, 23, "second description"],
+	[12, 5, "the third description"],
+	[2, 33, "description number four"],
+	[23, 54, "fifth description"],
+	[222, 3, "the sixth description"],
+	[112, 7, "seventh description"],
+	[232, 24, "description number eight"],
+	[154, 35, "the ninth description"],
+	[27, 10, "description number ten"],
+	[86, 21, "eleventh description"],
+	[44, 6, "the twelfth description"]
+];
+const tableFooterOrder: Readonly<Record<TableFooterCheckpoint["expectedSort"], readonly number[]>> = {
+	none: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+	asc: [5, 2, 11, 6, 9, 0, 10, 1, 7, 3, 8, 4],
+	desc: [4, 8, 3, 7, 1, 10, 0, 9, 6, 11, 2, 5]
+};
+const tableFooterContract: TableFooterContract = {
+	columns: ["id", "cost", "description"],
+	cells: ["Total", "233", ""],
+	styles: {
+		fontSize: "14px",
+		fontWeight: "700",
+		lineHeight: "26px",
+		color: "rgba(0, 0, 0, 0.87)",
+		rowHeight: 48,
+		padding: ["0px 0px 0px 24px", "0px", "0px 24px 0px 0px"]
+	}
+};
+
+function tableFooterCheckpoint(
+	action: TableFooterCheckpoint["action"],
+	order: TableFooterCheckpoint["expectedSort"] = "none",
+	page: TableFooterCheckpoint["expectedPage"] = 1
+): TableFooterCheckpoint {
+	return {
+		action,
+		expectedPage: page,
+		expectedSort: order,
+		expectedRows: tableFooterOrder[order].slice((page - 1) * 10, page * 10).map((index): TableFooterRow => [...tableFooterData[index]])
+	};
+}
+
+function tableFooterCheckpoints(journey: TableFooterJourney): readonly TableFooterCheckpoint[] | undefined {
+	const initial = tableFooterCheckpoint("initial");
+	const next = [initial, tableFooterCheckpoint("next", "none", 2)];
+	const ascending = [initial, tableFooterCheckpoint("sort-cost", "asc")];
+	const ascendingNext = [...ascending, tableFooterCheckpoint("next", "asc", 2)];
+	const descendingNext = [...ascendingNext, tableFooterCheckpoint("sort-cost", "desc", 2)];
+	const descending = [...descendingNext, tableFooterCheckpoint("first", "desc")];
+	const keyboardLast = [initial, tableFooterCheckpoint("keyboard-page", "none", 2)];
+	switch (journey) {
+		case "initial":
+			return [initial];
+		case "next":
+			return next;
+		case "first":
+			return [...next, tableFooterCheckpoint("first")];
+		case "cost-asc":
+			return ascending;
+		case "asc-next":
+			return ascendingNext;
+		case "desc-next":
+			return descendingNext;
+		case "cost-desc":
+			return descending;
+		case "cleared":
+			return [...descending, tableFooterCheckpoint("sort-cost")];
+		case "keyboard-last":
+			return keyboardLast;
+		case "keyboard-first":
+			return [...keyboardLast, tableFooterCheckpoint("keyboard-page")];
+		default:
+			return undefined;
+	}
+}
+
+type TableFooterScenarioDefinition = Pick<TableFooterStateScenario, "id"> &
+	Pick<TableFooterStateScenario["payload"], "journey" | "viewport">;
+const tableFooterDesktopViewport = { width: 1280, height: 900 } as const;
+const tableFooterScenarioDefinitions: readonly TableFooterScenarioDefinition[] = [
+	{ id: "table-footer-initial", journey: "initial", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-next", journey: "next", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-first", journey: "first", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-cost-asc", journey: "cost-asc", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-asc-next", journey: "asc-next", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-cost-desc", journey: "cost-desc", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-desc-next", journey: "desc-next", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-cleared", journey: "cleared", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-keyboard-last", journey: "keyboard-last", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-keyboard-first", journey: "keyboard-first", viewport: tableFooterDesktopViewport },
+	{ id: "table-footer-tablet-next", journey: "next", viewport: { width: 768, height: 900 } },
+	{ id: "table-footer-mobile-initial", journey: "initial", viewport: { width: 390, height: 1200 } },
+	{ id: "table-footer-mobile-next", journey: "next", viewport: { width: 390, height: 1200 } }
+];
+const tableFooterScenarios: readonly TableFooterStateScenario[] = tableFooterScenarioDefinitions.map(({ id, journey, viewport }) => {
+	const checkpoints = tableFooterCheckpoints(journey);
+	if (!checkpoints) {
+		throw new Error(`Unsupported Table footer journey: ${journey}`);
+	}
+	return {
+		id,
+		sourceStateId: "table-component.content.footer",
+		surfaceId: "table-component",
+		axis: "content",
+		state: "footer",
+		ownerBead: "stark-4sp.4.9",
+		routeId: "table",
+		runner: "table-footer-states",
+		capture: { scope: "component", selector: tableFooterCaptureSelector },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			fixtureSelector: tableFooterFixtureSelector,
+			viewport: { ...viewport },
+			journey,
+			footer: {
+				columns: [...tableFooterContract.columns],
+				cells: [...tableFooterContract.cells],
+				styles: { ...tableFooterContract.styles, padding: [...tableFooterContract.styles.padding] }
+			},
+			checkpoints
+		}
+	};
+});
+
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
 	2: ["222", "112", "232", "154", "27"],
@@ -6303,6 +6486,7 @@ export const executableVisualScenarios = [
 	...tableRowIndexScenarios,
 	...tableStylingScenarios,
 	...tableCustomCellScenarios,
+	...tableFooterScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -6319,7 +6503,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 363,
+	executableScenarios: 376,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -6343,7 +6527,8 @@ export const reviewedCoverageBaseline = {
 		"table-page-size-states": 11,
 		"table-row-index-states": 14,
 		"table-styling-states": 13,
-		"table-custom-cell-states": 13
+		"table-custom-cell-states": 13,
+		"table-footer-states": 13
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -6562,7 +6747,7 @@ export function validateVisualCoverage(
 			(["route-search-component", "generic-search-component"].includes(requirement.surfaceId) &&
 				requirement.ownerBead === "stark-4sp.4.8") ||
 			(requirement.surfaceId === "table-component" && requirement.axis === "selection") ||
-			id === "table-component.content.populated"
+			["table-component.content.populated", "table-component.content.footer"].includes(id)
 	)) {
 		const dispositions =
 			Number(executableScenarios.some(({ sourceStateId }) => sourceStateId === id)) +
@@ -6629,6 +6814,14 @@ export function validateVisualCoverage(
 			].includes(scenario.runner)
 		) {
 			errors.push(`${scenario.id} must use an audited populated Table state runner`);
+		}
+		if (
+			scenario.surfaceId === "table-component" &&
+			scenario.axis === "content" &&
+			scenario.state === "footer" &&
+			scenario.runner !== "table-footer-states"
+		) {
+			errors.push(`${scenario.id} must use the Table footer state runner`);
 		}
 		const surface = surfaceById.get(scenario.surfaceId);
 		if (!routes.some(({ id }) => id === scenario.routeId)) {
@@ -6900,6 +7093,35 @@ export function validateVisualCoverage(
 				JSON.stringify(scenario.payload) !== JSON.stringify(expectedPayload)
 			) {
 				errors.push(`${scenario.id} does not use the audited Pretty Print fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-footer-states") {
+			const { fixtureSelector, journey, checkpoints, viewport, footer } = scenario.payload;
+			const definition = tableFooterScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const expectedCheckpoints = definition ? tableFooterCheckpoints(definition.journey) : undefined;
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "content" ||
+				scenario.state !== "footer" ||
+				fixtureSelector !== tableFooterFixtureSelector ||
+				!matchesDefinition ||
+				expectedCheckpoints === undefined ||
+				JSON.stringify(checkpoints) !== JSON.stringify(expectedCheckpoints) ||
+				JSON.stringify(footer) !== JSON.stringify(tableFooterContract) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableFooterCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited Table footer fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-custom-cell-states") {
 			const { fixtureSelector, journey, checkpoints, viewport, styles } = scenario.payload;
