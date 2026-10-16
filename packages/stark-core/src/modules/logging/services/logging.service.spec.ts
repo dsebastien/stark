@@ -1,5 +1,3 @@
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
 import { Injector } from "@angular/core";
 import { Observable, of, throwError } from "rxjs";
 import { Serialize } from "cerialize";
@@ -12,16 +10,18 @@ import { StarkBackend } from "../../http/entities/backend";
 import { StarkHttpHeaders } from "../../http/constants";
 import { StarkCoreApplicationState } from "../../../common/store";
 import { StarkError, StarkErrorImpl } from "../../../common/error";
-import { MockStarkXsrfService } from "@nationalbankbelgium/stark-core/testing";
+import { MockStarkXsrfService, createMockObject, type VitestMockObject } from "@nationalbankbelgium/stark-core/testing";
 import { MockStore, provideMockStore } from "@ngrx/store/testing";
 import { TestBed } from "@angular/core/testing";
+import { vi } from "vitest";
 
 describe("Service: StarkLoggingService", () => {
 	let appConfig: StarkApplicationConfig;
 	let mockStore: MockStore<StarkCoreApplicationState>;
-	let mockInjectorService: SpyObj<Injector>;
+	let mockInjectorService: VitestMockObject<Injector>;
 	let mockXSRFService: MockStarkXsrfService;
 	let loggingService: LoggingServiceHelper;
+	let mockStoreDispatchSpy: any;
 	const loggingBackend: StarkBackend = {
 		name: "logging",
 		url: "http://localhost:5000",
@@ -46,7 +46,7 @@ describe("Service: StarkLoggingService", () => {
 		});
 
 		mockStore = TestBed.inject(MockStore);
-		mockInjectorService = jasmine.createSpyObj<Injector>("injector,", ["get"]);
+		mockInjectorService = createMockObject<Injector>(["get"]);
 		appConfig = new StarkApplicationConfigImpl();
 		appConfig.debugLoggingEnabled = true;
 		appConfig.loggingFlushResourceName = loggingFlushResourceName;
@@ -61,13 +61,13 @@ describe("Service: StarkLoggingService", () => {
 			applicationId: "dummy app id",
 			messages: []
 		};
-		spyOn(mockStore, "pipe").and.returnValue(of(mockStarkLogging));
-		spyOn(mockStore, "dispatch").and.callThrough();
+		vi.spyOn(mockStore, "pipe").mockReturnValue(of(mockStarkLogging));
+		mockStoreDispatchSpy = vi.spyOn(mockStore, "dispatch");
 		/* eslint-disable-next-line import/no-deprecated */
-		mockInjectorService.get.and.returnValue(mockXSRFService);
-		loggingService = new LoggingServiceHelper(mockStore, appConfig, mockInjectorService);
+		mockInjectorService.get.mockReturnValue(mockXSRFService);
+		loggingService = new LoggingServiceHelper(mockStore, appConfig, mockInjectorService as unknown as Injector);
 		// reset the calls counter because there is a log in the constructor
-		(<Spy>mockStore.dispatch).calls.reset();
+		mockStoreDispatchSpy.mockClear();
 	});
 
 	describe("on initialization", () => {
@@ -104,7 +104,7 @@ describe("Service: StarkLoggingService", () => {
 
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 
-			const dispatchedAction = (<Spy>mockStore.dispatch).calls.mostRecent().args[0];
+			const dispatchedAction = mockStoreDispatchSpy.mock.calls.at(-1)?.[0];
 			expect(dispatchedAction.type).toBe(StarkLoggingActions.logMessage.type);
 
 			const { message } = dispatchedAction;
@@ -134,7 +134,7 @@ describe("Service: StarkLoggingService", () => {
 
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 
-			const dispatchedAction = (<Spy>mockStore.dispatch).calls.mostRecent().args[0];
+			const dispatchedAction = mockStoreDispatchSpy.mock.calls.at(-1)?.[0];
 			expect(dispatchedAction.type).toBe(StarkLoggingActions.logMessage.type);
 
 			const { message } = dispatchedAction;
@@ -157,7 +157,7 @@ describe("Service: StarkLoggingService", () => {
 
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 
-			const dispatchedAction = (<Spy>mockStore.dispatch).calls.mostRecent().args[0];
+			const dispatchedAction = mockStoreDispatchSpy.mock.calls.at(-1)?.[0];
 			expect(dispatchedAction.type).toBe(StarkLoggingActions.logMessage.type);
 
 			const { message } = dispatchedAction;
@@ -182,7 +182,7 @@ describe("Service: StarkLoggingService", () => {
 
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 
-			const dispatchedAction = (<Spy>mockStore.dispatch).calls.mostRecent().args[0];
+			const dispatchedAction = mockStoreDispatchSpy.mock.calls.at(-1)?.[0];
 			expect(dispatchedAction.type).toBe(StarkLoggingActions.logMessage.type);
 
 			const { message } = dispatchedAction;
@@ -204,7 +204,7 @@ describe("Service: StarkLoggingService", () => {
 
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 
-			const dispatchedAction = (<Spy>mockStore.dispatch).calls.mostRecent().args[0];
+			const dispatchedAction = mockStoreDispatchSpy.mock.calls.at(-1)?.[0];
 			expect(dispatchedAction.type).toBe(StarkLoggingActions.logMessage.type);
 
 			const { message } = dispatchedAction;
@@ -289,15 +289,15 @@ describe("Service: StarkLoggingService", () => {
 		it("should persist messages to the back-end when the persist size exceeds", () => {
 			expect(mockStarkLogging.messages.length).toBe(loggingFlushPersistSize);
 
-			const sendRequestSpy: Spy = spyOn(loggingService, "sendRequest").and.returnValue(of(undefined));
+			const sendRequestSpy = vi.spyOn(loggingService, "sendRequest").mockReturnValue(of(undefined));
 			const data: string = JSON.stringify(Serialize(mockStarkLogging, StarkLoggingImpl));
 
 			loggingService.persistLogMessagesHelper();
 
 			expect(sendRequestSpy).toHaveBeenCalledTimes(1);
-			expect(sendRequestSpy.calls.mostRecent().args[0]).toBe(`${loggingBackend.url}/${appConfig.loggingFlushResourceName}`);
-			expect(sendRequestSpy.calls.mostRecent().args[1]).toBe(data);
-			expect(sendRequestSpy.calls.mostRecent().args[2]).toBe(true);
+			expect(sendRequestSpy.mock.calls.at(-1)?.[0]).toBe(`${loggingBackend.url}/${appConfig.loggingFlushResourceName}`);
+			expect(sendRequestSpy.mock.calls.at(-1)?.[1]).toBe(data);
+			expect(sendRequestSpy.mock.calls.at(-1)?.[2]).toBe(true);
 
 			expect(mockStore.dispatch).toHaveBeenCalledTimes(1);
 			expect(mockStore.dispatch).toHaveBeenCalledWith(
@@ -306,9 +306,9 @@ describe("Service: StarkLoggingService", () => {
 		});
 
 		it("should send the XMLHttpRequest to the correct URL and with the correct data and headers", () => {
-			const mockOpen = jasmine.createSpy("openSpy");
-			const mockSend = jasmine.createSpy("sendSpy");
-			const mockSetRequestHeader = jasmine.createSpy("setRequestHeaderSpy");
+			const mockOpen = vi.fn();
+			const mockSend = vi.fn();
+			const mockSetRequestHeader = vi.fn();
 
 			class MockXHR {
 				public constructor() {
@@ -337,8 +337,7 @@ describe("Service: StarkLoggingService", () => {
 			expect(mockSend).toHaveBeenCalledTimes(1);
 			expect(mockSend).toHaveBeenCalledWith(mockSerializedData);
 			expect(mockSetRequestHeader).toHaveBeenCalledTimes(2);
-			const allSetRequestHeaderCalls = mockSetRequestHeader.calls.all();
-			expect([allSetRequestHeaderCalls[0].args, allSetRequestHeaderCalls[1].args]).toEqual([
+			expect([mockSetRequestHeader.mock.calls[0], mockSetRequestHeader.mock.calls[1]]).toEqual([
 				[StarkHttpHeaders.CONTENT_TYPE, "application/json"],
 				[loggingService.correlationIdHttpHeaderName, loggingService.correlationId]
 			]);
@@ -349,18 +348,18 @@ describe("Service: StarkLoggingService", () => {
 		it("should fail to persist messages when the back-end fails", () => {
 			expect(mockStarkLogging.messages.length).toBe(loggingFlushPersistSize);
 
-			const sendRequestSpy: Spy = spyOn(loggingService, "sendRequest").and.returnValue(throwError("ko"));
-			const errorSpy: Spy = spyOn(loggingService, "error");
+			const sendRequestSpy = vi.spyOn(loggingService, "sendRequest").mockReturnValue(throwError(() => new Error("ko")));
+			const errorSpy = vi.spyOn(loggingService, "error").mockImplementation(() => undefined);
 			const data: string = JSON.stringify(Serialize(mockStarkLogging, StarkLoggingImpl));
 
 			loggingService.persistLogMessagesHelper();
 
 			expect(sendRequestSpy).toHaveBeenCalledTimes(1);
-			expect(sendRequestSpy.calls.mostRecent().args[0]).toBe(`${loggingBackend.url}/${appConfig.loggingFlushResourceName}`);
-			expect(sendRequestSpy.calls.mostRecent().args[1]).toBe(data);
-			expect(sendRequestSpy.calls.mostRecent().args[2]).toBe(true);
+			expect(sendRequestSpy.mock.calls.at(-1)?.[0]).toBe(`${loggingBackend.url}/${appConfig.loggingFlushResourceName}`);
+			expect(sendRequestSpy.mock.calls.at(-1)?.[1]).toBe(data);
+			expect(sendRequestSpy.mock.calls.at(-1)?.[2]).toBe(true);
 			expect(errorSpy).toHaveBeenCalledTimes(1);
-			expect(errorSpy.calls.mostRecent().args[0]).toContain("an error occurred while persisting log messages. (retry 1)");
+			expect(errorSpy.mock.calls.at(-1)?.[0]).toContain("an error occurred while persisting log messages. (retry 1)");
 		});
 	});
 });
@@ -387,8 +386,8 @@ class LoggingServiceHelper extends StarkLoggingServiceImpl {
 	}
 
 	// override parent's implementation to prevent logging to the console
-	public override getConsole(): Function {
-		return (): void => {
+	public override getConsole(): (..._args: unknown[]) => void {
+		return (..._args: unknown[]): void => {
 			/* noop */
 		};
 	}

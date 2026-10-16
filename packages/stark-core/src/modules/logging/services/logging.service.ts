@@ -18,6 +18,8 @@ import { StarkError, StarkErrorImpl } from "../../../common/error";
 import { StarkConfigurationUtil } from "../../../util/configuration.util";
 import noop from "lodash-es/noop";
 
+type StarkConsoleLogger = (...args: unknown[]) => void;
+
 /**
  * @ignore
  */
@@ -33,10 +35,10 @@ export class StarkLoggingServiceImpl implements StarkLoggingService {
 	private logPersistSize = NaN;
 	private isPersisting: boolean;
 	private retryCounter: number;
-	private consoleDebug: Function;
-	private consoleInfo: Function;
-	private consoleWarn: Function;
-	private consoleError: Function;
+	private consoleDebug: StarkConsoleLogger;
+	private consoleInfo: StarkConsoleLogger;
+	private consoleWarn: StarkConsoleLogger;
+	private consoleError: StarkConsoleLogger;
 	private starkLogging!: StarkLogging;
 	/** @internal */
 	private _xsrfService?: StarkXSRFService | typeof xsrfServiceNotFound;
@@ -215,8 +217,8 @@ export class StarkLoggingServiceImpl implements StarkLoggingService {
 			xhr.setRequestHeader(StarkHttpHeaders.CONTENT_TYPE, "application/json");
 			xhr.setRequestHeader(this.correlationIdHttpHeaderName, this.correlationId);
 			xhr.send(serializedData);
-		} catch (e) {
-			httpRequest$.error(e);
+		} catch (error: unknown) {
+			httpRequest$.error(error);
 		}
 
 		return httpRequest$.asObservable();
@@ -230,7 +232,7 @@ export class StarkLoggingServiceImpl implements StarkLoggingService {
 		// catch potential "circular reference" error
 		try {
 			return JSON.stringify(arg);
-		} catch (e) {
+		} catch {
 			return arg; // return the arg "as is" in case of error
 		}
 	}
@@ -240,12 +242,12 @@ export class StarkLoggingServiceImpl implements StarkLoggingService {
 	 * otherwise returns console.log or empty function
 	 * @param type - Type of console to be used: info, debug, warn, error, trace
 	 */
-	protected getConsole(type: string): Function {
+	protected getConsole(type: string): StarkConsoleLogger {
 		const console: any = window && window.console ? window.console : {};
-		const logFn: Function = console[type] || console.log || noop;
+		const logFn: StarkConsoleLogger = console[type] || console.log || noop;
 
-		return (...args: any[]): any => {
-			const consoleArgs: any[] = [];
+		return (...args: unknown[]): void => {
+			const consoleArgs: unknown[] = [];
 			for (const arg of args) {
 				if (arg instanceof Error) {
 					consoleArgs.push(this.parseArg(arg));
@@ -253,7 +255,7 @@ export class StarkLoggingServiceImpl implements StarkLoggingService {
 					consoleArgs.push(arg);
 				}
 			}
-			return logFn.apply(console, consoleArgs);
+			logFn.apply(console, consoleArgs);
 		};
 	}
 
@@ -267,7 +269,7 @@ export class StarkLoggingServiceImpl implements StarkLoggingService {
 			try {
 				this._xsrfService = this.injector.get<StarkXSRFService>(STARK_XSRF_SERVICE);
 				return this._xsrfService;
-			} catch (exception) {
+			} catch {
 				this._xsrfService = xsrfServiceNotFound;
 				return undefined;
 			}
