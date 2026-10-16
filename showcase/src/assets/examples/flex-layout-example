@@ -1,6 +1,6 @@
 Example of the angular flex-layout
 
-<h1 class="mat-display-2" translate>Stark documentation</h1>
+<h1 class="mat-headline-3" translate>Stark documentation</h1>
 <div fxLayout="column" fxLayout.gt-xs="row wrap" fxLayoutAlign.gt-md="space-between center"
 	 fxLayoutAlign.md="space-around center"
 	 fxLayoutAlign.lt-md="center center" fxLayoutGap.lt-lg="20px">

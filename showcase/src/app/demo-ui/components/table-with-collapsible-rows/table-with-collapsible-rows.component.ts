@@ -8,6 +8,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-collapsible-rows",
 	templateUrl: "./table-with-collapsible-rows.component.html",
 	styleUrls: ["./table-with-collapsible-rows.component.scss"]

@@ -17,6 +17,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-custom-cell-rendering",
 	templateUrl: "./table-with-custom-cell-rendering.component.html"
 })

@@ -106,6 +106,9 @@ export const DEMO_STATES: Ng2StateDeclaration[] = [
 	{
 		name: "demo-ui.generic-search",
 		url: "/generic-search",
+		data: {
+			translationKey: "SHOWCASE.DEMO.GENERIC_SEARCH.TITLE"
+		},
 		views: { "@": { component: DemoGenericSearchPageComponent } }
 	},
 	{

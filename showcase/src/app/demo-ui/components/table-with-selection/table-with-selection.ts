@@ -25,6 +25,7 @@ const DUMMY_DATA: DummyType[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-selection",
 	templateUrl: "./table-with-selection.component.html"
 })
