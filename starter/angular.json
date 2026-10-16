@@ -9,21 +9,25 @@
       "projectType": "application",
       "architect": {
         "build": {
-          "builder": "@angular-builders/custom-webpack:browser",
+          "builder": "@angular/build:application",
           "options": {
-            "customWebpackConfig": {
-              "path": "./node_modules/@nationalbankbelgium/stark-build/config/webpack.config.js"
+            "outputPath": {
+              "base": "dist",
+              "browser": ""
             },
-            "indexTransform": "./node_modules/@nationalbankbelgium/stark-build/config/index-html.transform.js",
-            "outputPath": "dist",
             "allowedCommonJsDependencies": ["validator", "@nationalbankbelgium/stark-core"],
-            "index": "src/index.html",
-            "main": "src/main.browser.ts",
+            "index": {
+              "input": ".stark/generated/index.html",
+              "output": "index.html"
+            },
+            "browser": "src/main.browser.ts",
             "tsConfig": "tsconfig.app.json",
-            "polyfills": "src/polyfills.browser.ts",
-            "buildOptimizer": false,
+            "polyfills": ["src/polyfills.browser.ts"],
+            "define": {
+              "ENV": "\"development\"",
+              "HMR": "false"
+            },
             "optimization": false,
-            "vendorChunk": true,
             "sourceMap": true,
             "namedChunks": true,
             "assets": [
@@ -53,13 +57,7 @@
                 "output": "assets/stark-ui"
               }
             ],
-            "styles": [
-              "node_modules/@nationalbankbelgium/stark-core/assets/css/pre-load-style.css",
-              {
-                "inject": false,
-                "input": "src/styles/styles.scss"
-              }
-            ],
+            "styles": ["node_modules/@nationalbankbelgium/stark-core/assets/css/pre-load-style.css", "src/styles/styles.scss"],
             "stylePreprocessorOptions": {
               "includePaths": ["node_modules"]
             },
@@ -69,6 +67,10 @@
           },
           "configurations": {
             "hmr": {
+              "define": {
+                "ENV": "\"development\"",
+                "HMR": "true"
+              },
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -77,109 +79,81 @@
               ]
             },
             "development": {},
+            "unit-test": {
+              "polyfills": ["src/polyfills.browser.ts", "zone.js/testing"]
+            },
             "production": {
               "optimization": true,
+              "define": {
+                "ENV": "\"production\"",
+                "HMR": "false"
+              },
               "namedChunks": false,
               "subresourceIntegrity": true,
               "outputHashing": "all",
               "sourceMap": false,
               "aot": true,
               "extractLicenses": true,
-              "vendorChunk": false,
-              "buildOptimizer": true,
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
                   "with": "src/environments/environment.prod.ts"
                 }
               ]
-            },
-            "e2e.prod": {
-              "optimization": true,
-              "outputHashing": "all",
-              "sourceMap": false,
-              "extractCss": true,
-              "aot": true,
-              "extractLicenses": true,
-              "vendorChunk": false,
-              "buildOptimizer": true,
-              "fileReplacements": [
-                {
-                  "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.e2e.prod.ts"
-                }
-              ]
             }
           }
         },
         "serve": {
-          "builder": "@angular-builders/custom-webpack:dev-server",
+          "builder": "@angular/build:dev-server",
           "options": {
-            "browserTarget": "starter:build",
+            "buildTarget": "starter:build",
+            "headers": {
+              "Access-Control-Allow-Origin": "*",
+              "Content-Security-Policy": "base-uri 'self' ; child-src 'self' ; connect-src 'self' ws://localhost:3000 http://localhost:5000 http://localhost:5001 http://localhost:5002 http://localhost:4000 ; font-src 'self' ; form-action 'self' http://localhost:5000/myAwesomeUpload ; frame-src 'self' ; frame-ancestors 'none' ; img-src 'self' data: image/png ; media-src 'self' ; object-src 'self' data:",
+              "X-Content-Security-Policy": "base-uri 'self' ; child-src 'self' ; connect-src 'self' ws://localhost:3000 http://localhost:5000 http://localhost:5001 http://localhost:5002 http://localhost:4000 ; font-src 'self' ; form-action 'self' http://localhost:5000/myAwesomeUpload ; frame-src 'self' ; frame-ancestors 'none' ; img-src 'self' data: image/png ; media-src 'self' ; object-src 'self' data:",
+              "X-WebKit-CSP": "base-uri 'self' ; child-src 'self' ; connect-src 'self' ws://localhost:3000 http://localhost:5000 http://localhost:5001 http://localhost:5002 http://localhost:4000 ; font-src 'self' ; form-action 'self' http://localhost:5000/myAwesomeUpload ; frame-src 'self' ; frame-ancestors 'none' ; img-src 'self' data: image/png ; media-src 'self' ; object-src 'self' data:",
+              "X-Frame-Options": "deny",
+              "X-Xss-Protection": "1; mode=block",
+              "X-Content-Type-Options": "nosniff"
+            },
             "port": 3000,
             "open": true
           },
           "configurations": {
             "hmr": {
               "hmr": true,
-              "browserTarget": "starter:build:hmr"
+              "buildTarget": "starter:build:hmr"
             },
             "production": {
-              "browserTarget": "starter:build:production"
-            },
-            "e2e.prod": {
-              "browserTarget": "starter:build:e2e.prod"
+              "buildTarget": "starter:build:production"
             },
             "development": {
-              "browserTarget": "starter:build:development"
+              "buildTarget": "starter:build:development"
             }
           },
           "defaultConfiguration": "development"
         },
         "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "builder": "@angular/build:extract-i18n",
           "options": {
-            "browserTarget": "starter:build"
+            "buildTarget": "starter:build"
           }
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
           "options": {
+            "eslintConfig": "eslint.config.js",
             "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"]
           }
         },
         "test": {
-          "builder": "@angular-builders/custom-webpack:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "main": "base.spec.ts",
-            "karmaConfig": "./karma.conf.js",
+            "buildTarget": "starter:build:unit-test",
+            "runner": "vitest",
+            "runnerConfig": "vitest.config.mjs",
+            "setupFiles": ["base.vitest.spec.ts"],
             "tsConfig": "tsconfig.spec.json"
-          }
-        }
-      }
-    },
-    "starter-e2e": {
-      "root": "e2e/",
-      "sourceRoot": "",
-      "projectType": "application",
-      "prefix": "",
-      "architect": {
-        "e2e": {
-          "builder": "@angular-devkit/build-angular:protractor",
-          "options": {
-            "protractorConfig": "e2e/protractor.conf.js",
-            "devServerTarget": "starter:serve"
-          },
-          "configurations": {
-            "production": {
-              "devServerTarget": "starter:serve:production"
-            }
-          }
-        },
-        "lint": {
-          "builder": "@angular-eslint/builder:lint",
-          "options": {
-            "lintFilePatterns": ["e2e//**/*.ts", "e2e//**/*.html"]
           }
         }
       }
