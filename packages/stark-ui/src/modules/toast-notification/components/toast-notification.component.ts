@@ -1,5 +1,9 @@
+import { CommonModule } from "@angular/common";
 import { ChangeDetectionStrategy, Component, ElementRef, Inject, OnInit, Renderer2, ViewEncapsulation } from "@angular/core";
-import { MAT_LEGACY_SNACK_BAR_DATA as MAT_SNACK_BAR_DATA, MatLegacySnackBar as MatSnackBar } from "@angular/material/legacy-snack-bar";
+import { MatButtonModule } from "@angular/material/button";
+import { MatIconModule } from "@angular/material/icon";
+import { MAT_SNACK_BAR_DATA, MatSnackBar } from "@angular/material/snack-bar";
+import { TranslateModule } from "@ngx-translate/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { StarkMessageType } from "@nationalbankbelgium/stark-ui/src/common";
 import { StarkToastMessage } from "./toast-message.intf";
@@ -14,10 +18,12 @@ const componentName = "stark-toast-notification";
  * Component display stark's toast notification (based on Angular Material's MatSnackBar) with custom html
  */
 @Component({
+	standalone: true,
 	selector: "stark-toast-notification",
 	templateUrl: "./toast-notification.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatButtonModule, MatIconModule, TranslateModule],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName

@@ -1,12 +1,12 @@
 import { ApplicationRef, Inject, Injectable } from "@angular/core";
 import {
-	MatLegacySnackBar as MatSnackBar,
-	MatLegacySnackBarConfig as MatSnackBarConfig,
-	MatLegacySnackBarDismiss as MatSnackBarDismiss,
-	MatLegacySnackBarHorizontalPosition as MatSnackBarHorizontalPosition,
-	MatLegacySnackBarRef as MatSnackBarRef,
-	MatLegacySnackBarVerticalPosition as MatSnackBarVerticalPosition
-} from "@angular/material/legacy-snack-bar";
+	MatSnackBar,
+	MatSnackBarConfig,
+	MatSnackBarDismiss,
+	MatSnackBarHorizontalPosition,
+	MatSnackBarRef,
+	MatSnackBarVerticalPosition
+} from "@angular/material/snack-bar";
 import { Observable, Observer } from "rxjs";
 import { tap } from "rxjs/operators";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
@@ -14,6 +14,8 @@ import { StarkToastNotificationResult } from "./toast-notification-result.intf";
 import { StarkToastNotificationService, starkToastNotificationServiceName } from "./toast-notification.service.intf";
 import { STARK_TOAST_NOTIFICATION_OPTIONS, StarkToastNotificationOptions } from "./toast-notification-option.intf";
 import { StarkToastMessage, StarkToastNotificationComponent } from "../components";
+
+const starkToastNotificationPanelClass = "stark-toast-notification-panel";
 
 /**
  * @ignore
@@ -111,6 +113,7 @@ export class StarkToastNotificationServiceImpl implements StarkToastNotification
 			verticalPosition: <MatSnackBarVerticalPosition>this.toastNotificationOption.position.split(" ")[0],
 			horizontalPosition: <MatSnackBarHorizontalPosition>this.toastNotificationOption.position.split(" ")[1],
 			duration: typeof message.delay !== "undefined" ? message.delay : this.toastNotificationOption.delay,
+			panelClass: starkToastNotificationPanelClass,
 			data: message
 		};
 	}
