@@ -1,9 +1,8 @@
+import deepFreeze from "deep-freeze-strict";
 import { StarkSession } from "../entities";
 import { StarkUser } from "../../user/entities";
 import { sessionReducer } from "./session.reducer";
 import { StarkSessionActions } from "../actions";
-
-const deepFreeze: Function = require("deep-freeze-strict");
 
 describe("Reducer: SessionReducer", () => {
 	let session: StarkSession;

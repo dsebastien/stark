@@ -1,10 +1,30 @@
 import { Location } from "@angular/common";
-import { LazyLoadResult, RawParams, StateDeclaration, Transition } from "@uirouter/core";
+import { LazyLoadResult, RawParams, StateDeclaration, StateObject, Transition } from "@uirouter/core";
 import { loadNgModule, Ng2StateDeclaration, ModuleTypeCallback } from "@uirouter/angular";
-import { from, Observable, of } from "rxjs";
+import { firstValueFrom, from, Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { STARK_ROUTING_SERVICE, StarkRoutingService, StarkStateConfigWithParams } from "../routing/services";
 import { starkAppExitStateName, starkAppInitStateName } from "./constants";
+
+type StarkLazyStateDeclaration = StateDeclaration & { loadChildren: ModuleTypeCallback };
+
+/**
+ * Returns the internal UI-Router state object when the state is already registered.
+ *
+ * @param state - The state declaration to inspect.
+ */
+function getRegisteredStateObject(state: StateDeclaration): StateObject | undefined {
+	return state.$$state?.();
+}
+
+/**
+ * Checks whether the state declaration still exposes a lazy `loadChildren` callback.
+ *
+ * @param state - The state declaration to inspect.
+ */
+function hasLoadChildren(state: StateDeclaration): state is StarkLazyStateDeclaration {
+	return typeof Reflect.get(state, "loadChildren") === "function";
+}
 
 /**
  * Configuration of the route state of the application
@@ -28,12 +48,9 @@ export function resolveTargetRoute(
 
 		// skip any init/exit state
 		const initOrExitStateRegex = new RegExp("(" + starkAppInitStateName + "|" + starkAppExitStateName + ")");
+		const targetStateObject = targetState ? getRegisteredStateObject(targetState.state) : undefined;
 
-		if (
-			targetState &&
-			(<Function>targetState.state.$$state)().parent &&
-			(<Function>targetState.state.$$state)().parent.name.match(initOrExitStateRegex)
-		) {
+		if (targetState && targetStateObject?.parent && targetStateObject.parent.name.match(initOrExitStateRegex)) {
 			targetState = undefined;
 		}
 
@@ -46,9 +63,9 @@ export function resolveTargetRoute(
 	let finalTargetRoute$: Observable<StarkStateConfigWithParams | undefined> = of(targetRoute);
 
 	// in case the state is part of a module to load lazily, we need to load it and search the url again
-	if (targetRoute && (<Function>targetRoute.state.$$state)().loadChildren) {
+	if (targetRoute && hasLoadChildren(targetRoute.state)) {
 		// so we call the needed function to lazy load the module
-		const moduleToLoad: ModuleTypeCallback = (<Function>targetRoute.state.$$state)().loadChildren;
+		const moduleToLoad: ModuleTypeCallback = targetRoute.state.loadChildren;
 		const lazyLoadNgModule: (transition: Transition, stateObject: StateDeclaration) => Promise<LazyLoadResult> =
 			loadNgModule(moduleToLoad);
 
@@ -58,7 +75,7 @@ export function resolveTargetRoute(
 		);
 	}
 
-	return finalTargetRoute$.toPromise();
+	return firstValueFrom(finalTargetRoute$);
 }
 
 /**
@@ -66,7 +83,7 @@ export function resolveTargetRoute(
  * @param targetRoute - Returned value of `resolveTargetRoute` method
  */
 export function resolveTargetState(targetRoute?: StarkStateConfigWithParams): Promise<string | undefined> {
-	return of(typeof targetRoute !== "undefined" ? targetRoute.state.name : undefined).toPromise();
+	return Promise.resolve(typeof targetRoute !== "undefined" ? targetRoute.state.name : undefined);
 }
 
 /**
@@ -74,7 +91,7 @@ export function resolveTargetState(targetRoute?: StarkStateConfigWithParams): Pr
  * @param targetRoute - Returned value of `resolveTargetRoute` method
  */
 export function resolveTargetStateParams(targetRoute?: StarkStateConfigWithParams): Promise<RawParams | undefined> {
-	return of(typeof targetRoute !== "undefined" ? targetRoute.paramValues : undefined).toPromise();
+	return Promise.resolve(typeof targetRoute !== "undefined" ? targetRoute.paramValues : undefined);
 }
 
 /**

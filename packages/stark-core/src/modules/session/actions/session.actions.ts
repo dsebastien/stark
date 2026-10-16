@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 import { StarkUser } from "../../user/entities";
 import { starkSessionStoreKey } from "../constants";
 
@@ -108,22 +108,17 @@ export const userActivityTrackingPause = createAction(`[${starkSessionStoreKey}]
  */
 export const userActivityTrackingResume = createAction(`[${starkSessionStoreKey}] User Activity Tracking Resume`);
 
-/**
- * @ignore
- */
-const all = union({
-	changeLanguage,
-	changeLanguageSuccess,
-	changeLanguageFailure,
-	initializeSession,
-	initializeSessionSuccess,
-	destroySession,
-	destroySessionSuccess,
-	sessionTimeoutCountdownStart,
-	sessionTimeoutCountdownStop,
-	sessionTimeoutCountdownFinish,
-	sessionLogout,
-	userActivityTrackingPause,
-	userActivityTrackingResume
-});
-export type Types = typeof all;
+export type Types =
+	| ReturnType<typeof changeLanguage>
+	| ReturnType<typeof changeLanguageSuccess>
+	| ReturnType<typeof changeLanguageFailure>
+	| ReturnType<typeof initializeSession>
+	| ReturnType<typeof initializeSessionSuccess>
+	| ReturnType<typeof destroySession>
+	| ReturnType<typeof destroySessionSuccess>
+	| ReturnType<typeof sessionTimeoutCountdownStart>
+	| ReturnType<typeof sessionTimeoutCountdownStop>
+	| ReturnType<typeof sessionTimeoutCountdownFinish>
+	| ReturnType<typeof sessionLogout>
+	| ReturnType<typeof userActivityTrackingPause>
+	| ReturnType<typeof userActivityTrackingResume>;

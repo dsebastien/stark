@@ -6,7 +6,7 @@ import { TranslateService } from "@ngx-translate/core";
 import { select, Store } from "@ngrx/store";
 import { StateObject } from "@uirouter/core";
 import { validateSync } from "class-validator";
-import { defer, Observable, Subject } from "rxjs";
+import { defer, firstValueFrom, Observable, Subject } from "rxjs";
 import { distinctUntilChanged, map, take } from "rxjs/operators";
 
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "../../logging/services";
@@ -147,8 +147,8 @@ export class StarkSessionServiceImpl implements StarkSessionService {
 				}
 			},
 			() =>
-				this.session$
-					.pipe(
+				firstValueFrom(
+					this.session$.pipe(
 						take(1),
 						map((session: StarkSession) => {
 							if (typeof session.user === "undefined") {
@@ -158,8 +158,9 @@ export class StarkSessionServiceImpl implements StarkSessionService {
 
 							return true;
 						})
-					)
-					.toPromise(),
+					),
+					{ defaultValue: undefined }
+				),
 			{ priority: 1000 } // very high priority (this hook should be the first one to be called to reject transitions immediately)
 		);
 	}
