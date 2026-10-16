@@ -1,5 +1,4 @@
 import { HttpClient, HttpErrorResponse, HttpRequest, HttpResponse } from "@angular/common/http";
-import { fakeAsync, tick } from "@angular/core/testing";
 import { Injector } from "@angular/core";
 import { Observable, of, Subject, throwError } from "rxjs";
 import { StarkHttpHeaders } from "../../http/constants";
@@ -7,11 +6,8 @@ import { StarkXSRFServiceImpl } from "./xsrf.service";
 import { StarkXSRFConfig } from "./xsrf-config.intf";
 import { StarkApplicationConfig, StarkApplicationConfigImpl } from "../../../configuration/entities";
 import { StarkBackend, StarkBackendAuthenticationTypes } from "../../http/entities";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
-import CallInfo = jasmine.CallInfo;
+import { MockStarkLoggingService, createMockObject, type VitestMockObject } from "@nationalbankbelgium/stark-core/testing";
+import { vi } from "vitest";
 
 // this type is necessary due to the overloads of the HttpClient.get, so this refines the type to the one we use in StarkHttpService
 type HttpClientGet = (...args: any[]) => Observable<HttpResponse<string>>;
@@ -20,11 +16,11 @@ describe("Service: StarkXSRFService", () => {
 	let xsrfService: StarkXSRFServiceHelper;
 	let appConfig: StarkApplicationConfig;
 	let mockDocument: Pick<Document, "cookie">;
-	let mockInjectorService: SpyObj<Injector>;
+	let mockInjectorService: VitestMockObject<Injector>;
 	let mockXsrfConfig: StarkXSRFConfig;
 
 	const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
-	const httpMock: SpyObj<HttpClient> = createSpyObj<HttpClient>("HttpClient", ["get"]);
+	const httpMock: VitestMockObject<HttpClient> = createMockObject<HttpClient>(["get"]);
 	const mockXSRFToken = "dummy xsrf token";
 	const dummyHeader = "X-DUMMY-HEADER";
 
@@ -45,45 +41,52 @@ describe("Service: StarkXSRFService", () => {
 		appConfig.backends.set(mockBackend2.name, mockBackend2);
 		appConfig.backends.set(mockBackend3.name, mockBackend3);
 		mockDocument = { cookie: "" };
-		mockInjectorService = jasmine.createSpyObj<Injector>("injector,", ["get"]);
+		mockInjectorService = createMockObject<Injector>(["get"]);
 		mockXsrfConfig = {};
 
-		mockLogger.error.calls.reset();
-		mockLogger.warn.calls.reset();
-		httpMock.get.calls.reset();
+		mockLogger.error.mockReset();
+		mockLogger.warn.mockReset();
+		httpMock.get.mockReset();
 
-		xsrfService = new StarkXSRFServiceHelper(appConfig, mockLogger, httpMock, <any>mockDocument, mockInjectorService, mockXsrfConfig);
+		xsrfService = new StarkXSRFServiceHelper(
+			appConfig,
+			mockLogger,
+			httpMock as unknown as HttpClient,
+			<any>mockDocument,
+			mockInjectorService as unknown as Injector,
+			mockXsrfConfig
+		);
 	});
 
 	describe("configureXHR", () => {
 		it("should add the necessary options to the XHR object in order to enable XSRF protection", () => {
-			spyOn(xsrfService, "getXSRFToken").and.returnValue(mockXSRFToken);
+			const getXSRFTokenSpy = vi.spyOn(xsrfService, "getXSRFToken").mockReturnValue(mockXSRFToken);
 
 			const mockXHR: XMLHttpRequest = new XMLHttpRequest();
 			mockXHR.open("GET", "some/url");
 
-			spyOn(mockXHR, "setRequestHeader");
+			const setRequestHeaderSpy = vi.spyOn(mockXHR, "setRequestHeader");
 
 			xsrfService.configureXHR(mockXHR);
 
-			expect(xsrfService.getXSRFToken).toHaveBeenCalledTimes(1);
-			expect(mockXHR.setRequestHeader).toHaveBeenCalledTimes(1);
-			expect(mockXHR.setRequestHeader).toHaveBeenCalledWith(StarkHttpHeaders.XSRF_TOKEN, mockXSRFToken);
+			expect(getXSRFTokenSpy).toHaveBeenCalledTimes(1);
+			expect(setRequestHeaderSpy).toHaveBeenCalledTimes(1);
+			expect(setRequestHeaderSpy).toHaveBeenCalledWith(StarkHttpHeaders.XSRF_TOKEN, mockXSRFToken);
 			expect(mockXHR.withCredentials).toBe(true);
 		});
 
 		it("should NOT add any options to the XHR object if the XSRF token is not yet stored", () => {
-			spyOn(xsrfService, "getXSRFToken").and.returnValue(undefined);
+			const getXSRFTokenSpy = vi.spyOn(xsrfService, "getXSRFToken").mockReturnValue(undefined);
 
 			const mockXHR: XMLHttpRequest = new XMLHttpRequest();
 			mockXHR.open("GET", "some/url");
 
-			spyOn(mockXHR, "setRequestHeader");
+			const setRequestHeaderSpy = vi.spyOn(mockXHR, "setRequestHeader");
 
 			xsrfService.configureXHR(mockXHR);
 
-			expect(xsrfService.getXSRFToken).toHaveBeenCalledTimes(1);
-			expect(mockXHR.setRequestHeader).not.toHaveBeenCalled();
+			expect(getXSRFTokenSpy).toHaveBeenCalledTimes(1);
+			expect(setRequestHeaderSpy).not.toHaveBeenCalled();
 			expect(mockXHR.withCredentials).toBe(false);
 		});
 
@@ -97,7 +100,7 @@ describe("Service: StarkXSRFService", () => {
 	// eslint-disable-next-line sonarjs/cognitive-complexity
 	describe("configureHttpRequest", () => {
 		it("should create a new Angular HttpRequest with the XSRF protection enabled if the HTTP method is POST, PUT, PATCH or DELETE", () => {
-			spyOn(xsrfService, "getXSRFToken").and.returnValue(mockXSRFToken);
+			const getXSRFTokenSpy = vi.spyOn(xsrfService, "getXSRFToken").mockReturnValue(mockXSRFToken);
 
 			const stateChangingMethods: string[] = ["POST", "PUT", "PATCH", "DELETE"];
 
@@ -106,7 +109,7 @@ describe("Service: StarkXSRFService", () => {
 			}
 
 			for (const stateChangingMethod of stateChangingMethods) {
-				(<Spy>xsrfService.getXSRFToken).calls.reset();
+				getXSRFTokenSpy.mockClear();
 
 				let mockHttpRequest: HttpRequest<any> = new HttpRequest<any>(<any>stateChangingMethod, "dummy/url");
 
@@ -116,7 +119,7 @@ describe("Service: StarkXSRFService", () => {
 
 				const protectedConfig: HttpRequest<any> = xsrfService.configureHttpRequest(mockHttpRequest);
 
-				expect(xsrfService.getXSRFToken).toHaveBeenCalledTimes(1);
+				expect(getXSRFTokenSpy).toHaveBeenCalledTimes(1);
 				expect(protectedConfig).not.toBe(mockHttpRequest);
 				expect(protectedConfig).not.toEqual(mockHttpRequest);
 				expect(protectedConfig.withCredentials).toBe(true);
@@ -130,18 +133,18 @@ describe("Service: StarkXSRFService", () => {
 		});
 
 		it("should leave the HttpRequest 'as is' if the XSRF token is not yet stored", () => {
-			spyOn(xsrfService, "getXSRFToken").and.returnValue(undefined);
+			const getXSRFTokenSpy = vi.spyOn(xsrfService, "getXSRFToken").mockReturnValue(undefined);
 
 			const stateChangingMethods: string[] = ["POST", "PUT", "PATCH", "DELETE"];
 
 			for (const stateChangingMethod of stateChangingMethods) {
-				(<Spy>xsrfService.getXSRFToken).calls.reset();
+				getXSRFTokenSpy.mockClear();
 
 				const mockHttpRequest: HttpRequest<any> = new HttpRequest<any>(<any>stateChangingMethod, "dummy/url");
 
 				const protectedRequest: HttpRequest<any> = xsrfService.configureHttpRequest(mockHttpRequest);
 
-				expect(xsrfService.getXSRFToken).toHaveBeenCalledTimes(1);
+				expect(getXSRFTokenSpy).toHaveBeenCalledTimes(1);
 				expect(protectedRequest).toEqual(mockHttpRequest.clone({ withCredentials: true }));
 				expect(protectedRequest.withCredentials).toBe(true);
 				expect(protectedRequest.headers.keys().length).toBe(0);
@@ -149,7 +152,7 @@ describe("Service: StarkXSRFService", () => {
 		});
 
 		it("should only add 'withCredentials: true' if the HTTP method is not POST, PUT, PATCH nor DELETE", () => {
-			spyOn(xsrfService, "getXSRFToken");
+			const getXSRFTokenSpy = vi.spyOn(xsrfService, "getXSRFToken");
 
 			const nonStateChangingMethods: string[] = ["GET", "HEAD", "CONNECT", "OPTIONS", "TRACE"];
 
@@ -166,7 +169,7 @@ describe("Service: StarkXSRFService", () => {
 
 				const protectedRequest: HttpRequest<any> = xsrfService.configureHttpRequest(mockHttpRequest);
 
-				expect(xsrfService.getXSRFToken).not.toHaveBeenCalled();
+				expect(getXSRFTokenSpy).not.toHaveBeenCalled();
 				expect(protectedRequest).toEqual(mockHttpRequest.clone({ withCredentials: true }));
 				expect(protectedRequest.withCredentials).toBe(true);
 
@@ -191,9 +194,9 @@ describe("Service: StarkXSRFService", () => {
 				xsrfService = new StarkXSRFServiceHelper(
 					appConfig,
 					mockLogger,
-					httpMock,
+					httpMock as unknown as HttpClient,
 					<any>mockDocument,
-					mockInjectorService,
+					mockInjectorService as unknown as Injector,
 					mockXsrfConfig
 				);
 			});
@@ -201,25 +204,25 @@ describe("Service: StarkXSRFService", () => {
 			it("should return the XSRF token in case there is one already stored in cookie", () => {
 				const expectedToken = "dummy xsrf cookie token";
 				xsrfService.setCurrentToken(mockXSRFToken);
-				spyOn(xsrfService, "getXSRFCookie").and.returnValue(expectedToken);
+				const getXSRFCookieSpy = vi.spyOn(xsrfService, "getXSRFCookie").mockReturnValue(expectedToken);
 
 				const xsrfToken: string = <string>xsrfService.getXSRFToken();
 
 				expect(xsrfToken).toBe(expectedToken);
-				expect(xsrfService.getXSRFCookie).toHaveBeenCalledTimes(1);
+				expect(getXSRFCookieSpy).toHaveBeenCalledTimes(1);
 				expect(mockLogger.warn).not.toHaveBeenCalled();
 			});
 
 			it("should return undefined and log a warning in case there is no XSRF token yet", () => {
 				xsrfService.setCurrentToken(mockXSRFToken);
-				spyOn(xsrfService, "getXSRFCookie").and.returnValue(undefined);
+				const getXSRFCookieSpy = vi.spyOn(xsrfService, "getXSRFCookie").mockReturnValue(undefined);
 
 				const xsrfToken: undefined = <undefined>xsrfService.getXSRFToken();
 
 				expect(xsrfToken).toBeUndefined();
-				expect(xsrfService.getXSRFCookie).toHaveBeenCalledTimes(1);
+				expect(getXSRFCookieSpy).toHaveBeenCalledTimes(1);
 				expect(mockLogger.warn).toHaveBeenCalledTimes(1);
-				const warningMessage: string = mockLogger.warn.calls.argsFor(0)[0];
+				const warningMessage: string = mockLogger.warn.mock.calls[0][0];
 				expect(warningMessage).toContain("no XSRF token found");
 			});
 		});
@@ -235,13 +238,13 @@ describe("Service: StarkXSRFService", () => {
 
 		it("should overwrite the XSRF cookie with the XSRF token that is already stored", () => {
 			xsrfService.setCurrentToken(mockXSRFToken);
-			spyOn(xsrfService, "setXSRFCookie").and.callThrough();
+			const setXSRFCookieSpy = vi.spyOn(xsrfService, "setXSRFCookie");
 
 			const xsrfToken: string = <string>xsrfService.getXSRFToken();
 
 			expect(xsrfToken).toBe(mockXSRFToken);
-			expect(xsrfService.setXSRFCookie).toHaveBeenCalledTimes(1);
-			expect(xsrfService.setXSRFCookie).toHaveBeenCalledWith(xsrfToken);
+			expect(setXSRFCookieSpy).toHaveBeenCalledTimes(1);
+			expect(setXSRFCookieSpy).toHaveBeenCalledWith(xsrfToken);
 			expect(mockDocument.cookie.length).toBeGreaterThan(0);
 			const cookieOptions: any[] = mockDocument.cookie.split(";");
 			expect(cookieOptions.length).toBe(3);
@@ -257,7 +260,7 @@ describe("Service: StarkXSRFService", () => {
 
 			expect(xsrfToken).toBeUndefined();
 			expect(mockLogger.warn).toHaveBeenCalledTimes(1);
-			const warningMessage: string = mockLogger.warn.calls.argsFor(0)[0];
+			const warningMessage: string = mockLogger.warn.mock.calls[0][0];
 			expect(warningMessage).toContain("no XSRF token found");
 		});
 	});
@@ -265,38 +268,39 @@ describe("Service: StarkXSRFService", () => {
 	describe("storeXSRFToken", () => {
 		it("should store the XSRF token coming in the XSRF cookie if it has not been stored yet", () => {
 			xsrfService.setCurrentToken(undefined);
-			spyOn(xsrfService, "getXSRFCookie").and.returnValue(mockXSRFToken);
+			const getXSRFCookieSpy = vi.spyOn(xsrfService, "getXSRFCookie").mockReturnValue(mockXSRFToken);
 
 			xsrfService.storeXSRFToken();
 
-			expect(xsrfService.getXSRFCookie).toHaveBeenCalledTimes(1);
+			expect(getXSRFCookieSpy).toHaveBeenCalledTimes(1);
 			expect(xsrfService.getCurrentToken()).toBe(mockXSRFToken);
 		});
 
 		it("should store an undefined value if it has not been stored yet and the XSRF cookie does not exist or it is empty", () => {
 			xsrfService.setCurrentToken(undefined);
-			spyOn(xsrfService, "getXSRFCookie").and.returnValues(undefined, "");
+			const getXSRFCookieSpy = vi.spyOn(xsrfService, "getXSRFCookie").mockReturnValueOnce(undefined).mockReturnValueOnce("");
 
 			xsrfService.storeXSRFToken();
 
-			expect(xsrfService.getXSRFCookie).toHaveBeenCalledTimes(1);
+			expect(getXSRFCookieSpy).toHaveBeenCalledTimes(1);
 			expect(xsrfService.getCurrentToken()).toBeUndefined();
 
-			(<Spy>xsrfService.getXSRFCookie).calls.reset();
+			getXSRFCookieSpy.mockReset();
+			getXSRFCookieSpy.mockReturnValue("");
 			xsrfService.storeXSRFToken();
 
-			expect(xsrfService.getXSRFCookie).toHaveBeenCalledTimes(1);
+			expect(getXSRFCookieSpy).toHaveBeenCalledTimes(1);
 			expect(xsrfService.getCurrentToken()).toBeUndefined();
 		});
 
 		it("should just overwrite the XSRF cookie with the XSRF token that is already stored", () => {
 			xsrfService.setCurrentToken(mockXSRFToken);
-			spyOn(xsrfService, "setXSRFCookie").and.callThrough();
+			const setXSRFCookieSpy = vi.spyOn(xsrfService, "setXSRFCookie");
 
 			xsrfService.storeXSRFToken();
 
-			expect(xsrfService.setXSRFCookie).toHaveBeenCalledTimes(1);
-			expect(xsrfService.setXSRFCookie).toHaveBeenCalledWith(<string>xsrfService.getCurrentToken());
+			expect(setXSRFCookieSpy).toHaveBeenCalledTimes(1);
+			expect(setXSRFCookieSpy).toHaveBeenCalledWith(<string>xsrfService.getCurrentToken());
 			expect(mockDocument.cookie.length).toBeGreaterThan(0);
 			const cookieOptions: any[] = mockDocument.cookie.split(";");
 			expect(cookieOptions.length).toBe(3);
@@ -313,81 +317,79 @@ describe("Service: StarkXSRFService", () => {
 			xsrfService = new StarkXSRFServiceHelper(
 				appConfig,
 				mockLogger,
-				httpMock,
+				httpMock as unknown as HttpClient,
 				<any>mockDocument,
-				mockInjectorService,
+				mockInjectorService as unknown as Injector,
 				mockXsrfConfig
 			);
 
 			xsrfService.setCurrentToken(mockXSRFToken);
-			spyOn(xsrfService, "setXSRFCookie").and.callThrough();
-			spyOn(xsrfService, "getXSRFCookie").and.callThrough();
+			const setXSRFCookieSpy = vi.spyOn(xsrfService, "setXSRFCookie");
+			const getXSRFCookieSpy = vi.spyOn(xsrfService, "getXSRFCookie");
 
 			xsrfService.storeXSRFToken();
 
-			expect(xsrfService.setXSRFCookie).not.toHaveBeenCalled();
-			expect(xsrfService.getXSRFCookie).not.toHaveBeenCalled();
+			expect(setXSRFCookieSpy).not.toHaveBeenCalled();
+			expect(getXSRFCookieSpy).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("pingBackends", () => {
-		it("should trigger an HTTP call to every backend defined in the application configuration", fakeAsync(() => {
-			httpMock.get.and.returnValue(of(new HttpResponse({ body: "ping OK" })));
+		it("should trigger an HTTP call to every backend defined in the application configuration", () => {
+			httpMock.get.mockReturnValue(of(new HttpResponse({ body: "ping OK" })));
 
 			xsrfService.pingBackends();
-			tick();
 
 			expect(httpMock.get).toHaveBeenCalledTimes(appConfig.backends.size);
-			const httpCalls: ReadonlyArray<CallInfo<HttpClientGet>> = httpMock.get.calls.all();
+			const httpCalls = httpMock.get.mock.calls;
 			let callIndex = 0;
 
 			appConfig.backends.forEach((backendConfig: StarkBackend) => {
-				expect(httpCalls[callIndex].args[0]).toBe(backendConfig.url);
-				expect(httpCalls[callIndex].args[1]).toEqual({ observe: "response", responseType: "text" });
+				expect(httpCalls[callIndex][0]).toBe(backendConfig.url);
+				expect(httpCalls[callIndex][1]).toEqual({ observe: "response", responseType: "text" });
 				callIndex++;
 			});
 
 			expect(mockLogger.error).not.toHaveBeenCalled();
-		}));
+		});
 
-		it("should log an error when the HTTP call to a backend failed", fakeAsync(() => {
+		it("should log an error when the HTTP call to a backend failed", () => {
 			const failingBackends: StarkBackend[] = [mockBackend1, mockBackend3];
 
-			(<Spy<HttpClientGet>>httpMock.get).and.callFake((url: string) => {
+			httpMock.get.mockImplementation(((url: string) => {
 				if (failingBackends.map((failingBackend: StarkBackend) => failingBackend.url).indexOf(url) !== -1) {
-					return throwError(new HttpErrorResponse({ error: "ping failed" }));
+					return throwError(() => new HttpErrorResponse({ error: "ping failed" }));
 				}
 
 				return of(new HttpResponse({ body: "ping OK" }));
-			});
+			}) as HttpClientGet);
 
 			xsrfService.pingBackends();
-			tick();
 
 			expect(httpMock.get).toHaveBeenCalledTimes(appConfig.backends.size);
-			const httpCalls: ReadonlyArray<CallInfo<HttpClientGet>> = httpMock.get.calls.all();
+			const httpCalls = httpMock.get.mock.calls;
 			let httpCallIdx = 0;
 
 			appConfig.backends.forEach((backendConfig: StarkBackend) => {
-				expect(httpCalls[httpCallIdx].args[0]).toBe(backendConfig.url);
-				expect(httpCalls[httpCallIdx].args[1]).toEqual({ observe: "response", responseType: "text" });
+				expect(httpCalls[httpCallIdx][0]).toBe(backendConfig.url);
+				expect(httpCalls[httpCallIdx][1]).toEqual({ observe: "response", responseType: "text" });
 				httpCallIdx++;
 			});
 
 			expect(mockLogger.error).toHaveBeenCalledTimes(failingBackends.length);
-			const logErrorCalls: ReadonlyArray<CallInfo<HttpClientGet>> = mockLogger.error.calls.all();
+			const logErrorCalls = mockLogger.error.mock.calls;
 			let logErrorCallIdx = 0;
 
 			for (const failingBackend of failingBackends) {
-				expect(logErrorCalls[logErrorCallIdx].args[0]).toContain(failingBackend.name);
+				expect(logErrorCalls[logErrorCallIdx][0]).toContain(failingBackend.name);
 				logErrorCallIdx++;
 			}
-		}));
+		});
 
 		it("should NOT trigger any HTTP call until the waitBeforePinging observable emits", () => {
-			httpMock.get.and.returnValue(of(new HttpResponse({ body: "ping OK" })));
+			httpMock.get.mockReturnValue(of(new HttpResponse({ body: "ping OK" })));
 			const mockWaitBeforePinging$: Subject<any> = new Subject<any>();
-			spyOn(xsrfService, "getWaitBeforePingingObs").and.returnValue(mockWaitBeforePinging$);
+			vi.spyOn(xsrfService, "getWaitBeforePingingObs").mockReturnValue(mockWaitBeforePinging$);
 
 			xsrfService.pingBackends();
 
@@ -404,12 +406,12 @@ describe("Service: StarkXSRFService", () => {
 		public constructor(
 			applicationConfig: StarkApplicationConfig,
 			logger: MockStarkLoggingService,
-			httpClient: SpyObj<HttpClient>,
+			httpClient: HttpClient,
 			document: Document,
 			injector: Injector,
 			config: StarkXSRFConfig
 		) {
-			super(applicationConfig, logger, <HttpClient>(<unknown>httpClient), document, injector, config);
+			super(applicationConfig, logger, httpClient, document, injector, config);
 		}
 
 		public override getXSRFCookie(): string | undefined {
