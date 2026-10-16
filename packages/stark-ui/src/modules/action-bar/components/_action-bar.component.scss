@@ -10,8 +10,33 @@
     flex-wrap: nowrap;
     justify-content: space-between;
     max-height: 40px;
-    overflow: hidden;
+    overflow: visible;
     transform-origin: bottom;
+
+    // Preserve the inline baseline shared by the small icons and optional captions.
+    .mat-mdc-icon-button.mat-mdc-button-base {
+      display: block;
+      align-items: normal;
+      justify-content: normal;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 40px;
+      padding: 0;
+
+      .mat-icon {
+        line-height: 24px;
+        margin-top: -2.5px;
+        vertical-align: middle;
+      }
+    }
+
+    .alt-actions > .mat-mdc-icon-button {
+      display: inline-block;
+    }
+
+    .action-label {
+      vertical-align: middle;
+    }
 
     &.extended {
       .stark-action-bar-action {
@@ -23,6 +48,31 @@
       display: flex;
       align-items: center;
       flex-wrap: wrap;
+    }
+
+    .stark-action-bar-action.mat-mdc-icon-button {
+      --mdc-icon-button-state-layer-size: 40px;
+      --mat-icon-button-state-layer-size: 40px;
+      --mat-icon-button-touch-target-size: 40px;
+
+      width: 40px;
+      height: 40px;
+
+      .mat-mdc-button-ripple {
+        overflow: visible;
+      }
+
+      &:hover {
+        .mat-mdc-button-persistent-ripple::before {
+          opacity: 0;
+        }
+      }
+    }
+
+    &.extended .stark-action-bar-action.mat-mdc-icon-button {
+      width: auto;
+      padding-right: 0;
+      padding-left: 0;
     }
 
     &.stark-action-bar-full {
@@ -56,9 +106,17 @@
     }
   }
 
-  .stark-action-bar-menu-item {
-    .stark-small-icon {
+  .mat-mdc-menu-item.stark-action-bar-menu-item {
+    .mat-icon.stark-small-icon {
+      height: 18px;
       margin-bottom: 4px;
+      width: 18px;
+
+      svg {
+        display: block;
+        height: 100%;
+        width: 100%;
+      }
     }
   }
 

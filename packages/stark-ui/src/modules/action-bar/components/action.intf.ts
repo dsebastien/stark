@@ -1,4 +1,5 @@
 export type StarkActionBarButtonColor = "primary" | "accent" | "warn" | "success" | "alert" | "alt" | "neutral" | "white";
+export type StarkActionCall = ($event: Event, scope: any) => void;
 
 /**
  * Stark Action Base interface
@@ -72,7 +73,7 @@ export interface StarkAction extends StarkActionBase {
 	/**
 	 * Function to be fired when action button is clicked
 	 */
-	actionCall: Function;
+	actionCall: StarkActionCall;
 
 	/**
 	 * Whether the action button should be enabled for user interaction or not
@@ -88,6 +89,7 @@ export interface StarkAction extends StarkActionBase {
 /**
  * Definition of a action bar's default action to be used in an Stark generic form
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Preserve this public action variant interface.
 export interface StarkDefaultPredefinedAction extends StarkActionBase {}
 
 /**
