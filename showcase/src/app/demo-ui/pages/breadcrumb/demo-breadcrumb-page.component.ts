@@ -6,6 +6,7 @@ import { ReferenceLink } from "../../../shared/components";
  * Demo Breadcrumb component page
  */
 @Component({
+	standalone: false,
 	selector: "demo-breadcrumb",
 	templateUrl: "./demo-breadcrumb-page.component.html"
 })
