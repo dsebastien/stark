@@ -1,5 +1,6 @@
-:host ::ng-deep {
-  .mat-form-field.expanded .mat-form-field-wrapper.stark-date-time-picker-form-field-wrapper {
+:host {
+  .mat-form-field-type-stark-date-time-picker.expanded,
+  .mat-mdc-form-field-type-stark-date-time-picker.expanded {
     margin-bottom: 25px;
   }
 }
