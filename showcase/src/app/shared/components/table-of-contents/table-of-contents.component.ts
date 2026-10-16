@@ -4,13 +4,13 @@ import { debounceTime, takeUntil } from "rxjs/operators";
 import { TableOfContentLink } from "./table-of-content-link.intf";
 
 @Component({
+	standalone: false,
 	// eslint-disable-next-line @angular-eslint/component-selector
 	selector: "table-of-contents",
 	templateUrl: "./table-of-contents.component.html"
 })
 /**
- * The table of contents component, freely inspired from:
- * @see https://github.com/angular/material.angular.io/tree/master/src/app/shared/table-of-contents
+ * The table of contents component, freely inspired by the Angular Material docs table of contents.
  */
 export class TableOfContentsComponent implements OnInit, AfterViewInit, OnDestroy {
 	public links: TableOfContentLink[] = [];

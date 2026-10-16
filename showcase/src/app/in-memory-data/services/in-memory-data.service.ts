@@ -5,8 +5,9 @@ import cloneDeep from "lodash-es/cloneDeep";
 // see https://github.com/angular/in-memory-web-api/issues/215
 import { InMemoryDbService, ParsedRequestUrl, RequestInfo, RequestInfoUtilities, ResponseOptions } from "angular-in-memory-web-api";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import mockData from "../../../../config/json-server/data.json";
 
-const mockData: object = require("../../../../config/json-server/data.json");
+const initialMockData: object = mockData;
 
 @Injectable()
 export class InMemoryDataService implements InMemoryDbService {
@@ -21,9 +22,9 @@ export class InMemoryDataService implements InMemoryDbService {
 	 * @returns The "database" object or an Observable of Promise that will return such object asynchronously
 	 * @see https://github.com/angular/in-memory-web-api#basic-setup
 	 */
-	public createDb(_reqInfo?: RequestInfo): {} | Observable<{}> | Promise<{}> {
+	public createDb(_reqInfo?: RequestInfo): object {
 		// replace the "uuid" field defined in the mock data by the "id" field expected by the in-memory-db
-		const normalizedMockData: object = cloneDeep(mockData); // avoid modifying the original mock data
+		const normalizedMockData: object = cloneDeep(initialMockData); // avoid modifying the original mock data
 		this.deepReplaceProperty(normalizedMockData, "uuid", "id");
 
 		// 	IMPORTANT: cannot mock "logging" and "logout" requests since they are performed via XHR and not via Angular

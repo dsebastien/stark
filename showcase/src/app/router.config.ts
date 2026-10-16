@@ -16,10 +16,6 @@ export function routerConfigFn(router: UIRouter): void {
 	if (ENV === "development") {
 		router.trace.enable(Category.TRANSITION);
 	}
-	// Enable UI-Router visualizer here if needed (for development purposes only)
-	// if (ENV === "development") {
-	// 	router.plugin(Visualizer);  // Visualizer should be imported from "@uirouter/visualizer"
-	// }
 }
 
 /* eslint-disable-next-line jsdoc/require-jsdoc */

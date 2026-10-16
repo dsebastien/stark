@@ -47,10 +47,12 @@
   }
 }
 
-.stark-app-bar-content-right-actions-alt .mat-icon-button.github-icon {
-  .mat-button-wrapper {
-    padding: 0;
-  }
+.stark-app-bar-content-right-center {
+  min-height: 65px;
+}
+
+.stark-app-bar-content-right-actions-alt .github-icon {
+  padding: 0;
 
   mat-icon {
     height: 40px;

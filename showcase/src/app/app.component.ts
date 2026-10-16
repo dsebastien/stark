@@ -23,7 +23,7 @@ import { STARK_APP_SIDEBAR_SERVICE, StarkAppSidebarService, StarkMenuConfig } fr
 import { Transition } from "@uirouter/angular";
 import { StateObject } from "@uirouter/core";
 import { filter } from "rxjs/operators";
-import * as moment from "moment";
+import moment from "moment";
 import { APP_MENU_CONFIG } from "./app-menu.config";
 
 /**
@@ -31,6 +31,7 @@ import { APP_MENU_CONFIG } from "./app-menu.config";
  * Top Level Component
  */
 @Component({
+	standalone: false,
 	selector: "app-showcase",
 	templateUrl: "./app.component.html"
 })

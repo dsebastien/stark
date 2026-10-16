@@ -291,16 +291,18 @@ export const APP_MENU_CONFIG: StarkMenuConfig = {
 			label: "Stark Core",
 			menuGroups: [
 				{
-					id: "test-1",
+					id: "menu-stark-core-getting-started",
 					label: "Getting started",
 					isVisible: true,
-					isEnabled: true
+					isEnabled: true,
+					targetState: "welcome.getting-started"
 				},
 				{
-					id: "test-1",
+					id: "menu-stark-core-ui-components",
 					label: "UI Components",
 					isVisible: true,
-					isEnabled: true
+					isEnabled: true,
+					targetState: "demo-ui.action-bar"
 				}
 			]
 		},

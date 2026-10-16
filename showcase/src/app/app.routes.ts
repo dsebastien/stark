@@ -5,7 +5,10 @@ export const APP_STATES: Ng2StateDeclaration[] = [
 	{
 		name: "app",
 		url: "/",
-		component: AppComponent
+		component: AppComponent,
+		data: {
+			translationKey: "SHOWCASE.HOMEPAGE.TITLE"
+		}
 	},
 	{
 		name: "welcome.**",

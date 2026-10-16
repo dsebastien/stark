@@ -1,5 +1,6 @@
 @use "sass:map";
 @use "@angular/material" as mat;
+@use "@angular/material/core/m2" as mat-m2;
 @use "@nationalbankbelgium/stark-ui" as stark-ui;
 
 example-viewer {
@@ -14,25 +15,25 @@ example-viewer {
       }
     }
 
-    .mat-tab-body-wrapper {
+    .mat-mdc-tab-body-wrapper {
       border-bottom: 1px solid #555;
     }
   }
 
-  .mat-tab-header {
-    background-color: mat.get-color-from-palette(mat.$light-theme-background-palette, card);
+  .mat-mdc-tab-header {
+    background-color: mat.m2-get-color-from-palette(mat-m2.$light-theme-background-palette, card);
   }
 
-  .mat-tab-body {
+  .mat-mdc-tab-body {
     background-color: stark-ui.$custom-dark-background;
   }
 
   .example-source {
-    border-bottom: 1px solid mat.get-color-from-palette(mat.$light-theme-background-palette, divider);
+    border-bottom: 1px solid mat.m2-get-color-from-palette(mat-m2.$light-theme-background-palette, divider);
     overflow-x: scroll;
 
     code {
-      font-family: mat.font-family(stark-ui.$typography-config);
+      font-family: mat.m2-font-family(stark-ui.$typography-config);
       font-size: 15px;
       line-height: 24px;
     }

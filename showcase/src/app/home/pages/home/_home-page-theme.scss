@@ -3,29 +3,29 @@
 
 .mat-icon {
   &.core-image {
-    color: mat.get-color-from-palette(stark-ui.$accent-palette, 500);
+    color: mat.m2-get-color-from-palette(stark-ui.$accent-palette, 500);
   }
 
   &.about-image {
-    color: mat.get-color-from-palette(stark-ui.$primary-palette, 500);
+    color: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 500);
   }
 
   &.ui-image {
-    color: mat.get-color-from-palette(stark-ui.$success-palette, 500);
+    color: mat.m2-get-color-from-palette(stark-ui.$success-palette, 500);
   }
 
   &.rbac-image {
-    color: mat.get-color-from-palette(stark-ui.$alert-palette, 500);
+    color: mat.m2-get-color-from-palette(stark-ui.$alert-palette, 500);
   }
 
   &.showcase-image {
-    color: mat.get-color-from-palette(stark-ui.$warning-palette, 900);
+    color: mat.m2-get-color-from-palette(stark-ui.$warning-palette, 900);
   }
 }
 
 .custom-homepage-button {
-  color: mat.get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
-  background-color: mat.get-color-from-palette(stark-ui.$primary-palette, 700);
+  color: mat.m2-get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
+  background-color: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 700);
   box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.26);
 }
 

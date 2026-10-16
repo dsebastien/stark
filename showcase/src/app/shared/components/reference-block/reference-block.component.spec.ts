@@ -1,4 +1,5 @@
-import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { DebugElement, NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
 import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
@@ -7,6 +8,13 @@ import { TranslateModule } from "@ngx-translate/core";
 import { ReferenceBlockComponent } from "./reference-block.component";
 import { ReferenceLink } from "./reference-link.intf";
 import { By } from "@angular/platform-browser";
+
+@NgModule({
+	declarations: [ReferenceBlockComponent],
+	imports: [CommonModule, TranslateModule],
+	schemas: [NO_ERRORS_SCHEMA]
+})
+class ReferenceBlockTestModule {}
 
 describe("ReferenceBlockComponent", () => {
 	let component: ReferenceBlockComponent;
@@ -28,10 +36,8 @@ describe("ReferenceBlockComponent", () => {
 
 	beforeEach(waitForAsync(() => {
 		return TestBed.configureTestingModule({
-			declarations: [ReferenceBlockComponent],
-			imports: [TranslateModule.forRoot()],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }],
-			schemas: [NO_ERRORS_SCHEMA] // tells the Angular compiler to ignore unrecognized elements and attributes: mat-icon
+			imports: [TranslateModule.forRoot(), ReferenceBlockTestModule],
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
 		}).compileComponents();
 	}));
 
