@@ -7,7 +7,6 @@
   "dest": "../../dist/packages/stark-ui",
   "deleteDestPath": true,
   "assets": [
-    "ngcc.config.js",
     "./assets",
     "**/assets/**/*.json",
     "**/assets/**/*.d.ts",
@@ -24,13 +23,10 @@
     "@sqltools/formatter",
     "@types/lodash-es",
     "@types/prismjs",
-    "angular2-text-mask",
     "normalize.css",
     "nouislider",
     "prettier",
     "pretty-data",
-    "prismjs",
-    "text-mask-addons",
-    "text-mask-core"
+    "prismjs"
   ]
 }
