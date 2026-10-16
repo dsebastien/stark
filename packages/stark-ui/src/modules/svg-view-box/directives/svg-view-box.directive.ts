@@ -17,11 +17,12 @@ export const STARK_DEFAULT_VIEW_BOX_SIZE = 24;
  * Specially useful to fix the issue with the Angular Material's MatIcon directive which prevents the icons from
  * being re-sized via CSS due to the 'viewBox' property not being added to the SVG element.
  *
- *  - {@link https://github.com/angular/material2/issues/4422|Angular Material issue #4422}
+ *  - {@link https://github.com/angular/components/issues/4422|Angular Material issue #4422}
  *
- *  - {@link https://github.com/angular/material2/issues/5488|Angular Material issue #5488}
+ *  - {@link https://github.com/angular/components/issues/5488|Angular Material issue #5488}
  */
 @Directive({
+	standalone: false,
 	selector: directiveName
 })
 export class StarkSvgViewBoxDirective implements AfterViewChecked, OnInit {
@@ -30,7 +31,7 @@ export class StarkSvgViewBoxDirective implements AfterViewChecked, OnInit {
 	 */
 	/* eslint-disable @angular-eslint/no-input-rename */
 	@Input("starkSvgViewBox")
-	private viewBoxSize: number = STARK_DEFAULT_VIEW_BOX_SIZE;
+	public viewBoxSize: number = STARK_DEFAULT_VIEW_BOX_SIZE;
 
 	/**
 	 * SVG element to which the viewBox attribute should be added.
