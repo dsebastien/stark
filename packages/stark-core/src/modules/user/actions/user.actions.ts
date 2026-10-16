@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 import { StarkUser } from "../entities";
 import { StarkHttpErrorWrapper } from "../../http/entities/error";
 
@@ -53,15 +53,10 @@ export const getAllUsersSuccess = createAction(`[${starkUserStoreKey}] Get All U
  */
 export const getAllUsersFailure = createAction(`[${starkUserStoreKey}] Get All Users Failure`, props<{ message: string }>());
 
-/**
- * @ignore
- */
-const all = union({
-	fetchUserProfile,
-	fetchUserProfileSuccess,
-	fetchUserProfileFailure,
-	getAllUsers,
-	getAllUsersSuccess,
-	getAllUsersFailure
-});
-export type Types = typeof all;
+export type Types =
+	| ReturnType<typeof fetchUserProfile>
+	| ReturnType<typeof fetchUserProfileSuccess>
+	| ReturnType<typeof fetchUserProfileFailure>
+	| ReturnType<typeof getAllUsers>
+	| ReturnType<typeof getAllUsersSuccess>
+	| ReturnType<typeof getAllUsersFailure>;
