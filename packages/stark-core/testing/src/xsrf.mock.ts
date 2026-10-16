@@ -1,34 +1,32 @@
 import { StarkXSRFService } from "@nationalbankbelgium/stark-core";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkXSRFService} interface.
  */
-export class MockStarkXsrfService implements SpyObj<StarkXSRFService> {
+export class MockStarkXsrfService {
 	/**
 	 * See [StarkXSRFService configureHttpRequest()]{@link StarkXSRFService#configureHttpRequest} method
 	 */
-	public configureHttpRequest: Spy<StarkXSRFService["configureHttpRequest"]> = createSpy("configureHttpRequest");
+	public configureHttpRequest = vi.fn<StarkXSRFService["configureHttpRequest"]>();
 
 	/**
 	 * See [StarkXSRFService configureXHR()]{@link StarkXSRFService#configureXHR} method
 	 */
-	public configureXHR: Spy<StarkXSRFService["configureXHR"]> = createSpy("configureXHR");
+	public configureXHR = vi.fn<StarkXSRFService["configureXHR"]>();
 
 	/**
 	 * See [StarkXSRFService getXSRFToken(]{@link StarkXSRFService#getXSRFToken} method
 	 */
-	public getXSRFToken: Spy<StarkXSRFService["getXSRFToken"]> = createSpy("getXSRFToken");
+	public getXSRFToken = vi.fn<StarkXSRFService["getXSRFToken"]>();
 
 	/**
 	 * See [StarkXSRFService pingBackends()]{@link StarkXSRFService#pingBackends} method
 	 */
-	public pingBackends: Spy<StarkXSRFService["pingBackends"]> = createSpy("pingBackends");
+	public pingBackends = vi.fn<StarkXSRFService["pingBackends"]>();
 
 	/**
 	 * See [StarkXSRFService storeXSRFToken()]{@link StarkXSRFService#storeXSRFToken} method
 	 */
-	public storeXSRFToken: Spy<StarkXSRFService["storeXSRFToken"]> = createSpy("storeXSRFToken");
+	public storeXSRFToken = vi.fn<StarkXSRFService["storeXSRFToken"]>();
 }

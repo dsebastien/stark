@@ -1,12 +1,10 @@
 import { StarkSessionService } from "@nationalbankbelgium/stark-core";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkSessionService} interface.
  */
-export class MockStarkSessionService implements SpyObj<StarkSessionService> {
+export class MockStarkSessionService {
 	/**
 	 * See [StarkSessionService devAuthenticationHeaders]{@link StarkSessionService#devAuthenticationHeaders} property
 	 */
@@ -15,42 +13,42 @@ export class MockStarkSessionService implements SpyObj<StarkSessionService> {
 	/**
 	 * See [StarkSessionService getCurrentUser()]{@link StarkSessionService#getCurrentUser} method
 	 */
-	public getCurrentUser: Spy<StarkSessionService["getCurrentUser"]> = createSpy("getCurrentUser");
+	public getCurrentUser = vi.fn<StarkSessionService["getCurrentUser"]>();
 
 	/**
 	 * See [StarkSessionService getCurrentLanguage()]{@link StarkSessionService#getCurrentLanguage} method
 	 */
-	public getCurrentLanguage: Spy<StarkSessionService["getCurrentLanguage"]> = createSpy("getCurrentLanguage");
+	public getCurrentLanguage = vi.fn<StarkSessionService["getCurrentLanguage"]>();
 
 	/**
 	 * See [StarkSessionService setCurrentLanguage()]{@link StarkSessionService#setCurrentLanguage} method
 	 */
-	public setCurrentLanguage: Spy<StarkSessionService["setCurrentLanguage"]> = createSpy("setCurrentLanguage");
+	public setCurrentLanguage = vi.fn<StarkSessionService["setCurrentLanguage"]>();
 
 	/**
 	 * See [StarkSessionService login()]{@link StarkSessionService#login} method
 	 */
-	public login: Spy<StarkSessionService["login"]> = createSpy("login");
+	public login = vi.fn<StarkSessionService["login"]>();
 
 	/**
 	 * See [StarkSessionService logout()]{@link StarkSessionService#logout} method
 	 */
-	public logout: Spy<StarkSessionService["logout"]> = createSpy("logout");
+	public logout = vi.fn<StarkSessionService["logout"]>();
 
 	/**
 	 * See [StarkSessionService pauseUserActivityTracking()]{@link StarkSessionService#pauseUserActivityTracking} method
 	 */
-	public pauseUserActivityTracking: Spy<StarkSessionService["pauseUserActivityTracking"]> = createSpy("pauseUserActivityTracking");
+	public pauseUserActivityTracking = vi.fn<StarkSessionService["pauseUserActivityTracking"]>();
 
 	/**
 	 * See [StarkSessionService resumeUserActivityTracking()]{@link StarkSessionService#resumeUserActivityTracking} method
 	 */
-	public resumeUserActivityTracking: Spy<StarkSessionService["resumeUserActivityTracking"]> = createSpy("resumeUserActivityTracking");
+	public resumeUserActivityTracking = vi.fn<StarkSessionService["resumeUserActivityTracking"]>();
 
 	/**
 	 * See [StarkSessionService setDevAuthenticationHeaders()]{@link StarkSessionService#setDevAuthenticationHeaders} method
 	 */
-	public setDevAuthenticationHeaders: Spy<StarkSessionService["setDevAuthenticationHeaders"]> = createSpy("setDevAuthenticationHeaders");
+	public setDevAuthenticationHeaders = vi.fn<StarkSessionService["setDevAuthenticationHeaders"]>();
 
 	/**
 	 * Creates a new mock instance.
