@@ -4,8 +4,8 @@
 	</a>
 </p>
 
-> An Angular 6+ based front-end framework built on top of [Angular](https://angular.io)...
-> Stark features an awesome reusable build using [Webpack](https://webpack.js.org/) and built-in support for state of the art front-end tech
+> An Angular 22-based front-end framework built on top of [Angular](https://angular.dev/)...
+> Stark features a reusable build aligned with Angular's native build tooling and built-in support for state of the art front-end tech
 
 [![NPM version](https://img.shields.io/npm/v/@nationalbankbelgium/stark-core.svg?logo=npm&logoColor=fff&label=npm+package&color=limegreen)](https://www.npmjs.com/package/@nationalbankbelgium/stark-core)
 [![npm](https://img.shields.io/npm/dm/@nationalbankbelgium/stark-core.svg?logo=npm)](https://www.npmjs.com/package/@nationalbankbelgium/stark-core)
@@ -18,11 +18,10 @@
 [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square&logo=prettier)](https://github.com/prettier/prettier)
 [![License](https://img.shields.io/npm/l/@nationalbankbelgium/stark-core)](LICENSE)
 [![Dependabot Status](https://api.dependabot.com/badges/status?host=github&repo=NationalBankBelgium/stark)](https://dependabot.com)
-[![BrowserStack Status](https://automate.browserstack.com/badge.svg?badge_key=Tm5SaUZSU2IyN3NRMUJubytEUFdrZUNSRTg1RUhoNjJSbHNFdDJGbUZ0az0tLUtza3NYT3JVdGJoNVJ1Y2Ywa3NUY2c9PQ==--f293e37574a75b6a4f37428b1ff6978c55760aa7)](https://automate.browserstack.com/public-build/Tm5SaUZSU2IyN3NRMUJubytEUFdrZUNSRTg1RUhoNjJSbHNFdDJGbUZ0az0tLUtza3NYT3JVdGJoNVJ1Y2Ywa3NUY2c9PQ==--f293e37574a75b6a4f37428b1ff6978c55760aa7)
 
 Stark provides main building blocks for accelerating front-end development:
 
-- a solid reusable build based on Webpack
+- a solid reusable build aligned with Angular's native build tooling
 - a [starter](/starter) project inspired by [Angular Starter](https://github.com/gdi2290/angular-starter) by [AngularClass](https://angularclass.com) and Google's [Web Starter Kit](https://github.com/google/web-starter-kit)
 - [core modules](https://stark.nbb.be/api-docs/stark-core/latest/) providing reusable APIs (e.g., reactive client for RESTful APIs based on [NBB's RESTful API Design Guide](https://github.com/NationalBankBelgium/REST-API-Design-Guide/wiki), routing, logging, log shipping, ...)
 - [UI modules](https://stark.nbb.be/api-docs/stark-ui/latest/) providing reusable UI components (e.g., data table, message pane, ...) and themes
@@ -37,46 +36,36 @@ Stark modules are like LEGO blocks: add what you need, no less, no more. If you 
 
 Stark's reusable build integrates support for:
 
-- Angular optimizations: [AOT](https://angular.io/docs/ts/latest/cookbook/aot-compiler.html), lazy loading with [UI-Router](https://github.com/angular-ui/ui-router)
-- [TypeScript](https://www.typescriptlang.org/), [@types](https://www.npmjs.com/~types), [TSLint](http://palantir.github.io/tslint/), [Codelyzer](https://github.com/mgechev/codelyzer)
+- Angular optimizations: AOT compilation and lazy loading with [UI-Router](https://github.com/angular-ui/ui-router)
+- [TypeScript](https://www.typescriptlang.org/), [ESLint](https://eslint.org/), and [Angular ESLint](https://angular-eslint.io/)
 - Code formatting with [Prettier](https://prettier.io/)
-- HTML templating with [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin)
+- HTML templating and generated head metadata for Stark applications
 - [PostCSS](http://postcss.org/) with CSSNext, nesting, prefixing, ...
-- [Code splitting](https://robertknight.github.io/posts/webpack-dll-plugins/)
-- [Tree shaking](https://webpack.js.org/guides/tree-shaking/) to automatically remove unused code from your production bundle
-- [Hot Module Replacement](https://webpack.github.io/docs/hot-module-replacement-with-webpack.html) with [@angularclass/hmr](https://github.com/angularclass/angular-hmr) and [@angularclass/hmr-loader](https://github.com/angularclass/angular-hmr-loader)
+- Code splitting
+- Tree shaking to automatically remove unused code from your production bundle
+- Hot Module Replacement through Angular's dev-server support
 - Minification & uglification
 - Cache busting with file hashes
-- [Tests](https://angular.io/docs/ts/latest/guide/testing.html): [E2E](https://angular.github.io/protractor/#/faq#what-s-the-difference-between-karma-and-protractor-when-do-i-use-which-), [Karma](https://karma-runner.github.io/), [Protractor](https://angular.github.io/protractor/), [Jasmine](https://github.com/jasmine/jasmine), with source maps support, possibility to execute subsets of the tests, ...
+- [Tests](https://angular.dev/guide/testing): unit tests with [Vitest](https://vitest.dev/) on Angular's native unit-test builder, with source maps support and the possibility to execute subsets of the tests, ...
 - Tests code coverage with [Istanbul](https://github.com/gotwarlost/istanbul)
 - Environments definition (development | production)
 - Assets copying
 - Security with a DEV mode [Content Security Policy (CSP)](https://content-security-policy.com/) enabled
 - Local testing with fake back-ends using [json-server](https://github.com/typicode/json-server)
-- Router visualization with [UI-Router Visualizer](https://github.com/ui-router/visualizer)
 
 ## Stark packaging
 
-All the Stark packages are built following the [Angular Package Format](https://docs.google.com/document/d/1CZC2rcpxffTDfRDs6p1cfbmKNLA6x5O-NtkJglDaBVs/preview) so the following bundles are provided:
-
-- FESM2015
-- FESM5
-- ESM2015
-- ESM5
-- UMD
-
-So they can be consumed by [Angular CLI](https://github.com/angular/angular-cli), [Webpack](https://github.com/webpack/webpack) or [SystemJS](https://github.com/systemjs/systemjs).
+All Stark libraries follow the current [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). Published packages provide ESM2022/FESM2022 code, typings, explicit package exports, and Sass entry points where applicable. They are intended for Angular CLI and other modern ESM-aware build tools.
 
 ## Developer guide
 
-- [Stark-Build](docs/stark-build/NG_CLI_BUILD_CUSTOMIZATIONS.md)
+- [Migration from Stark 12 to Stark 13](docs/MIGRATION_GUIDE_STARK_13.md)
 - [Stark-Core](https://stark.nbb.be/api-docs/stark-core/latest/additional-documentation/getting-started.html)
 - [Stark-UI](https://stark.nbb.be/api-docs/stark-ui/latest/additional-documentation/getting-started.html)
 
 ## Stark monorepo documentation
 
 - [Common errors during development](docs/COMMON_DEV_ERRORS.md)
-- [End-to-End Testing](docs/E2E_TESTING.md)
 - [Polyfills](docs/POLYFILLS.md)
 - [Prettier](docs/PRETTIER.md)
 - [TSConfig files structure](docs/TSCONFIG.md)
@@ -149,9 +138,3 @@ We're supported by [Jetbrains](https://www.jetbrains.com) and their awesome [sup
 We're supported by [GitHub Actions](https://github.com/features/actions)
 
 <a href="https://github.com/features/actions"><img src="https://github.githubassets.com/images/modules/site/features/actions-icon-actions.svg" width="144px"></a>
-
-### BrowserStack
-
-We're supported by [BrowserStack](https://www.browserstack.com)
-
-<a href="https://www.browserstack.com"><img src="http://www.browserstack.com/images/layout/browserstack-logo-600x315.png" width="144px"></a>
