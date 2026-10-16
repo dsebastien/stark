@@ -5,13 +5,15 @@
   "overrides": [
     {
       "files": ["*.ts"],
-      "plugins": ["eslint-plugin-sonarjs"],
-      "extends": ["plugin:sonarjs/recommended"]
+      "extends": ["@nationalbankbelgium/eslint-config/sonarjs"]
     },
     {
       "files": ["*.ts"],
       "excludedFiles": ["*.spec.ts"],
       "rules": {
+        "@angular-eslint/prefer-inject": "off",
+        "@angular-eslint/prefer-standalone": "off",
+        "@angular-eslint/template/prefer-control-flow": "off",
         "@angular-eslint/component-selector": [
           "error",
           {
@@ -28,6 +30,12 @@
             "type": "attribute"
           }
         ]
+      }
+    },
+    {
+      "files": ["*.html"],
+      "rules": {
+        "@angular-eslint/template/prefer-control-flow": "off"
       }
     }
   ]
