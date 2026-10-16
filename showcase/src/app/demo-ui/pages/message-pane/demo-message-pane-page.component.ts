@@ -10,6 +10,7 @@ import { ReferenceLink } from "../../../shared/components";
 import uniqueId from "lodash-es/uniqueId";
 
 @Component({
+	standalone: false,
 	selector: "demo-message-pane",
 	templateUrl: "./demo-message-pane-page.component.html"
 })

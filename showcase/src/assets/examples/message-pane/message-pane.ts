@@ -8,6 +8,7 @@ import {
 import uniqueId from "lodash-es/uniqueId";
 
 @Component({
+	standalone: false,
 	selector: "demo-message-pane",
 	templateUrl: "./demo-message-pane.component.html"
 })
