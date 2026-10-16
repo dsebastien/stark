@@ -1,16 +1,16 @@
 /**
  * Configuration for head elements added during the creation of index.html.
  *
- * All href attributes are added the publicPath (if exists) by default.
- * You can explicitly hint to prefix a publicPath by setting a boolean value to a key that has
+ * All href attributes are prefixed with the generated base URL (if any) by default.
+ * You can explicitly hint to prefix the generated base URL by setting a boolean value to a key that has
  * the same name as the attribute you want to operate on, but prefix with =
  *
  * Example:
  * { name: 'msapplication-TileImage', content: '/assets/icon/ms-icon-144x144.png', '=content': true },
- * Will prefix the publicPath to content.
+ * Will prefix the generated base URL to content.
  *
  * { rel: 'apple-touch-icon', sizes: '57x57', href: '/assets/icon/apple-icon-57x57.png', '=href': false },
- * Will not prefix the publicPath on href (href attributes are added by default
+ * Will not prefix the generated base URL on href (href attributes are added by default)
  *
  * @link https://github.com/gdi2290/angular-starter/blob/master/config/head-config.common.js
  *
@@ -40,11 +40,11 @@ module.exports = {
 		{ name: "msapplication-tap-highlight", content: "no" },
 		// Fallback to homescreen for Chrome <39 on Android
 		{ name: "mobile-web-app-capable", content: "yes" },
-		{ name: "application-name", content: "Stark Starter" },
+		{ name: "application-name", content: "<%= starkOptions.starkAppMetadata.name %>" },
 		// Add to homescreen for Safari on iOS
 		{ name: "apple-mobile-web-app-capable", content: "yes" },
 		{ name: "apple-mobile-web-app-status-bar-style", content: "black" },
-		{ name: "apple-mobile-web-app-title", content: "template" },
+		{ name: "apple-mobile-web-app-title", content: "<%= starkOptions.starkAppMetadata.name %>" },
 		// Reference: https://msdn.microsoft.com/library/dn320426(v=vs.85).aspx
 		{ name: "msapplication-config", content: "none" },
 		{ name: "HandheldFriendly", content: "true" },
@@ -52,7 +52,7 @@ module.exports = {
 		// You can customize the default
 		{ name: "theme-color", content: "#0076c8" },
 		{ name: "msapplication-TileColor", content: "#0076c8" },
-		// ` "=content": true ` tells html-element-webpack-plugin to prepend the public path to `content`
+		// ` "=content": true ` tells the Stark index generator to prepend the generated base URL to `content`
 		{ name: "msapplication-TileImage", content: "assets/images/app-icons/ms-icon-144x144.png", "=content": true }
 	]
 };

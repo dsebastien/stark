@@ -1,6 +1,6 @@
 let fs = require("fs");
 let path = require("path");
-let cp = require("child_process");
+let crypto = require("crypto");
 
 const filesToChange = [/index.html/, /\.css$/, /\.js$/, /\.js\.map$/];
 
@@ -11,18 +11,15 @@ if (process.argv.length <= 2) {
 
 let deployDir = "/showcase/" + process.argv[2];
 
-let baseHrefPlaceholder = "<stark-dummy-base-href>";
-let deployUrlPlaceholder = "<stark-dummy-deploy-url>";
+let baseHrefPlaceholder = "https://stark-dummy-base-href.invalid/";
+let deployUrlPlaceholder = "https://stark-dummy-deploy-url.invalid/";
 
 let urlWithTrailingSlash = deployDir.endsWith("/") ? deployDir : deployDir + "/";
 let urlWithoutTrailingSlash = deployDir.endsWith("/") ? deployDir.substring(0, deployDir.length - 1) : deployDir;
 
 let replacements = [
-	{ searchValue: `/${baseHrefPlaceholder}/${deployUrlPlaceholder}/`, replaceValue: urlWithTrailingSlash },
-	{ searchValue: `"${baseHrefPlaceholder}/`, replaceValue: `"${urlWithTrailingSlash}` },
-	{ searchValue: `"${baseHrefPlaceholder}"`, replaceValue: `"${urlWithTrailingSlash}"` },
-	{ searchValue: `"${deployUrlPlaceholder}/`, replaceValue: `"${urlWithTrailingSlash}` },
-	{ searchValue: `${deployUrlPlaceholder}`, replaceValue: urlWithTrailingSlash }, // these should also have a trailing slash, otherwise the URL of lazy loaded modules will be created incorrectly!
+	{ searchValue: baseHrefPlaceholder, replaceValue: urlWithTrailingSlash },
+	{ searchValue: deployUrlPlaceholder, replaceValue: urlWithTrailingSlash }, // these should also have a trailing slash, otherwise the URL of lazy loaded modules will be created incorrectly!
 	{ searchValue: `url(/assets/`, replaceValue: `url(${urlWithTrailingSlash}assets/` }
 ];
 
@@ -60,11 +57,16 @@ try {
 		}
 	}
 
-	const runtimeFilePath = outputDir + path.sep + items.find((item) => item.match(/runtime.*\.js/));
-	replaceValuesInFile(runtimeFilePath, shasum384Replacements);
+	const runtimeFileName = items.find((item) => item.match(/runtime.*\.js/));
+	if (runtimeFileName) {
+		const runtimeFilePath = outputDir + path.sep + runtimeFileName;
+		replaceValuesInFile(runtimeFilePath, shasum384Replacements);
 
-	const runtimeIndex = shasum384Replacements.findIndex((replacement) => replacement.filePath.match(runtimeFilePath));
-	shasum384Replacements[runtimeIndex].replaceValue = calculateShasum384(runtimeFilePath);
+		const runtimeReplacement = shasum384Replacements.find((replacement) => replacement.filePath === runtimeFilePath);
+		if (runtimeReplacement) {
+			runtimeReplacement.replaceValue = calculateShasum384(runtimeFilePath);
+		}
+	}
 
 	replaceValuesInFile(outputDir + path.sep + "index.html", shasum384Replacements);
 } catch (err) {
@@ -101,9 +103,7 @@ function replaceValuesInFile(fileName, valueReplacements) {
 }
 
 function calculateShasum384(filePath) {
-	return `sha384-${cp
-		.spawnSync(`shasum -a 384 ${filePath} | awk '{print $1}' | xxd -r -p | base64`, { shell: true })
-		.stdout.slice(0, -1)}`;
+	return `sha384-${crypto.createHash("sha384").update(fs.readFileSync(filePath)).digest("base64")}`;
 }
 
 function escapeStringRegexp(string) {
