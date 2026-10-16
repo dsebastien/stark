@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-collapsible",
 	styleUrls: ["./demo-collapsible-page.component.scss"],
 	templateUrl: "./demo-collapsible-page.component.html"
