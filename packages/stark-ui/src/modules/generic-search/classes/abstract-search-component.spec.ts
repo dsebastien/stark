@@ -1,50 +1,79 @@
 /* eslint-disable @angular-eslint/no-lifecycle-call */
-import { Observable, Observer, of, Subject, Subscriber, TeardownLogic, throwError } from "rxjs";
-import { AbstractStarkSearchComponent, StarkGenericSearchService } from "../classes";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkResource } from "@nationalbankbelgium/stark-core";
 import { UntypedFormGroup } from "@angular/forms";
+import { StarkResource } from "@nationalbankbelgium/stark-core";
+import { StarkProgressIndicatorService } from "@nationalbankbelgium/stark-ui/src/modules/progress-indicator";
+import { Observable, Observer, of, Subject, Subscriber, TeardownLogic, throwError } from "rxjs";
+import { vi } from "vitest";
+import { AbstractStarkSearchComponent, StarkGenericSearchService } from "../classes";
 import { StarkSearchState } from "../entities";
-import { MockStarkProgressIndicatorService } from "@nationalbankbelgium/stark-ui/testing";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
-import createSpyObj = jasmine.createSpyObj;
+
+type GenericSearchServiceMock = {
+	getSearchState: ReturnType<typeof vi.fn>;
+	resetSearchState: ReturnType<typeof vi.fn>;
+	createNew: ReturnType<typeof vi.fn>;
+	search: ReturnType<typeof vi.fn>;
+};
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn>;
+	error: ReturnType<typeof vi.fn>;
+	warn: ReturnType<typeof vi.fn>;
+};
+
+type ProgressIndicatorServiceMock = {
+	show: ReturnType<typeof vi.fn>;
+	hide: ReturnType<typeof vi.fn>;
+};
+
+type ObserverSpy<T> = {
+	observer: Observer<T>;
+	next: ReturnType<typeof vi.fn>;
+	error: ReturnType<typeof vi.fn>;
+	complete: ReturnType<typeof vi.fn>;
+};
 
 describe("AbstractSearchComponent", () => {
 	let component: SearchComponentHelper;
-	let genericSearchService: SpyObj<StarkGenericSearchService<MockResource, SearchCriteria>>;
-	let mockLogger: MockStarkLoggingService;
-
-	let mockProgressService: MockStarkProgressIndicatorService;
-
+	let genericSearchService: GenericSearchServiceMock;
+	let logger: LoggingServiceMock;
+	let progressService: ProgressIndicatorServiceMock;
 	let originalSearchCriteria: SearchCriteria;
-	let getSearchStateObsTeardown: Spy;
-	let searchObsTeardown: Spy;
-	let mockObserver: SpyObj<Observer<any>>;
+	let getSearchStateObsTeardown: TeardownSpy;
+	let searchObsTeardown: TeardownSpy;
+	let mockObserver: ObserverSpy<MockResource[]>;
 
 	beforeEach(() => {
-		genericSearchService = createSpyObj("genericSearchService", ["getSearchState", "resetSearchState", "createNew", "search"]);
-		mockLogger = new MockStarkLoggingService();
+		genericSearchService = {
+			getSearchState: vi.fn(),
+			resetSearchState: vi.fn(),
+			createNew: vi.fn(),
+			search: vi.fn()
+		};
+		logger = createLoggerMock();
+		progressService = createProgressIndicatorServiceMock();
 
-		mockProgressService = new MockStarkProgressIndicatorService();
+		component = new SearchComponentHelper(
+			genericSearchService as unknown as StarkGenericSearchService<MockResource, SearchCriteria>,
+			logger as any,
+			progressService as unknown as StarkProgressIndicatorService
+		);
 
-		component = new SearchComponentHelper(genericSearchService, mockLogger, mockProgressService);
-		getSearchStateObsTeardown = createSpy("getSearchStateObsTeardown");
-		searchObsTeardown = createSpy("searchObsTeardown");
+		getSearchStateObsTeardown = createTeardownSpy();
+		searchObsTeardown = createTeardownSpy();
 		originalSearchCriteria = { uuid: "3" };
-		genericSearchService.getSearchState.and.returnValue(
+		genericSearchService.getSearchState.mockReturnValue(
 			createObservableOf<StarkSearchState<SearchCriteria>>(
 				{
 					criteria: originalSearchCriteria,
 					hasBeenSearched: false
 				},
-				getSearchStateObsTeardown
+				getSearchStateObsTeardown.callback
 			)
 		);
 
-		mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+		mockObserver = createObserverSpy<MockResource[]>();
 	});
+
 	describe("ngOnInit", () => {
 		it("should clone the searchCriteria as originalCopy and search again if hasBeenSearched is TRUE", () => {
 			const expectedResult: MockResource[] = [
@@ -52,8 +81,8 @@ describe("AbstractSearchComponent", () => {
 				{ uuid: "2", name: "second" }
 			];
 
-			genericSearchService.search.and.returnValue(of(expectedResult));
-			genericSearchService.getSearchState.and.returnValue(
+			genericSearchService.search.mockReturnValue(of(expectedResult));
+			genericSearchService.getSearchState.mockReturnValue(
 				of({
 					criteria: originalSearchCriteria,
 					hasBeenSearched: true
@@ -62,7 +91,7 @@ describe("AbstractSearchComponent", () => {
 
 			component.ngOnInit();
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockObserver.next).toHaveBeenCalledWith(expectedResult);
 			expect(mockObserver.error).not.toHaveBeenCalled();
@@ -75,7 +104,7 @@ describe("AbstractSearchComponent", () => {
 		});
 
 		it("should set the searchCriteria as original copy and DON'T search if hasBeenSearched is FALSE", () => {
-			genericSearchService.getSearchState.and.returnValue(
+			genericSearchService.getSearchState.mockReturnValue(
 				of({
 					criteria: originalSearchCriteria,
 					hasBeenSearched: false
@@ -84,7 +113,7 @@ describe("AbstractSearchComponent", () => {
 
 			component.ngOnInit();
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockObserver.next).toHaveBeenCalledWith([]);
 			expect(mockObserver.error).not.toHaveBeenCalled();
@@ -97,12 +126,12 @@ describe("AbstractSearchComponent", () => {
 		});
 
 		it("should subscribe for changes of the search state and set it as original copy whenever a change is triggered", () => {
-			const searchState$: Subject<StarkSearchState<SearchCriteria>> = new Subject();
+			const searchState$ = new Subject<StarkSearchState<SearchCriteria>>();
 			const mockCriteria1: SearchCriteria = { uuid: "dummy uuid" };
 			const mockCriteria2: SearchCriteria = { uuid: "another uuid" };
 
-			genericSearchService.search.and.returnValue(of(<any>"dummy search result"));
-			genericSearchService.getSearchState.and.returnValue(searchState$.asObservable());
+			genericSearchService.search.mockReturnValue(of(<any>"dummy search result"));
+			genericSearchService.getSearchState.mockReturnValue(searchState$.asObservable());
 
 			component.ngOnInit();
 
@@ -116,7 +145,7 @@ describe("AbstractSearchComponent", () => {
 			expect(component.getWorkingCopy()).toEqual(mockCriteria1);
 			expect(component.getOriginalCopy()).not.toBe(component.getWorkingCopy());
 
-			mockObserver.next.calls.reset();
+			mockObserver.next.mockClear();
 			searchState$.next({
 				criteria: mockCriteria2,
 				hasBeenSearched: true
@@ -134,20 +163,20 @@ describe("AbstractSearchComponent", () => {
 
 	describe("ngOnDestroy", () => {
 		it("should cancel the subscription of the searchState", () => {
-			genericSearchService.getSearchState.and.returnValue(
+			genericSearchService.getSearchState.mockReturnValue(
 				createObservableOf<StarkSearchState<SearchCriteria>>(
 					{
 						criteria: originalSearchCriteria,
 						hasBeenSearched: false
 					},
-					getSearchStateObsTeardown
+					getSearchStateObsTeardown.callback
 				)
 			);
 
 			component.ngOnInit();
 			component.ngOnDestroy();
 
-			expect(getSearchStateObsTeardown).toHaveBeenCalledTimes(1);
+			expect(getSearchStateObsTeardown.spy).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -157,13 +186,13 @@ describe("AbstractSearchComponent", () => {
 				controls: {},
 				invalid: false
 			};
+			const performSearchSpy = vi.spyOn(component, "performSearch").mockImplementation(() => undefined);
 
-			spyOn(component, "performSearch");
 			component.ngOnInit();
 			component.onSearch(formMock);
 
-			expect(component.performSearch).toHaveBeenCalledTimes(1);
-			expect(component.performSearch).toHaveBeenCalledWith(component.getWorkingCopy());
+			expect(performSearchSpy).toHaveBeenCalledTimes(1);
+			expect(performSearchSpy).toHaveBeenCalledWith(component.getWorkingCopy());
 		});
 
 		it("should NOT call performSearch() if the form NOT valid", () => {
@@ -171,12 +200,12 @@ describe("AbstractSearchComponent", () => {
 				controls: {},
 				invalid: true
 			};
+			const performSearchSpy = vi.spyOn(component, "performSearch");
 
-			spyOn(component, "performSearch");
 			component.ngOnInit();
 			component.onSearch(formMock);
 
-			expect(component.performSearch).not.toHaveBeenCalled();
+			expect(performSearchSpy).not.toHaveBeenCalled();
 		});
 	});
 
@@ -195,7 +224,7 @@ describe("AbstractSearchComponent", () => {
 			component.ngOnInit();
 			component.onReset(formMock);
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockObserver.next).toHaveBeenCalledWith([]);
@@ -212,18 +241,18 @@ describe("AbstractSearchComponent", () => {
 				{ uuid: "1", name: "first" },
 				{ uuid: "2", name: "second" }
 			];
-			genericSearchService.search.and.returnValue(createObservableOf<MockResource[]>(expectedResult, searchObsTeardown));
+			genericSearchService.search.mockReturnValue(createObservableOf<MockResource[]>(expectedResult, searchObsTeardown.callback));
 
 			component.ngOnInit();
 			component.performSearch();
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockObserver.next).toHaveBeenCalledWith(expectedResult);
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			expect(searchObsTeardown).toHaveBeenCalledTimes(1);
+			expect(searchObsTeardown.spy).toHaveBeenCalledTimes(1);
 			expect(genericSearchService.search).toHaveBeenCalledTimes(1);
 			expect(genericSearchService.search).toHaveBeenCalledWith(component.getWorkingCopy());
 		});
@@ -234,52 +263,50 @@ describe("AbstractSearchComponent", () => {
 				{ uuid: "2", name: "second" }
 			];
 			const customCriteria: SearchCriteria = { uuid: "11" };
-			genericSearchService.search.and.returnValue(createObservableOf<MockResource[]>(expectedResult, searchObsTeardown));
+			genericSearchService.search.mockReturnValue(createObservableOf<MockResource[]>(expectedResult, searchObsTeardown.callback));
 
 			component.ngOnInit();
 			component.performSearch(customCriteria);
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockObserver.next).toHaveBeenCalledWith(expectedResult);
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			expect(searchObsTeardown).toHaveBeenCalledTimes(1);
+			expect(searchObsTeardown.spy).toHaveBeenCalledTimes(1);
 			expect(genericSearchService.search).toHaveBeenCalledTimes(1);
 			expect(genericSearchService.search).toHaveBeenCalledWith(customCriteria);
 		});
 
 		it("should call genericSearchService.search() ONLY ONCE if no previous search has been made regardless of searchState changes", () => {
-			const searchState$: Subject<StarkSearchState<SearchCriteria>> = new Subject();
+			const searchState$ = new Subject<StarkSearchState<SearchCriteria>>();
 			const pristineCriteria: SearchCriteria = { uuid: "" };
-
 			const expectedResult: MockResource[] = [
 				{ uuid: "1", name: "first" },
 				{ uuid: "2", name: "second" }
 			];
 			const customCriteria: SearchCriteria = { uuid: "11" };
-			genericSearchService.search.and.returnValue(createObservableOf<MockResource[]>(expectedResult, searchObsTeardown));
-			genericSearchService.getSearchState.and.returnValue(searchState$);
+
+			genericSearchService.search.mockReturnValue(createObservableOf<MockResource[]>(expectedResult, searchObsTeardown.callback));
+			genericSearchService.getSearchState.mockReturnValue(searchState$.asObservable());
 
 			component.ngOnInit();
 
-			// initial search state => hasBeenSearched = false
 			searchState$.next({
 				criteria: pristineCriteria,
 				hasBeenSearched: false
 			});
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockObserver.next).toHaveBeenCalledWith([]); // initial value
+			expect(mockObserver.next).toHaveBeenCalledWith([]);
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
 			expect(genericSearchService.search).not.toHaveBeenCalled();
-			mockObserver.next.calls.reset();
+			mockObserver.next.mockClear();
 
-			// perform first manual search
 			component.performSearch(customCriteria);
 
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
@@ -287,13 +314,12 @@ describe("AbstractSearchComponent", () => {
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			expect(searchObsTeardown).toHaveBeenCalledTimes(1);
+			expect(searchObsTeardown.spy).toHaveBeenCalledTimes(1);
 			expect(genericSearchService.search).toHaveBeenCalledTimes(1);
 			expect(genericSearchService.search).toHaveBeenCalledWith(customCriteria);
 
-			genericSearchService.search.calls.reset();
+			genericSearchService.search.mockClear();
 
-			// simulating searchState change due to first manual search => hasBeenSearched = true
 			searchState$.next({
 				criteria: customCriteria,
 				hasBeenSearched: true
@@ -307,7 +333,7 @@ describe("AbstractSearchComponent", () => {
 				{ uuid: "1", name: "first" },
 				{ uuid: "2", name: "second" }
 			];
-			genericSearchService.search.and.returnValue(of(expectedResult));
+			genericSearchService.search.mockReturnValue(of(expectedResult));
 
 			const dummyTopic = "dummyTopic";
 			component.setProgressTopic(dummyTopic);
@@ -315,20 +341,20 @@ describe("AbstractSearchComponent", () => {
 			component.ngOnInit();
 			component.performSearch();
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockObserver.next).toHaveBeenCalledWith(expectedResult);
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			expect(mockProgressService.show).toHaveBeenCalledTimes(1);
-			expect(mockProgressService.show).toHaveBeenCalledWith(dummyTopic);
-			expect(mockProgressService.hide).toHaveBeenCalledTimes(1);
-			expect(mockProgressService.hide).toHaveBeenCalledWith(dummyTopic);
+			expect(progressService.show).toHaveBeenCalledTimes(1);
+			expect(progressService.show).toHaveBeenCalledWith(dummyTopic);
+			expect(progressService.hide).toHaveBeenCalledTimes(1);
+			expect(progressService.hide).toHaveBeenCalledWith(dummyTopic);
 		});
 
 		it("should call progressService show/hide methods passing the progressTopic defined before and after performing a failing search", () => {
-			genericSearchService.search.and.returnValue(throwError("search failed"));
+			genericSearchService.search.mockReturnValue(throwError(() => "search failed"));
 
 			const dummyTopic = "dummyTopic";
 			component.setProgressTopic(dummyTopic);
@@ -338,10 +364,10 @@ describe("AbstractSearchComponent", () => {
 
 			component.getResults().subscribe();
 
-			expect(mockProgressService.show).toHaveBeenCalledTimes(1);
-			expect(mockProgressService.show).toHaveBeenCalledWith(dummyTopic);
-			expect(mockProgressService.hide).toHaveBeenCalledTimes(1);
-			expect(mockProgressService.hide).toHaveBeenCalledWith(dummyTopic);
+			expect(progressService.show).toHaveBeenCalledTimes(1);
+			expect(progressService.show).toHaveBeenCalledWith(dummyTopic);
+			expect(progressService.hide).toHaveBeenCalledTimes(1);
+			expect(progressService.hide).toHaveBeenCalledWith(dummyTopic);
 		});
 
 		it("should NOT call progressService show/hide methods before and after performing the search in case no progressTopic is defined", () => {
@@ -349,20 +375,20 @@ describe("AbstractSearchComponent", () => {
 				{ uuid: "1", name: "first" },
 				{ uuid: "2", name: "second" }
 			];
-			genericSearchService.search.and.returnValue(of(expectedResult));
+			genericSearchService.search.mockReturnValue(of(expectedResult));
 
 			component.setProgressTopic("");
 			component.ngOnInit();
 			component.performSearch();
 
-			component.getResults().subscribe(mockObserver);
+			component.getResults().subscribe(mockObserver.observer);
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockObserver.next).toHaveBeenCalledWith(expectedResult);
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			expect(mockProgressService.show).not.toHaveBeenCalled();
-			expect(mockProgressService.hide).not.toHaveBeenCalled();
+			expect(progressService.show).not.toHaveBeenCalled();
+			expect(progressService.hide).not.toHaveBeenCalled();
 		});
 	});
 
@@ -379,7 +405,7 @@ describe("AbstractSearchComponent", () => {
 				{ uuid: "1", name: "first" },
 				{ uuid: "2", name: "second" }
 			];
-			genericSearchService.search.and.returnValue(of(expectedResult));
+			genericSearchService.search.mockReturnValue(of(expectedResult));
 
 			component.enablePreserveLatestResults(true);
 			component.ngOnInit();
@@ -393,13 +419,13 @@ describe("AbstractSearchComponent", () => {
 				{ uuid: "1", name: "first" },
 				{ uuid: "2", name: "second" }
 			];
-			genericSearchService.search.and.returnValue(of(expectedResult));
+			genericSearchService.search.mockReturnValue(of(expectedResult));
 
 			component.enablePreserveLatestResults(false);
 			component.ngOnInit();
 			component.performSearch();
 
-			expect(component.latestResults).toBe(<any>undefined);
+			expect(component.latestResults).toBeUndefined();
 		});
 	});
 });
@@ -419,24 +445,77 @@ function createObservableOf<T>(value: T, teardown: TeardownLogic): Observable<T>
 	});
 }
 
+function createLoggerMock(): LoggingServiceMock {
+	return {
+		debug: vi.fn(),
+		error: vi.fn(),
+		warn: vi.fn()
+	};
+}
+
+function createProgressIndicatorServiceMock(): ProgressIndicatorServiceMock {
+	return {
+		show: vi.fn(),
+		hide: vi.fn()
+	};
+}
+
+interface TeardownSpy {
+	callback: TeardownLogic;
+	spy: ReturnType<typeof vi.fn>;
+}
+
+function createObserverSpy<T>(): ObserverSpy<T> {
+	const next = vi.fn((value: T) => value);
+	const error = vi.fn((err: unknown) => err);
+	const complete = vi.fn();
+
+	return {
+		observer: {
+			next: (value: T): void => {
+				next(value);
+			},
+			error: (err: unknown): void => {
+				error(err);
+			},
+			complete: (): void => {
+				complete();
+			}
+		},
+		next,
+		error,
+		complete
+	};
+}
+
+function createTeardownSpy(): TeardownSpy {
+	const spy = vi.fn();
+	return {
+		callback: (): void => {
+			spy();
+		},
+		spy
+	};
+}
+
 class SearchComponentHelper extends AbstractStarkSearchComponent<MockResource, SearchCriteria> {
 	public enablePreserveLatestResults(value: boolean): void {
 		this.preserveLatestResults = value;
 	}
 
-	public getWorkingCopy(): MockResource {
+	public getWorkingCopy(): SearchCriteria {
 		return this.workingCopy;
 	}
 
-	public getOriginalCopy(): MockResource {
+	public getOriginalCopy(): SearchCriteria {
 		return this.originalCopy;
 	}
 
-	public setWorkingCopy(workingCopy: MockResource): void {
+	public setWorkingCopy(workingCopy: SearchCriteria): void {
 		this.workingCopy = workingCopy;
 	}
 
-	public updateOriginalCopy(originalCopy: MockResource): void {
+	public updateOriginalCopy(originalCopy: SearchCriteria): void {
 		this.originalCopy = originalCopy;
 	}
 

@@ -24,8 +24,7 @@ const defaultProgressIndicatorConfig: StarkProgressIndicatorConfig = {
 /**
  * Abstract class defining the common properties and methods for the Search Page using the {@link StarkGenericSearchComponent}.
  */
-@Directive({})
-// eslint-disable-next-line @angular-eslint/directive-class-suffix
+@Directive({ standalone: false })
 export abstract class AbstractStarkSearchComponent<SearchResultsType, CriteriaType>
 	extends AbstractStarkFormComponent<CriteriaType>
 	implements OnInit, OnDestroy

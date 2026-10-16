@@ -116,6 +116,7 @@ const formAnimations: AnimationTriggerMetadata = trigger("collapse", [
  * </stark-generic-search>
  */
 @Component({
+	standalone: false,
 	selector: "stark-generic-search",
 	templateUrl: "./generic-search.component.html",
 	animations: [formAnimations],
@@ -287,7 +288,7 @@ export class StarkGenericSearchComponent extends AbstractStarkUiComponent implem
 	 * Set a default value for each property of each button if there is no value defined
 	 * @param config - Form buttons configuration
 	 */
-	// eslint-disable-next-line sonarjs/cognitive-complexity
+
 	public normalizeFormButtonsConfig(config?: StarkGenericSearchFormButtonsConfig): StarkGenericSearchFormButtonsConfigRequired {
 		config = config || {};
 
@@ -330,7 +331,7 @@ export class StarkGenericSearchComponent extends AbstractStarkUiComponent implem
 				icon: "",
 				label: "STARK.ICONS.SEARCH",
 				isEnabled: true,
-				className: "mat-raised-button",
+				className: "mat-mdc-raised-button",
 				buttonColor: "primary"
 			},
 			new: {
@@ -338,7 +339,7 @@ export class StarkGenericSearchComponent extends AbstractStarkUiComponent implem
 				label: "STARK.ICONS.NEW_ITEM",
 				isEnabled: true,
 				isVisible: true,
-				className: "mat-stroked-button",
+				className: "mat-mdc-outlined-button",
 				buttonColor: "primary"
 			},
 			reset: {
@@ -346,7 +347,7 @@ export class StarkGenericSearchComponent extends AbstractStarkUiComponent implem
 				label: "STARK.ICONS.RESET",
 				isEnabled: true,
 				isVisible: true,
-				className: "mat-stroked-button",
+				className: "mat-mdc-outlined-button",
 				buttonColor: "primary"
 			},
 			custom: []
@@ -376,7 +377,7 @@ export class StarkGenericSearchComponent extends AbstractStarkUiComponent implem
 	 * Set a default value for each property of each action if there is no value defined
 	 * @param config - Form action bar configuration
 	 */
-	// eslint-disable-next-line sonarjs/cognitive-complexity
+
 	public normalizeFormActionBarConfig(config?: StarkGenericSearchActionBarConfig): StarkGenericSearchActionBarConfigRequired {
 		config = config || { actions: [] };
 
@@ -493,12 +494,12 @@ export class StarkGenericSearchComponent extends AbstractStarkUiComponent implem
 			}
 		};
 
-		const predefinedResetAction: StarkCustomizablePredefinedAction = <StarkCustomizablePredefinedAction>searchFormActionBarConfig.reset;
+		const predefinedResetAction: StarkCustomizablePredefinedAction = searchFormActionBarConfig.reset;
 		const actionReset: StarkAction = {
 			label: <string>predefinedResetAction.label,
 			icon: <string>predefinedResetAction.icon,
 			isEnabled: <boolean>predefinedResetAction.isEnabled,
-			isVisible: <boolean>predefinedResetAction.isVisible,
+			isVisible: predefinedResetAction.isVisible,
 			iconActivated: predefinedResetAction.iconActivated,
 			iconSwitchFunction: predefinedResetAction.iconSwitchFunction,
 			className: predefinedResetAction.className,
@@ -510,12 +511,12 @@ export class StarkGenericSearchComponent extends AbstractStarkUiComponent implem
 			}
 		};
 
-		const predefinedNewAction: StarkCustomizablePredefinedAction = <StarkCustomizablePredefinedAction>searchFormActionBarConfig.new;
+		const predefinedNewAction: StarkCustomizablePredefinedAction = searchFormActionBarConfig.new;
 		const actionNew: StarkAction = {
 			label: <string>predefinedNewAction.label,
 			icon: <string>predefinedNewAction.icon,
 			isEnabled: <boolean>predefinedNewAction.isEnabled,
-			isVisible: <boolean>predefinedNewAction.isVisible,
+			isVisible: predefinedNewAction.isVisible,
 			iconActivated: predefinedNewAction.iconActivated,
 			iconSwitchFunction: predefinedNewAction.iconSwitchFunction,
 			className: predefinedNewAction.className,

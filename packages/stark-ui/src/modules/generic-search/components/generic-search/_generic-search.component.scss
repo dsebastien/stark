@@ -1,8 +1,14 @@
 @use "../../../../../styles/media-queries" as *;
+@use "@angular/material" as mat;
 $button-spacing: 10px;
 
 @mixin stark-generic-search() {
   .stark-generic-search {
+    // Keep native focus scrolling inside the compact form toolbar.
+    .stark-action-bar:not(.extended) {
+      overflow: hidden;
+    }
+
     > form {
       overflow: hidden;
       box-sizing: border-box;
@@ -16,11 +22,30 @@ $button-spacing: 10px;
       margin: -$button-spacing;
 
       button {
+        // Preserve the content-sized legacy buttons and flex row stretching.
+        display: inline-block;
+        height: auto;
         margin: $button-spacing;
         width: calc(100% - #{$button-spacing} * 2);
 
         font-size: 20px;
         line-height: 48px;
+
+        .mdc-button__label > * {
+          vertical-align: middle;
+        }
+
+        &.mat-mdc-raised-button {
+          @include mat.button-overrides(
+            (
+              protected-state-layer-color: var(--mat-button-protected-container-color)
+            )
+          );
+        }
+
+        &.mat-mdc-raised-button:is(:hover, :focus):not(:active) {
+          @include mat.elevation(2);
+        }
       }
 
       @media #{$tablet-query} {

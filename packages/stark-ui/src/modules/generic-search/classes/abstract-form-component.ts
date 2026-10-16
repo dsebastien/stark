@@ -7,8 +7,7 @@ import { Directive } from "@angular/core";
  * Abstract class defining the source model to bind to form components in Stark (i.e. {@link AbstractStarkSearchComponent})
  * as well as methods to manipulate it.
  */
-@Directive({})
-// eslint-disable-next-line @angular-eslint/directive-class-suffix
+@Directive({ standalone: false })
 export abstract class AbstractStarkFormComponent<CriteriaType> {
 	/**
 	 * The form's original copy (the initial model when the form is pristine)
