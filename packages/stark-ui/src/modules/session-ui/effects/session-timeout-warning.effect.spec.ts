@@ -1,52 +1,80 @@
-import { Observable, Observer, ReplaySubject, Subject } from "rxjs";
+import { Observable, ReplaySubject, Subject } from "rxjs";
 import { TestBed, waitForAsync } from "@angular/core/testing";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { provideMockActions } from "@ngrx/effects/testing";
 import { EffectNotification } from "@ngrx/effects";
-import {
-	MatLegacyDialog as MatDialog,
-	MatLegacyDialogModule as MatDialogModule,
-	MatLegacyDialogRef as MatDialogRef
-} from "@angular/material/legacy-dialog";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
+import { MatDialog, MatDialogModule, MatDialogRef } from "@angular/material/dialog";
+import { MatButtonModule } from "@angular/material/button";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { STARK_SESSION_SERVICE, StarkSessionActions, StarkSessionService } from "@nationalbankbelgium/stark-core";
-import { MockStarkSessionService } from "@nationalbankbelgium/stark-core/testing";
 import { StarkSessionTimeoutWarningDialogComponent } from "../components/session-timeout-warning-dialog/session-timeout-warning-dialog.component";
 import { StarkSessionTimeoutWarningDialogEffects } from "../effects";
 import { STARK_SESSION_UI_CONFIG, StarkSessionUiConfig } from "../entities";
-import createSpyObj = jasmine.createSpyObj;
-import SpyObj = jasmine.SpyObj;
-import Spy = jasmine.Spy;
+import { vi } from "vitest";
+
+type ObserverSpy = {
+	next: ReturnType<typeof vi.fn<(value: unknown) => void>>;
+	error: ReturnType<typeof vi.fn<(error: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type SessionServiceMock = {
+	pauseUserActivityTracking: ReturnType<typeof vi.fn<() => void>>;
+	resumeUserActivityTracking: ReturnType<typeof vi.fn<() => void>>;
+};
+
+type MatDialogMock = {
+	open: ReturnType<
+		typeof vi.fn<(component: unknown, config?: unknown) => MatDialogRef<StarkSessionTimeoutWarningDialogComponent, string>>
+	>;
+	close: ReturnType<typeof vi.fn>;
+	closeAll: ReturnType<typeof vi.fn>;
+};
+
+const createObserverSpy = (): ObserverSpy => ({
+	next: vi.fn<(value: unknown) => void>(),
+	error: vi.fn<(error: unknown) => void>(),
+	complete: vi.fn<() => void>()
+});
+
+const createSessionServiceMock = (): SessionServiceMock => ({
+	pauseUserActivityTracking: vi.fn(),
+	resumeUserActivityTracking: vi.fn()
+});
+
+const createDialogMock = (): MatDialogMock => ({
+	open: vi.fn<(component: unknown, config?: unknown) => MatDialogRef<StarkSessionTimeoutWarningDialogComponent, string>>(),
+	close: vi.fn(),
+	closeAll: vi.fn()
+});
 
 describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 	let effectsClass: StarkSessionTimeoutWarningDialogEffects;
-	let mockSessionService: StarkSessionService;
-	let mockDialogService: SpyObj<MatDialog>;
+	let mockSessionService: SessionServiceMock;
+	let mockDialogService: MatDialogMock;
 	let mockSessionUiConfig: StarkSessionUiConfig;
 	let actions: Observable<any>;
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
+	beforeEach(waitForAsync(() => {
+		mockSessionService = createSessionServiceMock();
+		mockDialogService = createDialogMock();
+		mockSessionUiConfig = new StarkSessionUiConfig();
+
+		return TestBed.configureTestingModule({
 			imports: [NoopAnimationsModule, MatDialogModule, TranslateModule.forRoot(), MatButtonModule],
 			providers: [
 				StarkSessionTimeoutWarningDialogEffects,
 				provideMockActions(() => actions),
 				TranslateService,
-				{
-					provide: MatDialog,
-					useValue: createSpyObj("MatDialogSpy", ["open", "close", "closeAll"])
-				},
-				{ provide: StarkSessionTimeoutWarningDialogComponent, useValue: StarkSessionTimeoutWarningDialogComponent },
-				{ provide: STARK_SESSION_SERVICE, useFactory: (): MockStarkSessionService => new MockStarkSessionService() },
-				{ provide: STARK_SESSION_UI_CONFIG, useValue: new StarkSessionUiConfig() }
+				{ provide: MatDialog, useValue: mockDialogService as unknown as MatDialog },
+				{ provide: STARK_SESSION_SERVICE, useValue: mockSessionService as unknown as StarkSessionService },
+				{ provide: STARK_SESSION_UI_CONFIG, useValue: mockSessionUiConfig }
 			]
-		}).compileComponents()));
+		}).compileComponents();
+	}));
 
 	beforeEach(() => {
 		effectsClass = TestBed.inject(StarkSessionTimeoutWarningDialogEffects);
-		mockSessionService = TestBed.inject(STARK_SESSION_SERVICE);
-		mockDialogService = <SpyObj<MatDialog>>TestBed.inject(MatDialog);
 		mockSessionUiConfig = TestBed.inject(STARK_SESSION_UI_CONFIG);
 	});
 
@@ -64,17 +92,19 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 			const afterClosedResult = "keep-logged";
 			const afterClosed$: Subject<string> = new Subject();
 
-			(<Spy<(...args: any[]) => Partial<MatDialogRef<StarkSessionTimeoutWarningDialogComponent, string>>>>(
-				mockDialogService.open
-			)).and.returnValue({
+			mockDialogService.open.mockReturnValue({
 				afterClosed: (): Subject<string> => afterClosed$
-			});
+			} as unknown as MatDialogRef<StarkSessionTimeoutWarningDialogComponent, string>);
 
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockObserver: ObserverSpy = createObserverSpy();
 			const subject: ReplaySubject<any> = new ReplaySubject(1);
 			actions = subject.asObservable();
 
-			effectsClass.starkSessionTimeoutWarning$.subscribe(mockObserver);
+			effectsClass.starkSessionTimeoutWarning$.subscribe({
+				next: mockObserver.next,
+				error: mockObserver.error,
+				complete: mockObserver.complete
+			});
 
 			expect(mockSessionService.pauseUserActivityTracking).not.toHaveBeenCalled();
 			expect(mockDialogService.open).not.toHaveBeenCalled();
@@ -101,12 +131,16 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 
 	describe("on StarkSessionTimeoutWarningClose$", () => {
 		it("should close the dialog when the countdown finishes", () => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockObserver: ObserverSpy = createObserverSpy();
 
 			const subject: ReplaySubject<any> = new ReplaySubject(1);
 			actions = subject.asObservable();
 
-			effectsClass.starkSessionTimeoutWarningClose$.subscribe(mockObserver);
+			effectsClass.starkSessionTimeoutWarningClose$.subscribe({
+				next: mockObserver.next,
+				error: mockObserver.error,
+				complete: mockObserver.complete
+			});
 
 			expect(mockDialogService.closeAll).not.toHaveBeenCalled();
 
@@ -121,11 +155,11 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 
 	describe("on ngrxOnRunEffects", () => {
 		it("should stop the effects immediately when the option timeoutWarningDialogDisabled is true", () => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockObserver: ObserverSpy = createObserverSpy();
 
 			const actions$: ReplaySubject<any> = new ReplaySubject(1);
 			actions = actions$.asObservable();
-			spyOn(effectsClass.actions$, "pipe").and.callThrough();
+			const pipeSpy = vi.spyOn(effectsClass.actions$, "pipe");
 
 			mockSessionUiConfig.timeoutWarningDialogDisabled = true;
 
@@ -133,11 +167,15 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 			const mockResolvedEffects$: Observable<any> = mockResolvedEffectsSubject.asObservable();
 
 			const resolvedEffectsObservable: Observable<EffectNotification> = effectsClass.ngrxOnRunEffects(mockResolvedEffects$);
-			expect(effectsClass.actions$.pipe).toHaveBeenCalledTimes(1);
+			expect(pipeSpy).toHaveBeenCalledTimes(1);
 
-			resolvedEffectsObservable.subscribe(mockObserver);
+			resolvedEffectsObservable.subscribe({
+				next: mockObserver.next,
+				error: mockObserver.error,
+				complete: mockObserver.complete
+			});
 
-			mockObserver.next.calls.reset();
+			mockObserver.next.mockClear();
 
 			actions$.next("dummy acton");
 			actions$.next("another dummy acton");
@@ -151,11 +189,11 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 		});
 
 		it("should run the effects immediately when the option timeoutWarningDialogDisabled is false", () => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockObserver: ObserverSpy = createObserverSpy();
 
 			const actions$: ReplaySubject<any> = new ReplaySubject(1);
 			actions = actions$.asObservable();
-			spyOn(effectsClass.actions$, "pipe").and.callThrough();
+			const pipeSpy = vi.spyOn(effectsClass.actions$, "pipe");
 
 			mockSessionUiConfig.timeoutWarningDialogDisabled = false;
 
@@ -163,9 +201,13 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 			const mockResolvedEffects$: Observable<any> = mockResolvedEffectsSubject.asObservable();
 
 			const resolvedEffectsObservable: Observable<EffectNotification> = effectsClass.ngrxOnRunEffects(mockResolvedEffects$);
-			expect(effectsClass.actions$.pipe).toHaveBeenCalledTimes(1);
+			expect(pipeSpy).toHaveBeenCalledTimes(1);
 
-			resolvedEffectsObservable.subscribe(mockObserver);
+			resolvedEffectsObservable.subscribe({
+				next: mockObserver.next,
+				error: mockObserver.error,
+				complete: mockObserver.complete
+			});
 
 			actions$.next("dummy initial action1");
 			mockResolvedEffectsSubject.next("dummy resolved effect");
@@ -174,7 +216,7 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			mockObserver.next.calls.reset();
+			mockObserver.next.mockClear();
 
 			// the effects should keep on running with any action
 			actions$.next("dummy action1");
@@ -186,11 +228,11 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 		});
 
 		it("should run the effects immediately when the option timeoutWarningDialogDisabled is undefined", () => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockObserver: ObserverSpy = createObserverSpy();
 
 			const actions$: ReplaySubject<any> = new ReplaySubject(1);
 			actions = actions$.asObservable();
-			spyOn(effectsClass.actions$, "pipe").and.callThrough();
+			const pipeSpy = vi.spyOn(effectsClass.actions$, "pipe");
 
 			mockSessionUiConfig.timeoutWarningDialogDisabled = undefined;
 
@@ -198,9 +240,13 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 			const mockResolvedEffects$: Observable<any> = mockResolvedEffectsSubject.asObservable();
 
 			const resolvedEffectsObservable: Observable<EffectNotification> = effectsClass.ngrxOnRunEffects(mockResolvedEffects$);
-			expect(effectsClass.actions$.pipe).toHaveBeenCalledTimes(1);
+			expect(pipeSpy).toHaveBeenCalledTimes(1);
 
-			resolvedEffectsObservable.subscribe(mockObserver);
+			resolvedEffectsObservable.subscribe({
+				next: mockObserver.next,
+				error: mockObserver.error,
+				complete: mockObserver.complete
+			});
 
 			actions$.next("dummy initial action1");
 			mockResolvedEffectsSubject.next("dummy resolved effect");
@@ -209,7 +255,7 @@ describe("Effects: StarkSessionTimeoutWarningDialogEffects", () => {
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			mockObserver.next.calls.reset();
+			mockObserver.next.mockClear();
 
 			// the effects should keep on running with any action
 			actions$.next("dummy action1");

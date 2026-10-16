@@ -1,5 +1,8 @@
+import { AsyncPipe } from "@angular/common";
 import { ChangeDetectionStrategy, Component, Inject, OnInit, ViewEncapsulation } from "@angular/core";
-import { MAT_LEGACY_DIALOG_DATA as MAT_DIALOG_DATA, MatLegacyDialogRef as MatDialogRef } from "@angular/material/legacy-dialog";
+import { MatButtonModule } from "@angular/material/button";
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from "@angular/material/dialog";
+import { TranslateModule } from "@ngx-translate/core";
 import { interval, Observable } from "rxjs";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { map, startWith, take, tap } from "rxjs/operators";
@@ -13,7 +16,9 @@ const componentName = "stark-session-timeout-warning-dialog";
  * Component to display a session timeout warning dialog
  */
 @Component({
+	standalone: true,
 	selector: "stark-session-timeout-warning-dialog",
+	imports: [AsyncPipe, MatButtonModule, MatDialogModule, TranslateModule],
 	templateUrl: "./session-timeout-warning-dialog.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush

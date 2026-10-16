@@ -1,15 +1,22 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { TranslateModule } from "@ngx-translate/core";
-import { CommonModule } from "@angular/common";
 import { Component } from "@angular/core";
-import { MatLegacyCardModule as MatCardModule } from "@angular/material/legacy-card";
 import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkAppLogoModule } from "@nationalbankbelgium/stark-ui/src/modules/app-logo";
 import { StarkSessionCardComponent } from "./session-card.component";
+import { vi } from "vitest";
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+type RoutingServiceMock = {
+	navigateToHome: ReturnType<typeof vi.fn<() => void>>;
+};
 
 @Component({
+	standalone: true,
 	selector: "test-component",
+	imports: [StarkSessionCardComponent],
 	template: `
 		<stark-session-card [cardTitle]="cardTitle">
 			<div>TEST</div>
@@ -23,16 +30,25 @@ class TestComponent {
 describe("SessionCardComponent", () => {
 	let fixture: ComponentFixture<TestComponent>;
 	let component: TestComponent;
+	let mockLogger: LoggingServiceMock;
+	let mockRoutingService: RoutingServiceMock;
 
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			imports: [CommonModule, StarkAppLogoModule, TranslateModule.forRoot(), MatCardModule],
-			declarations: [TestComponent, StarkSessionCardComponent],
+	beforeEach(async () => {
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		mockRoutingService = {
+			navigateToHome: vi.fn<() => void>()
+		};
+
+		await TestBed.configureTestingModule({
+			imports: [TranslateModule.forRoot(), TestComponent],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_ROUTING_SERVICE, useValue: new MockStarkRoutingService() } // needed by AppLogo component
+				{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger },
+				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService } // needed by AppLogo component
 			]
-		}).compileComponents()));
+		}).compileComponents();
+	});
 
 	beforeEach(() => {
 		fixture = TestBed.createComponent(TestComponent);
@@ -43,12 +59,8 @@ describe("SessionCardComponent", () => {
 		const expected = "TEST";
 
 		const sessionCard: HTMLElement | null = fixture.nativeElement.querySelector("stark-session-card");
-		if (!sessionCard) {
-			fail("Session Card element not found");
-			return;
-		}
-
-		expect(sessionCard.textContent).toEqual(expected);
+		expect(sessionCard).not.toBeNull();
+		expect(sessionCard?.textContent).toEqual(expected);
 	});
 
 	it("Title should not render when falsy", () => {
@@ -66,11 +78,7 @@ describe("SessionCardComponent", () => {
 		const expected = "Testing-title";
 
 		const titleElement: HTMLElement | null = fixture.nativeElement.querySelector("stark-session-card mat-card-header mat-card-title");
-		if (!titleElement) {
-			fail("Title element not found.");
-			return;
-		}
-
-		expect(titleElement.textContent).toEqual(expected);
+		expect(titleElement).not.toBeNull();
+		expect(titleElement?.textContent).toEqual(expected);
 	});
 });

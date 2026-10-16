@@ -1,4 +1,8 @@
+import { CommonModule } from "@angular/common";
 import { ChangeDetectionStrategy, Component, Inject, Input, OnInit, ViewEncapsulation } from "@angular/core";
+import { MatDividerModule } from "@angular/material/divider";
+import { MatListModule } from "@angular/material/list";
+import { TranslateModule } from "@ngx-translate/core";
 import { RawParams } from "@uirouter/core";
 import {
 	STARK_LOGGING_SERVICE,
@@ -11,6 +15,7 @@ import {
 	StarkUser,
 	StarkUserService
 } from "@nationalbankbelgium/stark-core";
+import { StarkSessionCardComponent } from "../../components/session-card/session-card.component";
 
 /**
  * @ignore
@@ -25,10 +30,12 @@ const componentName = "stark-login-page";
  * This makes it easy to run the application with different roles.
  */
 @Component({
+	standalone: true,
 	selector: "stark-login-page",
 	templateUrl: "./login-page.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatDividerModule, MatListModule, TranslateModule, StarkSessionCardComponent],
 	host: {
 		class: componentName
 	}

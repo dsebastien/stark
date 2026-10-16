@@ -1,6 +1,10 @@
+import { CommonModule } from "@angular/common";
 import { ChangeDetectionStrategy, Component, Inject, OnInit, ViewEncapsulation } from "@angular/core";
+import { MatButtonModule } from "@angular/material/button";
+import { TranslateModule } from "@ngx-translate/core";
 
 import { STARK_APP_CONFIG, STARK_LOGGING_SERVICE, StarkApplicationConfig, StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import { StarkSessionCardComponent } from "../../components/session-card/session-card.component";
 
 /**
  * @ignore
@@ -14,10 +18,12 @@ const componentName = "stark-session-logout-page";
  * In this page, the user has the ability to reload and log in again into the application by clicking the Login button.
  */
 @Component({
+	standalone: true,
 	selector: "stark-session-logout-page",
 	templateUrl: "./session-logout-page.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatButtonModule, TranslateModule, StarkSessionCardComponent],
 	host: {
 		class: componentName
 	}

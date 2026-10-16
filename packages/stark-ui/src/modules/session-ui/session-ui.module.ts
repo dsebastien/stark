@@ -3,12 +3,12 @@ import { UIRouterModule } from "@uirouter/angular";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { EffectsModule } from "@ngrx/effects";
 import { CommonModule } from "@angular/common";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
-import { MatLegacyDialogModule as MatDialogModule } from "@angular/material/legacy-dialog";
+import { MatButtonModule } from "@angular/material/button";
+import { MatDialogModule } from "@angular/material/dialog";
 import { StarkLocale } from "@nationalbankbelgium/stark-core";
-import { MatLegacyCardModule as MatCardModule } from "@angular/material/legacy-card";
+import { MatCardModule } from "@angular/material/card";
 import { MatDividerModule } from "@angular/material/divider";
-import { MatLegacyListModule as MatListModule } from "@angular/material/legacy-list";
+import { MatListModule } from "@angular/material/list";
 import { StarkAppLogoModule } from "@nationalbankbelgium/stark-ui/src/modules/app-logo";
 import { mergeUiTranslations } from "@nationalbankbelgium/stark-ui/src/common";
 import { STARK_SESSION_UI_CONFIG, StarkSessionUiConfig } from "./entities";
@@ -27,14 +27,7 @@ import { StarkSessionCardComponent } from "./components/session-card/session-car
 import { StarkSessionTimeoutWarningDialogComponent } from "./components/session-timeout-warning-dialog/session-timeout-warning-dialog.component";
 
 @NgModule({
-	declarations: [
-		StarkLoginPageComponent,
-		StarkPreloadingPageComponent,
-		StarkSessionExpiredPageComponent,
-		StarkSessionLogoutPageComponent,
-		StarkSessionTimeoutWarningDialogComponent,
-		StarkSessionCardComponent
-	],
+	declarations: [],
 	exports: [
 		StarkLoginPageComponent,
 		StarkPreloadingPageComponent,
@@ -54,7 +47,13 @@ import { StarkSessionTimeoutWarningDialogComponent } from "./components/session-
 		MatListModule,
 		TranslateModule,
 		EffectsModule.forFeature([StarkSessionTimeoutWarningDialogEffects]),
-		StarkAppLogoModule
+		StarkAppLogoModule,
+		StarkLoginPageComponent,
+		StarkPreloadingPageComponent,
+		StarkSessionCardComponent,
+		StarkSessionExpiredPageComponent,
+		StarkSessionLogoutPageComponent,
+		StarkSessionTimeoutWarningDialogComponent
 	]
 })
 export class StarkSessionUiModule {

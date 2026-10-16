@@ -10,7 +10,7 @@
 	<ng-container *ngIf="userFetchingFailed">
 		<h2 translate>STARK.PRELOADING.CONTACT_IT_SUPPORT</h2>
 		<h3><span translate>STARK.PRELOADING.CORRELATION_ID</span>: {{ correlationId }}</h3>
-		<button mat-button mat-raised-button color="primary" (click)="reload()" [attr.aria-label]="'STARK.PRELOADING.RELOAD' | translate">
+		<button mat-raised-button color="primary" (click)="reload()" [attr.aria-label]="'STARK.PRELOADING.RELOAD' | translate">
 			<span translate>STARK.PRELOADING.RELOAD</span>
 		</button>
 	</ng-container>

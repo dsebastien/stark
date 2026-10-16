@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/filename-case */
 export * from "./components";
 export * from "./effects";
 export * from "./entities";
