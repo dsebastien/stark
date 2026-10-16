@@ -3,10 +3,10 @@ import { UntypedFormControl, Validators } from "@angular/forms";
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-dropdown",
 	styleUrls: ["./demo-dropdown-page.component.scss"],
 	templateUrl: "./demo-dropdown-page.component.html",
-	/* eslint-disable-next-line @angular-eslint/use-component-view-encapsulation */
 	encapsulation: ViewEncapsulation.None // used here to be able to customize the example-viewer background color
 })
 export class DemoDropdownPageComponent {

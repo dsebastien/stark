@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { FormControl, Validators } from "@angular/forms";
 
 @Component({
+	standalone: false,
 	selector: "demo-dropdown",
 	templateUrl: "./demo-dropdown.component.html"
 })
