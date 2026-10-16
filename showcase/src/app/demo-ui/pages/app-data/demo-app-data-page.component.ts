@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit, ViewEncapsulation } from "@angular/core";
+import { ChangeDetectorRef, Component, Inject, NgZone, OnInit, ViewEncapsulation } from "@angular/core";
 import {
 	STARK_APP_METADATA,
 	STARK_USER_SERVICE,
@@ -6,15 +6,15 @@ import {
 	StarkUser,
 	StarkUserService
 } from "@nationalbankbelgium/stark-core";
-import * as moment from "moment";
+import moment from "moment";
 import { ReferenceLink } from "../../../shared/components/reference-block";
 import { filter } from "rxjs/operators";
 
 @Component({
+	standalone: false,
 	selector: "demo-app-data",
 	templateUrl: "./demo-app-data-page.component.html",
 	styleUrls: ["./_demo-app-data-page.component.scss"],
-	/* eslint-disable-next-line @angular-eslint/use-component-view-encapsulation */
 	encapsulation: ViewEncapsulation.None
 })
 export class DemoAppDataPageComponent implements OnInit {
@@ -30,7 +30,9 @@ export class DemoAppDataPageComponent implements OnInit {
 
 	public constructor(
 		@Inject(STARK_USER_SERVICE) public userService: StarkUserService,
-		@Inject(STARK_APP_METADATA) public appMetadata: StarkApplicationMetadata
+		@Inject(STARK_APP_METADATA) public appMetadata: StarkApplicationMetadata,
+		private cdRef: ChangeDetectorRef,
+		private ngZone: NgZone
 	) {}
 
 	public ngOnInit(): void {
@@ -38,7 +40,10 @@ export class DemoAppDataPageComponent implements OnInit {
 			.fetchUserProfile()
 			.pipe(filter<StarkUser | undefined, StarkUser>((user?: StarkUser): user is StarkUser => typeof user !== "undefined"))
 			.subscribe((user: StarkUser) => {
-				this.user = user;
+				this.ngZone.run(() => {
+					this.user = user;
+					this.cdRef.markForCheck();
+				});
 			});
 	}
 }
