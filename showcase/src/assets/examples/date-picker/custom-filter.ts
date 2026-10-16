@@ -5,6 +5,7 @@ import { StarkDatePickerFilter } from "@nationalbankbelgium/stark-ui";
 const DAY_IN_MILLISECONDS = 86400000;
 
 @Component({
+	standalone: false,
 	selector: "demo-date-picker",
 	templateUrl: "./demo-date-picker.component.html"
 })

@@ -4,6 +4,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 const DAY_IN_MILLISECONDS = 86400000;
 
 @Component({
+	standalone: false,
 	selector: "demo-date-picker",
 	templateUrl: "./demo-date-picker.component.html"
 })
