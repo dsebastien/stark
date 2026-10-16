@@ -1,5 +1,7 @@
 import { Deserialize, ISerializable, Serialize } from "cerialize";
 
+type StringMapSerializerFactory = (targetType?: any) => ISerializable;
+
 /**
  * Solution proposed by `@weichx` for Maps having string keys
  * in this way the custom behavior for handling ES6 Maps is defined once instead of doing it every time a Map is used.
@@ -7,11 +9,11 @@ import { Deserialize, ISerializable, Serialize } from "cerialize";
  * See:
  * - {@link https://github.com/weichx/cerialize/issues/32}
  * - {@link https://github.com/weichx/cerialize/issues/33}
- * @param targetType - The type in which we want to serialize a file
+ * @param targetType - Optional type used to deserialize each value.
  */
-export const stringMap: Function = (targetType: any): ISerializable => ({
-	Serialize: (map: Map<string, any>): object => {
-		const obj: object = {};
+export const stringMap: StringMapSerializerFactory = (targetType?: any): ISerializable => ({
+	Serialize: (map: Map<string, any>): Record<string, unknown> => {
+		const obj: Record<string, unknown> = {};
 		map.forEach((value: any, key: string) => {
 			obj[key] = Serialize(value);
 		});

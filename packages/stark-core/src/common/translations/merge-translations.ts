@@ -1,7 +1,27 @@
-import { TranslateService } from "@ngx-translate/core";
+import { TranslateService, type TranslationObject } from "@ngx-translate/core";
 import { StarkLocale } from "./locale.intf";
 import { commonCoreTranslations } from "./common-translations";
 import cloneDeep from "lodash-es/cloneDeep";
+
+interface TranslateServiceStoreAccessor {
+	store?: {
+		getTranslations(language: string): TranslationObject | undefined;
+	};
+}
+
+/**
+ * Read the currently loaded translation catalog from ngx-translate's internal store.
+ * @param translateService - The translate service that owns the internal translation store.
+ * @param languageCode - The language whose loaded catalog should be read.
+ */
+function getLoadedTranslations(translateService: TranslateService, languageCode: string): TranslationObject {
+	// ngx-translate no longer exposes the full catalog on TranslateService, but the loaded translations
+	// still live on the internal store and we need them to preserve app overrides during lazy module merges.
+	const loadedTranslations: TranslationObject =
+		(<TranslateServiceStoreAccessor["store"] | undefined>Reflect.get(translateService, "store"))?.getTranslations(languageCode) ?? {};
+
+	return cloneDeep(loadedTranslations);
+}
 
 /**
  * This function can be used by Stark modules to merge their translations into existing translations,
@@ -32,11 +52,11 @@ import cloneDeep from "lodash-es/cloneDeep";
  *   mergeTranslations(this.translateService, english, french, dutch);
  */
 export function mergeTranslations(translateService: TranslateService, ...localesToMerge: StarkLocale[]): void {
-	const currentTranslations: object = cloneDeep(translateService.translations);
-
 	for (const locale of localesToMerge) {
-		translateService.setTranslation(locale.languageCode, commonCoreTranslations[locale.languageCode], false);
+		const currentTranslations = getLoadedTranslations(translateService, locale.languageCode);
+
+		translateService.setTranslation(locale.languageCode, commonCoreTranslations[locale.languageCode] ?? {}, false);
 		translateService.setTranslation(locale.languageCode, locale.translations, true);
-		translateService.setTranslation(locale.languageCode, currentTranslations[locale.languageCode], true);
+		translateService.setTranslation(locale.languageCode, currentTranslations, true);
 	}
 }
