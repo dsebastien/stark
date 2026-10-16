@@ -1,8 +1,9 @@
 import { Component } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { StarkInputTransformationType, StarkTransformInputDirective } from "./transform-input.directive";
-import { Observer } from "rxjs";
+import { StarkTransformInputDirectiveModule } from "../transform-input-directive.module";
+import { StarkInputTransformationType } from "./transform-input.directive";
+import { vi } from "vitest";
 
 /**
  * Mocks an InputEvent on the element with the given value.
@@ -31,10 +32,24 @@ function wordFilter(word: string): (v: string) => string {
 		);
 }
 
+type ObserverSpy = {
+	next: ReturnType<typeof vi.fn<(value: unknown) => void>>;
+	error: ReturnType<typeof vi.fn<(error: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
+
+const createObserverSpy = (): ObserverSpy => ({
+	next: vi.fn<(value: unknown) => void>(),
+	error: vi.fn<(error: unknown) => void>(),
+	complete: vi.fn<() => void>()
+});
+
 describe("TransformInputDirective", () => {
 	describe("with ngModel", () => {
 		@Component({
-			selector: "test-component",
+			standalone: true,
+			selector: "stark-transform-input-ng-model-host",
+			imports: [FormsModule, StarkTransformInputDirectiveModule],
 			template: "<input [(ngModel)]='value' [starkTransformInput]='starkTransformInputValue'/>"
 		})
 		class TestComponent {
@@ -48,29 +63,30 @@ describe("TransformInputDirective", () => {
 		let component: TestComponent;
 		let htmlInputElement: HTMLInputElement;
 
-		beforeEach(() => {
-			TestBed.configureTestingModule({
-				declarations: [StarkTransformInputDirective, TestComponent],
-				imports: [FormsModule]
-			});
-
+		const renderHost = (transformation?: StarkInputTransformationType): void => {
 			fixture = TestBed.createComponent(TestComponent);
 			component = fixture.componentInstance;
+			if (typeof transformation !== "undefined") {
+				component.starkTransformInputValue = transformation;
+			}
 			htmlInputElement = fixture.nativeElement.querySelector("input");
 
 			// trigger initial data binding
 			fixture.detectChanges();
+		};
 
-			expect(component.value).withContext("field 'value' should start as empty string ").toBe("");
+		beforeEach(() => {
+			TestBed.configureTestingModule({
+				imports: [TestComponent]
+			});
 		});
 
 		it("should set value to uppercase", () => {
 			const input = "upper";
 			const expected = "UPPER";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "uppercase";
-			fixture.detectChanges();
+			renderHost("uppercase");
+			expect(component.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -82,9 +98,8 @@ describe("TransformInputDirective", () => {
 			const input = "LOWER";
 			const expected = "lower";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "lowercase";
-			fixture.detectChanges();
+			renderHost("lowercase");
+			expect(component.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -96,15 +111,8 @@ describe("TransformInputDirective", () => {
 			const input = "fudge you!";
 			const expected = "***** you!";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = (v: string): string =>
-				v.replace("fudge", (match: string) =>
-					match
-						.split("")
-						.map(() => "*")
-						.join("")
-				);
-			fixture.detectChanges();
+			renderHost(wordFilter("fudge"));
+			expect(component.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -115,7 +123,9 @@ describe("TransformInputDirective", () => {
 
 	describe("with formControl", () => {
 		@Component({
-			selector: "test-component",
+			standalone: true,
+			selector: "stark-transform-input-form-control-host",
+			imports: [ReactiveFormsModule, StarkTransformInputDirectiveModule],
 			template: "<input [formControl]='formControl' [starkTransformInput]='starkTransformInputValue'/>"
 		})
 		class TestComponent {
@@ -127,36 +137,41 @@ describe("TransformInputDirective", () => {
 
 		let fixture: ComponentFixture<TestComponent>;
 		let component: TestComponent;
-		let mockValueChangeObserver: jasmine.SpyObj<Observer<any>>;
+		let mockValueChangeObserver: ObserverSpy;
 		let htmlInputElement: HTMLInputElement;
 
-		beforeEach(() => {
-			TestBed.configureTestingModule({
-				declarations: [StarkTransformInputDirective, TestComponent],
-				imports: [ReactiveFormsModule]
-			});
-
+		const renderHost = (transformation?: StarkInputTransformationType): void => {
 			fixture = TestBed.createComponent(TestComponent);
 			component = fixture.componentInstance;
+			if (typeof transformation !== "undefined") {
+				component.starkTransformInputValue = transformation;
+			}
 			htmlInputElement = fixture.nativeElement.querySelector("input");
 
 			// Register mock subscription
-			mockValueChangeObserver = jasmine.createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
-			component.formControl.valueChanges.subscribe(mockValueChangeObserver);
+			mockValueChangeObserver = createObserverSpy();
+			component.formControl.valueChanges.subscribe({
+				next: mockValueChangeObserver.next,
+				error: mockValueChangeObserver.error,
+				complete: mockValueChangeObserver.complete
+			});
 
 			// trigger initial data binding
 			fixture.detectChanges();
+		};
 
-			expect(component.formControl.value).withContext("field 'value' should start as empty string ").toBe("");
+		beforeEach(() => {
+			TestBed.configureTestingModule({
+				imports: [TestComponent]
+			});
 		});
 
 		it("should set value to uppercase", () => {
 			const input = "upper";
 			const expected = "UPPER";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "uppercase";
-			fixture.detectChanges();
+			renderHost("uppercase");
+			expect(component.formControl.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -164,16 +179,15 @@ describe("TransformInputDirective", () => {
 			expect(component.formControl.value).toBe(expected);
 			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockValueChangeObserver.error).not.toHaveBeenCalled();
-			expect(mockValueChangeObserver.complete).not.toHaveBeenCalledTimes(1);
+			expect(mockValueChangeObserver.complete).not.toHaveBeenCalled();
 		});
 
 		it("should set value to lowercase", () => {
 			const input = "LOWER";
 			const expected = "lower";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "lowercase";
-			fixture.detectChanges();
+			renderHost("lowercase");
+			expect(component.formControl.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -181,16 +195,15 @@ describe("TransformInputDirective", () => {
 			expect(component.formControl.value).toBe(expected);
 			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockValueChangeObserver.error).not.toHaveBeenCalled();
-			expect(mockValueChangeObserver.complete).not.toHaveBeenCalledTimes(1);
+			expect(mockValueChangeObserver.complete).not.toHaveBeenCalled();
 		});
 
 		it("should replace dirty word", () => {
 			const input = "fudge you!";
 			const expected = "***** you!";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = wordFilter("fudge");
-			fixture.detectChanges();
+			renderHost(wordFilter("fudge"));
+			expect(component.formControl.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -198,13 +211,15 @@ describe("TransformInputDirective", () => {
 			expect(component.formControl.value).toBe(expected);
 			expect(mockValueChangeObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockValueChangeObserver.error).not.toHaveBeenCalled();
-			expect(mockValueChangeObserver.complete).not.toHaveBeenCalledTimes(1);
+			expect(mockValueChangeObserver.complete).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("uncontrolled", () => {
 		@Component({
-			selector: "test-component",
+			standalone: true,
+			selector: "stark-transform-input-uncontrolled-host",
+			imports: [StarkTransformInputDirectiveModule],
 			template: "<input [starkTransformInput]='starkTransformInputValue'/>"
 		})
 		class TestComponent {
@@ -217,29 +232,31 @@ describe("TransformInputDirective", () => {
 		let component: TestComponent;
 		let htmlInputElement: HTMLInputElement;
 
-		beforeEach(() => {
-			TestBed.configureTestingModule({
-				declarations: [StarkTransformInputDirective, TestComponent]
-			});
-
+		const renderHost = (transformation?: StarkInputTransformationType): void => {
 			fixture = TestBed.createComponent(TestComponent);
 			component = fixture.componentInstance;
+			if (typeof transformation !== "undefined") {
+				component.starkTransformInputValue = transformation;
+			}
 			htmlInputElement = fixture.nativeElement.querySelector("input");
 			htmlInputElement.value = "";
 
 			// trigger initial data binding
 			fixture.detectChanges();
+		};
 
-			expect(htmlInputElement.value).withContext("field 'value' should start as empty string ").toBe("");
+		beforeEach(() => {
+			TestBed.configureTestingModule({
+				imports: [TestComponent]
+			});
 		});
 
 		it("should set value to uppercase", () => {
 			const input = "upper";
 			const expected = "UPPER";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "uppercase";
-			fixture.detectChanges();
+			renderHost("uppercase");
+			expect(htmlInputElement.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -251,9 +268,8 @@ describe("TransformInputDirective", () => {
 			const input = "LOWER";
 			const expected = "lower";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "lowercase";
-			fixture.detectChanges();
+			renderHost("lowercase");
+			expect(htmlInputElement.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -265,9 +281,8 @@ describe("TransformInputDirective", () => {
 			const input = "fudge you!";
 			const expected = "***** you!";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = wordFilter("fudge");
-			fixture.detectChanges();
+			renderHost(wordFilter("fudge"));
+			expect(htmlInputElement.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -278,7 +293,9 @@ describe("TransformInputDirective", () => {
 
 	describe("on textarea", () => {
 		@Component({
-			selector: "test-component",
+			standalone: true,
+			selector: "stark-transform-input-textarea-host",
+			imports: [StarkTransformInputDirectiveModule],
 			template: "<textarea [starkTransformInput]='starkTransformInputValue'></textarea>"
 		})
 		class TestComponent {
@@ -291,29 +308,31 @@ describe("TransformInputDirective", () => {
 		let component: TestComponent;
 		let htmlInputElement: HTMLTextAreaElement;
 
-		beforeEach(() => {
-			TestBed.configureTestingModule({
-				declarations: [StarkTransformInputDirective, TestComponent]
-			});
-
+		const renderHost = (transformation?: StarkInputTransformationType): void => {
 			fixture = TestBed.createComponent(TestComponent);
 			component = fixture.componentInstance;
+			if (typeof transformation !== "undefined") {
+				component.starkTransformInputValue = transformation;
+			}
 			htmlInputElement = fixture.nativeElement.querySelector("textarea");
 			htmlInputElement.value = "";
 
 			// trigger initial data binding
 			fixture.detectChanges();
+		};
 
-			expect(htmlInputElement.value).withContext("field 'value' should start as empty string ").toBe("");
+		beforeEach(() => {
+			TestBed.configureTestingModule({
+				imports: [TestComponent]
+			});
 		});
 
 		it("should set value to uppercase", () => {
 			const input = "upper";
 			const expected = "UPPER";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "uppercase";
-			fixture.detectChanges();
+			renderHost("uppercase");
+			expect(htmlInputElement.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -325,9 +344,8 @@ describe("TransformInputDirective", () => {
 			const input = "LOWER";
 			const expected = "lower";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = "lowercase";
-			fixture.detectChanges();
+			renderHost("lowercase");
+			expect(htmlInputElement.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -339,9 +357,8 @@ describe("TransformInputDirective", () => {
 			const input = "fudge you!";
 			const expected = "***** you!";
 
-			// Set directive to correct implementation
-			component.starkTransformInputValue = wordFilter("fudge");
-			fixture.detectChanges();
+			renderHost(wordFilter("fudge"));
+			expect(htmlInputElement.value).toBe("");
 
 			mockInputEvent(input, htmlInputElement);
 			fixture.detectChanges();
@@ -352,29 +369,32 @@ describe("TransformInputDirective", () => {
 
 	describe("invalid input", () => {
 		@Component({
-			selector: "test-component",
-			template: "<input [starkTransformInput]='invalidInput'/>"
+			standalone: true,
+			selector: "stark-transform-input-invalid-host",
+			imports: [StarkTransformInputDirectiveModule],
+			template: "<input [starkTransformInput]='$any(invalidInput)'/>"
 		})
 		class TestComponent {
-			public invalidInput = "INVALID_INPUT";
+			public invalidInput: unknown = "INVALID_INPUT";
 		}
 
 		beforeEach(() => {
 			TestBed.configureTestingModule({
-				declarations: [StarkTransformInputDirective, TestComponent]
+				imports: [TestComponent]
 			});
 		});
 
 		it("should throw an error", () => {
-			const fixture: ComponentFixture<TestComponent> = TestBed.createComponent(TestComponent);
-			// trigger initial data binding
-			expect(() => fixture.detectChanges()).toThrowError(/StarkInputTransformationType/);
+			const invalidFixture: ComponentFixture<TestComponent> = TestBed.createComponent(TestComponent);
+			expect(() => invalidFixture.detectChanges()).toThrowError(/StarkInputTransformationType/);
 
-			fixture.componentInstance.invalidInput = "uppercase";
-			expect(() => fixture.detectChanges()).not.toThrowError();
+			const validFixture: ComponentFixture<TestComponent> = TestBed.createComponent(TestComponent);
+			validFixture.componentInstance.invalidInput = "uppercase";
+			expect(() => validFixture.detectChanges()).not.toThrowError();
 
-			fixture.componentInstance.invalidInput = "INVALID_INPUT";
-			expect(() => fixture.detectChanges()).toThrowError(/StarkInputTransformationType/);
+			const invalidAgainFixture: ComponentFixture<TestComponent> = TestBed.createComponent(TestComponent);
+			invalidAgainFixture.componentInstance.invalidInput = "INVALID_INPUT";
+			expect(() => invalidAgainFixture.detectChanges()).toThrowError(/StarkInputTransformationType/);
 		});
 	});
 });

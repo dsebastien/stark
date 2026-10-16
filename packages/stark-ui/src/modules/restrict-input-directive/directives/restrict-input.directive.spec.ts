@@ -1,32 +1,31 @@
-import { ComponentFixture, fakeAsync, TestBed } from "@angular/core/testing";
 import { Component, DebugElement } from "@angular/core";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkRestrictInputDirective } from "./restrict-input.directive";
-import Spy = jasmine.Spy;
-import createSpy = jasmine.createSpy;
+import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import { vi } from "vitest";
+import { StarkRestrictInputDirectiveModule } from "../restrict-input-directive.module";
 
 describe("RestrictInputDirective", () => {
 	@Component({
-		selector: "test-component",
-		template: getTemplate("starkRestrictInput")
+		standalone: true,
+		selector: "stark-restrict-input-default-host",
+		imports: [StarkRestrictInputDirectiveModule],
+		template: "<input type='text' starkRestrictInput>"
 	})
-	class TestComponent {
-		public onEnterKeyHandler: Spy = createSpy("onEnterKeyHandlerSpy");
-	}
+	class DefaultHostComponent {}
 
-	let fixture: ComponentFixture<TestComponent>;
+	@Component({
+		standalone: true,
+		selector: "stark-restrict-input-pattern-host",
+		imports: [StarkRestrictInputDirectiveModule],
+		template: "<input type='text' starkRestrictInput='\\d'>"
+	})
+	class PatternHostComponent {}
 
-	function getTemplate(restrictInputDirective: string): string {
-		return "<input " + "type='text' " + restrictInputDirective + ">";
-	}
-
-	function initializeComponentFixture(): void {
-		fixture = TestBed.createComponent(TestComponent);
-		// trigger initial data binding
-		fixture.detectChanges();
-	}
+	const mockLogger = {
+		debug: vi.fn<(message: string) => void>(),
+		warn: vi.fn<(message: string) => void>()
+	} as unknown as StarkLoggingService;
 
 	/**
 	 * Return whether the triggered event was cancelled (default prevented)
@@ -34,26 +33,29 @@ describe("RestrictInputDirective", () => {
 	function triggerKeyPressEvent(inputElement: DebugElement, value: string): boolean {
 		(<HTMLInputElement>inputElement.nativeElement).value = value;
 
-		const keypressEvent: Event = document.createEvent("Event");
-		keypressEvent.initEvent("keypress", true, true);
-		keypressEvent["char"] = value;
-		keypressEvent["key"] = value;
+		const keypressEvent = new KeyboardEvent("keypress", { key: value, bubbles: true, cancelable: true });
 		// dispatchEvent() returns false if any of the event handlers which handled this event called Event.preventDefault()
 		return !(<HTMLInputElement>inputElement.nativeElement).dispatchEvent(keypressEvent);
 	}
 
 	function triggerPasteEvent(inputElement: DebugElement, value: string): boolean {
-		const clipboardData: DataTransfer = new DataTransfer();
-		clipboardData.setData("text/plain", value);
-		const pasteEvent: ClipboardEvent = new ClipboardEvent("paste", { clipboardData: clipboardData, cancelable: true });
+		const pasteEvent = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+		Object.defineProperty(pasteEvent, "clipboardData", {
+			value: {
+				getData: (): string => value
+			}
+		});
 
 		return !(<HTMLInputElement>inputElement.nativeElement).dispatchEvent(pasteEvent);
 	}
 
 	function triggerDropEvent(inputElement: DebugElement, value: string): boolean {
-		const dataTransfer: DataTransfer = new DataTransfer();
-		dataTransfer.setData("text/plain", value);
-		const dragEvent: DragEvent = new DragEvent("drop", { dataTransfer: dataTransfer, cancelable: true });
+		const dragEvent = new Event("drop", { bubbles: true, cancelable: true }) as DragEvent;
+		Object.defineProperty(dragEvent, "dataTransfer", {
+			value: {
+				getData: (): string => value
+			}
+		});
 
 		return !(<HTMLInputElement>inputElement.nativeElement).dispatchEvent(dragEvent);
 	}
@@ -70,20 +72,17 @@ describe("RestrictInputDirective", () => {
 		}
 	}
 
-	beforeEach(() => {
-		TestBed.configureTestingModule({
-			declarations: [StarkRestrictInputDirective, TestComponent],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
-		});
-	});
-
 	describe("when input restriction is not defined", () => {
-		beforeEach(fakeAsync(() =>
-			// compile template and css
-			TestBed.compileComponents()));
+		let fixture: ComponentFixture<DefaultHostComponent>;
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [DefaultHostComponent],
+				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }]
+			});
+
+			fixture = TestBed.createComponent(DefaultHostComponent);
+			fixture.detectChanges();
 		});
 
 		it("should NOT prevent any value from being typed in the input when no input restriction was provided", () => {
@@ -109,19 +108,16 @@ describe("RestrictInputDirective", () => {
 	});
 
 	describe("when input restriction is given", () => {
-		// overriding the components's template
-		beforeEach(fakeAsync(() => {
-			// the directive should not be used with square brackets "[]" because the input is a string literal!
-			const newTemplate: string = getTemplate("starkRestrictInput='\\d'");
-
-			TestBed.overrideTemplate(TestComponent, newTemplate);
-
-			// compile template and css
-			return TestBed.compileComponents();
-		}));
+		let fixture: ComponentFixture<PatternHostComponent>;
 
 		beforeEach(() => {
-			initializeComponentFixture();
+			TestBed.configureTestingModule({
+				imports: [PatternHostComponent],
+				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger }]
+			});
+
+			fixture = TestBed.createComponent(PatternHostComponent);
+			fixture.detectChanges();
 		});
 
 		it("should prevent any value other than the given ones in the configuration from being typed in the input", () => {

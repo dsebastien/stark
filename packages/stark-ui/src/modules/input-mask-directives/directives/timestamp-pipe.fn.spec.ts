@@ -1,11 +1,20 @@
 import { createTimestampPipe } from "./timestamp-pipe.fn";
 
+type TimestampPipeResult = false | string | { value: string; indexesOfPipedChars?: number[] };
+type TimestampPipeFn = (conformedValue: string, config?: unknown) => TimestampPipeResult;
+
+function createTestTimestampPipe(customFormat?: string): TimestampPipeFn {
+	const pipe = createTimestampPipe(customFormat);
+
+	return (conformedValue: string, config?: unknown): TimestampPipeResult => pipe(conformedValue, config);
+}
+
 describe("createTimestampPipe", () => {
 	const fullDateTimeLongYearFormat = "YYYY-DD-MM HH:mm:ss";
 	const fullDateTimeShortYearFormat = "DD-MM-YY HH:mm:ss";
 
 	function assertTimestampsValidity(dateTimeStrings: string[], shouldBeValid: boolean, customFormat?: string): void {
-		const timestampPipeFn: Function = createTimestampPipe(customFormat);
+		const timestampPipeFn = createTestTimestampPipe(customFormat);
 
 		for (const dateTimeStr of dateTimeStrings) {
 			const expectedResult: boolean | string = shouldBeValid ? dateTimeStr : false;
@@ -14,13 +23,13 @@ describe("createTimestampPipe", () => {
 	}
 
 	it("should return a pipe function regardless of whether a custom format is passed or not", () => {
-		let timestampPipeFn: Function = createTimestampPipe(fullDateTimeLongYearFormat);
+		let timestampPipeFn = createTestTimestampPipe(fullDateTimeLongYearFormat);
 		expect(typeof timestampPipeFn).toBe("function");
 
-		timestampPipeFn = createTimestampPipe(fullDateTimeShortYearFormat);
+		timestampPipeFn = createTestTimestampPipe(fullDateTimeShortYearFormat);
 		expect(typeof timestampPipeFn).toBe("function");
 
-		timestampPipeFn = createTimestampPipe();
+		timestampPipeFn = createTestTimestampPipe();
 		expect(typeof timestampPipeFn).toBe("function");
 	});
 

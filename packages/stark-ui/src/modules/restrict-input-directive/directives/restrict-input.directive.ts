@@ -10,6 +10,7 @@ const directiveName = "[starkRestrictInput]";
  * Directive to restrict the characters that can be typed in a field to allow only those matching a regex pattern.
  */
 @Directive({
+	standalone: false,
 	selector: directiveName
 })
 export class StarkRestrictInputDirective implements OnInit {

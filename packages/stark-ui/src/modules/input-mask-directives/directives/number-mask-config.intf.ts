@@ -1,8 +1,7 @@
 /**
  * Defines the configuration for the {@link StarkNumberMaskDirective}.
  *
- * Based on the API of the `createNumberMask` function from the {@link https://github.com/text-mask/text-mask/tree/master/addons|text-mask-addons} library
- * See {@link https://github.com/text-mask/text-mask/tree/master/addons#createnumbermask}
+ * The configuration remains compatible with the number-mask API shipped by earlier Stark releases.
  */
 export interface StarkNumberMaskConfig {
 	/**
