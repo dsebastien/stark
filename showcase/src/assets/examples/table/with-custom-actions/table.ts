@@ -9,6 +9,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-custom-actions",
 	templateUrl: "./table-with-custom-actions.component.html"
 })

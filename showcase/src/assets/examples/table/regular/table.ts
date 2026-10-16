@@ -14,6 +14,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-regular",
 	templateUrl: "./table-regular.component.html",
 	styleUrls: ["./table-regular.component.scss"],

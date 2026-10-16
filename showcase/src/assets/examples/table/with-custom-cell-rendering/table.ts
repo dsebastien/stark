@@ -1,5 +1,4 @@
-import { Component, Inject } from "@angular/core";
-import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import { Component } from "@angular/core";
 import { StarkTableColumnProperties, StarkTableFilter } from "@nationalbankbelgium/stark-ui";
 
 const DUMMY_DATA: object[] = [
@@ -10,6 +9,7 @@ const DUMMY_DATA: object[] = [
 ];
 
 @Component({
+	standalone: false,
 	selector: "showcase-table-with-custom-cell-rendering",
 	templateUrl: "./table-with-custom-cell-rendering.component.html"
 })

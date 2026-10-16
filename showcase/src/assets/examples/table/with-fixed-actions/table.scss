@@ -1,9 +1,11 @@
-::ng-deep table {
+showcase-table-with-fixed-actions table {
   td,
   th {
     white-space: nowrap;
-    &.mat-cell {
-      padding-right: 20px;
-    }
+  }
+
+  td.mat-cell,
+  td.mat-mdc-cell {
+    padding-right: 20px;
   }
 }
