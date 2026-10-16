@@ -1,8 +1,16 @@
 import { ActionReducerMap, createFeatureSelector, createSelector } from "@ngrx/store";
-import { StarkProgressIndicatorFullConfig } from "../entities";
 import { StarkProgressIndicatorActions } from "../actions";
+import { StarkProgressIndicatorConfig } from "../entities/progress-indicator-config.entity.intf";
+import { StarkProgressIndicatorType } from "../entities/progress-indicator-type.entity";
 import { progressIndicatorReducer } from "./progress-indicator.reducer";
 import { starkProgressIndicatorStoreKey } from "../constants";
+
+type ProgressIndicatorStateConfig = StarkProgressIndicatorConfig & {
+	visible?: boolean;
+	listenersCount?: number;
+	pendingListenersCount?: number;
+	type: StarkProgressIndicatorType;
+};
 
 /**
  * Defines the part of the state assigned to the {@link StarkProgressIndicatorModule}
@@ -11,7 +19,7 @@ export interface StarkProgressIndicatorState {
 	/**
 	 * State corresponding to the {@link StarkProgressIndicatorModule}
 	 */
-	progressIndicator: Map<string, StarkProgressIndicatorFullConfig>;
+	progressIndicator: Map<string, ProgressIndicatorStateConfig>;
 }
 
 /**

@@ -1,6 +1,12 @@
-import { createAction, props, union } from "@ngrx/store";
-import { StarkProgressIndicatorFullConfig } from "../entities";
+import { createAction, props } from "@ngrx/store";
+import { StarkProgressIndicatorConfig } from "../entities/progress-indicator-config.entity.intf";
 import { starkProgressIndicatorStoreKey } from "../constants";
+
+type ProgressIndicatorActionConfig = StarkProgressIndicatorConfig & {
+	visible?: boolean;
+	listenersCount?: number;
+	pendingListenersCount?: number;
+};
 
 /**
  * Triggered by the {@link StarkProgressIndicatorService} register() method.
@@ -10,7 +16,7 @@ import { starkProgressIndicatorStoreKey } from "../constants";
  */
 export const register = createAction(
 	`[${starkProgressIndicatorStoreKey}] Register`,
-	props<{ progressIndicatorConfig: StarkProgressIndicatorFullConfig }>()
+	props<{ progressIndicatorConfig: ProgressIndicatorActionConfig }>()
 );
 
 /**
@@ -37,8 +43,4 @@ export const hide = createAction(`[${starkProgressIndicatorStoreKey}] Hide`, pro
  */
 export const show = createAction(`[${starkProgressIndicatorStoreKey}] Show`, props<{ topic: string }>());
 
-/**
- * @ignore
- */
-const all = union({ register, deregister, hide, show });
-export type Types = typeof all;
+export type Types = ReturnType<typeof register> | ReturnType<typeof deregister> | ReturnType<typeof hide> | ReturnType<typeof show>;
