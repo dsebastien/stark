@@ -23,8 +23,8 @@
 			[starkTimestampMask]="timeMask"
 			[required]="required"
 		/>
-		<div class="mat-form-field-suffix mat-datepicker-toggle">
-			<button mat-icon-button (click)="focusTimeInput($event)" [disabled]="disabled">
+		<div class="stark-date-time-picker-toggle">
+			<button mat-icon-button type="button" (click)="focusTimeInput($event)" [disabled]="disabled">
 				<mat-icon svgIcon="clock"></mat-icon>
 			</button>
 		</div>
@@ -33,6 +33,7 @@
 
 <button
 	mat-icon-button
+	type="button"
 	(click)="clearDateTime()"
 	class="clear-date-time-button"
 	[ngClass]="{ hidden: disabled || !focused || (!dateTimeFormGroup.value.date && !dateTimeFormGroup.value.time) }"

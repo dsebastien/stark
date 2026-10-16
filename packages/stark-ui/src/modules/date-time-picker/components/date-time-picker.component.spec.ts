@@ -2,37 +2,56 @@
 import { Component, ViewChild } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { UntypedFormControl, FormsModule, ReactiveFormsModule, Validators } from "@angular/forms";
+import { UntypedFormControl, ReactiveFormsModule, Validators } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { MatLegacyFormField as MatFormField, MatLegacyFormFieldModule as MatFormFieldModule } from "@angular/material/legacy-form-field";
-import { MatLegacyInputModule as MatInputModule } from "@angular/material/legacy-input";
+import { MatFormField, MatFormFieldModule } from "@angular/material/form-field";
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE } from "@angular/material/core";
-import { MatDatepickerModule } from "@angular/material/datepicker";
-import { MatIconModule } from "@angular/material/icon";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { MatMomentDateModule, MomentDateAdapter } from "@angular/material-moment-adapter";
+import { MomentDateAdapter } from "@angular/material-moment-adapter";
 import { TranslateModule } from "@ngx-translate/core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { Observer } from "rxjs";
+import { STARK_LOGGING_SERVICE, type StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import moment from "moment";
 import {
 	STARK_DATE_FORMATS,
-	StarkDatePickerModule,
 	StarkDatePickerFilter,
 	StarkDatePickerMaskConfig
 } from "@nationalbankbelgium/stark-ui/src/modules/date-picker";
-import { StarkTimestampMaskConfig, StarkInputMaskDirectivesModule } from "@nationalbankbelgium/stark-ui/src/modules/input-mask-directives";
+import { StarkTimestampMaskConfig } from "@nationalbankbelgium/stark-ui/src/modules/input-mask-directives";
 import { DEFAULT_TIME_MASK_CONFIG, StarkDateTimePickerComponent } from "./date-time-picker.component";
-import createSpyObj = jasmine.createSpyObj;
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
+import { StarkDateTimePickerModule } from "../date-time-picker.module";
+import { vi } from "vitest";
+
+type ObserverSpy = {
+	next: ReturnType<typeof vi.fn<(value: unknown) => void>>;
+	error: ReturnType<typeof vi.fn<(error: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
+
+const createObserverSpy = (): ObserverSpy => ({
+	next: vi.fn<(value: unknown) => void>(),
+	error: vi.fn<(error: unknown) => void>(),
+	complete: vi.fn<() => void>()
+});
+
+const loggingServiceMock: StarkLoggingService = {
+	correlationId: "dummyCorrelationId",
+	correlationIdHttpHeaderName: "Correlation-Id-HttpHeaderName",
+	generateNewCorrelationId: vi.fn(),
+	debug: vi.fn(),
+	info: vi.fn(),
+	warn: vi.fn(),
+	error: vi.fn()
+} as unknown as StarkLoggingService;
 
 @Component({
+	standalone: true,
 	selector: "host-component",
+	imports: [MatFormFieldModule, StarkDateTimePickerModule],
 	template: `
 		<mat-form-field>
+			@if (placeholder) {
+				<mat-label>{{ placeholder }}</mat-label>
+			}
 			<stark-date-time-picker
 				[value]="value"
 				[pickerId]="pickerId"
@@ -54,27 +73,32 @@ class TestHostComponent {
 	@ViewChild(StarkDateTimePickerComponent, { static: true })
 	public dateTimePickerComponent!: StarkDateTimePickerComponent;
 
-	public value?: Date;
-	public pickerId?: string;
-	public pickerName?: string;
-	public placeholder?: string;
-	public isDisabled?: boolean;
-	public required?: boolean;
+	public value: Date | null = null;
+	public pickerId = "";
+	public pickerName = "";
+	public placeholder = "";
+	public isDisabled = false;
+	public required = false;
 	public dateMask?: StarkDatePickerMaskConfig;
-	public timeMask?: StarkTimestampMaskConfig;
+	public timeMask: StarkTimestampMaskConfig = DEFAULT_TIME_MASK_CONFIG;
 	public dateFilter?: StarkDatePickerFilter;
-	public minDate?: Date;
-	public maxDate?: Date;
+	public minDate: Date | null = null;
+	public maxDate: Date | null = null;
 
-	public onValueChange(value: Date): void {
+	public onValueChange = vi.fn((value: Date | null): void => {
 		this.value = value;
-	}
+	});
 }
 
 @Component({
+	standalone: true,
 	selector: "host-form-control-component",
+	imports: [MatFormFieldModule, ReactiveFormsModule, StarkDateTimePickerModule],
 	template: `
 		<mat-form-field>
+			@if (placeholder) {
+				<mat-label>{{ placeholder }}</mat-label>
+			}
 			<stark-date-time-picker
 				[formControl]="formControl"
 				[pickerId]="pickerId"
@@ -95,16 +119,16 @@ class TestHostFormControlComponent {
 	public dateTimePickerComponent!: StarkDateTimePickerComponent;
 
 	public formControl = new UntypedFormControl();
-	public pickerId?: string;
-	public pickerName?: string;
-	public placeholder?: string;
-	public isDisabled?: boolean;
-	public required?: boolean;
+	public pickerId = "";
+	public pickerName = "";
+	public placeholder = "";
+	public isDisabled = false;
+	public required = false;
 	public dateMask?: StarkDatePickerMaskConfig;
-	public timeMask?: StarkTimestampMaskConfig;
+	public timeMask: StarkTimestampMaskConfig = DEFAULT_TIME_MASK_CONFIG;
 	public dateFilter?: StarkDatePickerFilter;
-	public minDate?: Date;
-	public maxDate?: Date;
+	public minDate: Date | null = null;
+	public maxDate: Date | null = null;
 }
 
 describe("DateTimePickerComponent", () => {
@@ -113,24 +137,15 @@ describe("DateTimePickerComponent", () => {
 
 	beforeEach(waitForAsync(() =>
 		TestBed.configureTestingModule({
-			declarations: [StarkDateTimePickerComponent, TestHostComponent, TestHostFormControlComponent],
 			imports: [
 				NoopAnimationsModule,
-				MatDatepickerModule,
-				MatTooltipModule,
-				MatFormFieldModule,
-				MatIconModule,
 				MatIconTestingModule,
-				MatInputModule,
-				MatMomentDateModule,
-				FormsModule,
-				ReactiveFormsModule,
-				StarkDatePickerModule,
-				StarkInputMaskDirectivesModule,
+				TestHostComponent,
+				TestHostFormControlComponent,
 				TranslateModule.forRoot()
 			],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
+				{ provide: STARK_LOGGING_SERVICE, useValue: loggingServiceMock },
 				{ provide: MAT_DATE_FORMATS, useValue: STARK_DATE_FORMATS },
 				{ provide: MAT_DATE_LOCALE, useValue: "en-us" },
 				{ provide: DateAdapter, useClass: MomentDateAdapter, deps: [MAT_DATE_LOCALE] }
@@ -143,17 +158,23 @@ describe("DateTimePickerComponent", () => {
 		const formFieldInvalidClass = "mat-form-field-invalid";
 
 		beforeEach(() => {
+			renderHost();
+		});
+
+		function renderHost(initializer?: (host: TestHostFormControlComponent) => void): void {
 			hostFixture = TestBed.createComponent(TestHostFormControlComponent);
 			hostComponent = hostFixture.componentInstance;
+			initializer?.(hostComponent);
 			hostFixture.detectChanges(); // trigger initial data binding
-		});
+
+			component = hostComponent.dateTimePickerComponent;
+		}
 
 		it("if date is initially invalid, the date time picker should not be displayed as invalid until the user interacts with the date or time picker", () => {
 			// re-create component with a form control with "required" validator
-			hostFixture = TestBed.createComponent(TestHostFormControlComponent);
-			hostComponent = hostFixture.componentInstance;
-			hostComponent.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
-			hostFixture.detectChanges(); // trigger initial data binding
+			renderHost((host) => {
+				host.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
+			});
 
 			let formFieldDebugElement = hostFixture.debugElement.query(By.directive(MatFormField));
 			expect(formFieldDebugElement.classes[formFieldInvalidClass]).toBeUndefined();
@@ -170,10 +191,9 @@ describe("DateTimePickerComponent", () => {
 			expect(formFieldDebugElement.classes[formFieldInvalidClass]).toBe(true);
 
 			// re-create component with a form control with "required" validator
-			hostFixture = TestBed.createComponent(TestHostFormControlComponent);
-			hostComponent = hostFixture.componentInstance;
-			hostComponent.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
-			hostFixture.detectChanges(); // trigger initial data binding
+			renderHost((host) => {
+				host.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
+			});
 
 			formFieldDebugElement = hostFixture.debugElement.query(By.directive(MatFormField));
 			expect(formFieldDebugElement.classes[formFieldInvalidClass]).toBeUndefined();
@@ -192,10 +212,9 @@ describe("DateTimePickerComponent", () => {
 
 		it("if date time is initially invalid, the date time picker should not be displayed as invalid until the form control is marked as 'touched'", () => {
 			// re-create component with a form control with "required" validator
-			hostFixture = TestBed.createComponent(TestHostFormControlComponent);
-			hostComponent = hostFixture.componentInstance;
-			hostComponent.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
-			hostFixture.detectChanges(); // trigger initial data binding
+			renderHost((host) => {
+				host.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
+			});
 
 			const formFieldDebugElement = hostFixture.debugElement.query(By.directive(MatFormField));
 			expect(formFieldDebugElement.classes[formFieldInvalidClass]).toBeUndefined();
@@ -208,10 +227,9 @@ describe("DateTimePickerComponent", () => {
 
 		it("if date time is initially invalid, the date time picker should not be displayed as invalid until the form control is marked as 'dirty'", () => {
 			// re-create component with a form control with "required" validator
-			hostFixture = TestBed.createComponent(TestHostFormControlComponent);
-			hostComponent = hostFixture.componentInstance;
-			hostComponent.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
-			hostFixture.detectChanges(); // trigger initial data binding
+			renderHost((host) => {
+				host.formControl = new UntypedFormControl(undefined, Validators.required); // initially invalid
+			});
 
 			const formFieldDebugElement = hostFixture.debugElement.query(By.directive(MatFormField));
 			expect(formFieldDebugElement.classes[formFieldInvalidClass]).toBeUndefined();
@@ -223,30 +241,33 @@ describe("DateTimePickerComponent", () => {
 		});
 
 		it("if marked as required, an asterisk should be appended to the label", () => {
-			const formFieldLabelSelector = ".mat-form-field-label";
-			const formFieldRequiredMarkerSelector = ".mat-form-field-required-marker";
+			const formFieldLabelSelector = ".mat-mdc-floating-label";
+			const formFieldRequiredMarkerSelector = ".mat-mdc-form-field-required-marker";
 
-			hostComponent.placeholder = "this is a placeholder";
-			hostFixture.detectChanges();
-
+			renderHost((host) => {
+				host.placeholder = "this is a placeholder";
+			});
 			expect(hostFixture.debugElement.query(By.css(formFieldLabelSelector))).toBeTruthy();
 			expect(hostFixture.debugElement.query(By.css(formFieldRequiredMarkerSelector))).toBeFalsy();
 
-			hostComponent.required = <any>""; // coerced to true
-			hostFixture.detectChanges();
-
+			renderHost((host) => {
+				host.placeholder = "this is a placeholder";
+				host.required = <any>""; // coerced to true
+			});
 			expect(hostFixture.debugElement.query(By.css(formFieldLabelSelector))).toBeTruthy();
 			expect(hostFixture.debugElement.query(By.css(formFieldRequiredMarkerSelector))).toBeTruthy();
 
-			hostComponent.required = false;
-			hostFixture.detectChanges();
-
+			renderHost((host) => {
+				host.placeholder = "this is a placeholder";
+				host.required = false;
+			});
 			expect(hostFixture.debugElement.query(By.css(formFieldLabelSelector))).toBeTruthy();
 			expect(hostFixture.debugElement.query(By.css(formFieldRequiredMarkerSelector))).toBeFalsy();
 
-			hostComponent.required = true;
-			hostFixture.detectChanges();
-
+			renderHost((host) => {
+				host.placeholder = "this is a placeholder";
+				host.required = true;
+			});
 			expect(hostFixture.debugElement.query(By.css(formFieldLabelSelector))).toBeTruthy();
 			expect(hostFixture.debugElement.query(By.css(formFieldRequiredMarkerSelector))).toBeTruthy();
 		});
@@ -257,12 +278,17 @@ describe("DateTimePickerComponent", () => {
 		let hostFixture: ComponentFixture<TestHostFormControlComponent>;
 
 		beforeEach(() => {
+			renderHost();
+		});
+
+		function renderHost(initializer?: (host: TestHostFormControlComponent) => void): void {
 			hostFixture = TestBed.createComponent(TestHostFormControlComponent);
 			hostComponent = hostFixture.componentInstance;
+			initializer?.(hostComponent);
 			hostFixture.detectChanges(); // trigger initial data binding
 
 			component = hostComponent.dateTimePickerComponent;
-		});
+		}
 
 		describe("on initialization", () => {
 			it("should set internal component properties", () => {
@@ -278,8 +304,8 @@ describe("DateTimePickerComponent", () => {
 				expect(component.required).toBe(false);
 				expect(component.max).toBeNull();
 				expect(component.min).toBeNull();
-				expect(component.pickerId).toBeUndefined();
-				expect(component.pickerName).toBeUndefined();
+				expect(component.pickerId).toEqual("");
+				expect(component.pickerName).toEqual("");
 				expect(component.placeholder).toEqual("");
 				expect(component.dateMask).toBeUndefined();
 				expect(component.timeMask).toBe(DEFAULT_TIME_MASK_CONFIG);
@@ -296,23 +322,24 @@ describe("DateTimePickerComponent", () => {
 		});
 
 		describe("datepicker properties", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("should be set correctly according to the given inputs and WITHOUT triggering a 'valueChange' event", () => {
-				hostComponent.formControl.valueChanges.subscribe(mockObserver);
-
-				hostComponent.pickerId = "test-id";
-				hostComponent.pickerName = "test-name";
 				const minDate = new Date(2018, 6, 1);
-				hostComponent.minDate = minDate;
 				const maxDate = new Date(2018, 6, 2);
-				hostComponent.maxDate = maxDate;
-				/// hostComponent.required = true;  // IMPORTANT: toggling the 'required' property triggers a 'valueChange' event fired by the Angular 'required' validator (see Validators.required)
-				hostFixture.detectChanges();
+
+				renderHost((host) => {
+					host.formControl.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+					host.pickerId = "test-id";
+					host.pickerName = "test-name";
+					host.minDate = minDate;
+					host.maxDate = maxDate;
+					/// host.required = true;  // IMPORTANT: toggling the 'required' property triggers a 'valueChange' event fired by the Angular 'required' validator (see Validators.required)
+				});
 
 				expect(hostFixture.nativeElement.querySelector("mat-datepicker#test-id")).toBeTruthy();
 				expect(hostFixture.nativeElement.querySelector("input#test-id-input")).toBeTruthy(); // the "-input" suffix is appended to the pickerId
@@ -329,7 +356,7 @@ describe("DateTimePickerComponent", () => {
 			});
 
 			it("the datepicker should be disabled when the form control is disabled AND it should trigger a 'valueChange' event ONLY IF the 'emitEvent' option is enabled", () => {
-				hostComponent.formControl.valueChanges.subscribe(mockObserver);
+				hostComponent.formControl.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				hostComponent.formControl.disable({ emitEvent: false });
 				hostFixture.detectChanges();
@@ -349,7 +376,7 @@ describe("DateTimePickerComponent", () => {
 
 				expect(component.datePicker.disabled).toBe(true);
 				expect(mockObserver.next).toHaveBeenCalledTimes(1);
-				mockObserver.next.calls.reset();
+				mockObserver.next.mockClear();
 
 				hostComponent.formControl.enable(); // 'emitEvent' true by default
 				hostFixture.detectChanges();
@@ -371,21 +398,25 @@ describe("DateTimePickerComponent", () => {
 
 		describe("date mask", () => {
 			it("the dateMask should be passed 'as is' to the internal datepicker", () => {
-				hostComponent.dateMask = true;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.dateMask = true;
+				});
 				expect(component.dateMask).toBe(true);
 
-				hostComponent.dateMask = <any>"";
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.dateMask = <any>"";
+				});
 				expect(component.dateMask).toBe(<any>"");
 
-				hostComponent.dateMask = false;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.dateMask = false;
+				});
 				expect(component.dateMask).toBe(false);
 
 				const dateMask: StarkDatePickerMaskConfig = { format: "DD-MM-YYYY" };
-				hostComponent.dateMask = dateMask;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.dateMask = dateMask;
+				});
 				expect(component.dateMask).toBe(dateMask);
 			});
 		});
@@ -398,34 +429,38 @@ describe("DateTimePickerComponent", () => {
 					const day: number = date.getDay();
 					return day === 3;
 				};
-				hostComponent.dateFilter = filterFn;
-				hostFixture.detectChanges();
+
+				renderHost((host) => {
+					host.dateFilter = filterFn;
+				});
 				expect(component.dateFilter).toBe(filterFn);
 
-				hostComponent.dateFilter = "OnlyWeekdays";
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.dateFilter = "OnlyWeekdays";
+				});
 				expect(component.dateFilter).toBe("OnlyWeekdays");
 
-				hostComponent.dateFilter = "OnlyWeekends";
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.dateFilter = "OnlyWeekends";
+				});
 				expect(component.dateFilter).toBe("OnlyWeekends");
 			});
 		});
 
 		describe("time input properties", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("should be set correctly according to the specified inputs and WITHOUT triggering a 'valueChange' event", () => {
-				hostComponent.formControl.valueChanges.subscribe(mockObserver);
-
-				hostComponent.pickerId = "test-id";
-				hostComponent.pickerName = "test-name";
-				/// hostComponent.required = true;  // IMPORTANT: toggling the 'required' property triggers a 'valueChange' event fired by the Angular 'required' validator (see Validators.required)
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.formControl.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+					host.pickerId = "test-id";
+					host.pickerName = "test-name";
+					/// host.required = true;  // IMPORTANT: toggling the 'required' property triggers a 'valueChange' event fired by the Angular 'required' validator (see Validators.required)
+				});
 
 				expect(hostFixture.debugElement.query(By.css(timeInputSelector))).toBeTruthy();
 				expect(hostFixture.nativeElement.querySelector("input#test-id-time-input")).toBeTruthy(); // the "-time-input" suffix is appended to the pickerId
@@ -440,7 +475,7 @@ describe("DateTimePickerComponent", () => {
 			it("the time input should be disabled when the form control is disabled AND it should trigger a 'valueChange' event ONLY IF the 'emitEvent' option is enabled", () => {
 				const timeInputDebugElement = hostFixture.debugElement.query(By.css(timeInputSelector));
 				expect(timeInputDebugElement).toBeTruthy();
-				hostComponent.formControl.valueChanges.subscribe(mockObserver);
+				hostComponent.formControl.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				hostComponent.formControl.disable({ emitEvent: false });
 				hostFixture.detectChanges();
@@ -463,7 +498,7 @@ describe("DateTimePickerComponent", () => {
 				expect(timeInputDebugElement.properties["disabled"]).toBe(true);
 				expect(component.timeInput.nativeElement.disabled).toBe(true);
 				expect(mockObserver.next).toHaveBeenCalledTimes(1);
-				mockObserver.next.calls.reset();
+				mockObserver.next.mockClear();
 				//
 				hostComponent.formControl.enable(); // 'emitEvent' true by default
 				hostFixture.detectChanges();
@@ -486,34 +521,38 @@ describe("DateTimePickerComponent", () => {
 
 		describe("time mask", () => {
 			it("the timeMask should be passed 'as is' to the internal time input only if it is a valid mask config or use the DEFAULT_TIME_MASK otherwise", () => {
-				hostComponent.timeMask = <any>true; // invalid mask
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.timeMask = <any>true; // invalid mask
+				});
 				expect(component.timeMask).toBe(DEFAULT_TIME_MASK_CONFIG);
 
-				hostComponent.timeMask = <any>""; // invalid mask
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.timeMask = <any>""; // invalid mask
+				});
 				expect(component.timeMask).toBe(DEFAULT_TIME_MASK_CONFIG);
 
-				hostComponent.timeMask = <any>false; // invalid mask
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.timeMask = <any>false; // invalid mask
+				});
 				expect(component.timeMask).toBe(DEFAULT_TIME_MASK_CONFIG);
 
 				const timeMask: StarkTimestampMaskConfig = { format: "HH:mm" };
-				hostComponent.timeMask = timeMask;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.timeMask = timeMask;
+				});
 				expect(component.timeMask).toBe(timeMask);
 			});
 		});
 
 		describe("date time selection", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("the date time should be correctly set and emit the new value in the form control's 'valueChange' observable", () => {
-				hostComponent.formControl.valueChanges.subscribe(mockObserver);
+				hostComponent.formControl.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				const date = new Date(2018, 6, 7);
 				component.datePicker.picker.select(moment(date)); // select a date in the internal date picker
@@ -521,7 +560,7 @@ describe("DateTimePickerComponent", () => {
 
 				expect(mockObserver.next).toHaveBeenCalledTimes(1);
 				expect(mockObserver.next).toHaveBeenCalledWith(date);
-				mockObserver.next.calls.reset();
+				mockObserver.next.mockClear();
 
 				const dateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 15, 30, 45);
 				// type the time in the time input
@@ -543,7 +582,7 @@ describe("DateTimePickerComponent", () => {
 			});
 
 			it("the date part should be set to the default date if it is not defined and emit the new value in the form control's 'valueChange' observable", () => {
-				hostComponent.formControl.valueChanges.subscribe(mockObserver);
+				hostComponent.formControl.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				const time = [15, 15, 15]; // later converted to "XX:XX:XX" (the default format is HH:mm:ss)
 				const expectedDateTime = new Date(
@@ -572,7 +611,7 @@ describe("DateTimePickerComponent", () => {
 			});
 
 			it("the time part should be set to the default time if it is not defined and emit the new value in the form control's 'valueChange' observable", () => {
-				hostComponent.formControl.valueChanges.subscribe(mockObserver);
+				hostComponent.formControl.valueChanges.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				const date = new Date(2018, 6, 7, 15, 15, 15, 155);
 				const expectedDateTime = new Date(
@@ -601,12 +640,17 @@ describe("DateTimePickerComponent", () => {
 		let hostFixture: ComponentFixture<TestHostComponent>;
 
 		beforeEach(() => {
+			renderHost();
+		});
+
+		function renderHost(initializer?: (host: TestHostComponent) => void): void {
 			hostFixture = TestBed.createComponent(TestHostComponent);
 			hostComponent = hostFixture.componentInstance;
+			initializer?.(hostComponent);
 			hostFixture.detectChanges(); // trigger initial data binding
 
 			component = hostComponent.dateTimePickerComponent;
-		});
+		}
 
 		describe("on initialization", () => {
 			it("should set internal component properties", () => {
@@ -616,14 +660,14 @@ describe("DateTimePickerComponent", () => {
 			});
 
 			it("should NOT have any inputs set", () => {
-				expect(component.value).toBeUndefined();
+				expect(component.value).toBeNull();
 				expect(component.dateFilter).toBeUndefined();
 				expect(component.disabled).toBe(false);
 				expect(component.required).toBe(false);
 				expect(component.max).toBeNull();
 				expect(component.min).toBeNull();
-				expect(component.pickerId).toBeUndefined();
-				expect(component.pickerName).toBeUndefined();
+				expect(component.pickerId).toEqual("");
+				expect(component.pickerName).toEqual("");
 				expect(component.placeholder).toEqual("");
 				expect(component.dateMask).toBeUndefined();
 				expect(component.timeMask).toBe(DEFAULT_TIME_MASK_CONFIG);
@@ -632,24 +676,23 @@ describe("DateTimePickerComponent", () => {
 		});
 
 		describe("datepicker properties", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("should be set correctly according to the given inputs and WITHOUT emitting a 'dateTimeChange' event", () => {
-				spyOn(hostComponent, "onValueChange");
-				component.dateTimeChange.subscribe(mockObserver);
-
-				hostComponent.pickerId = "test-id";
-				hostComponent.pickerName = "test-name";
 				const minDate = new Date(2018, 6, 1);
-				hostComponent.minDate = minDate;
 				const maxDate = new Date(2018, 6, 2);
-				hostComponent.maxDate = maxDate;
-				hostComponent.required = true;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.pickerId = "test-id";
+					host.pickerName = "test-name";
+					host.minDate = minDate;
+					host.maxDate = maxDate;
+					host.required = true;
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(hostFixture.nativeElement.querySelector("mat-datepicker#test-id")).toBeTruthy();
 				expect(hostFixture.nativeElement.querySelector("input#test-id-input")).toBeTruthy(); // the "-input" suffix is appended to the pickerId
@@ -666,16 +709,20 @@ describe("DateTimePickerComponent", () => {
 				expect(mockObserver.complete).not.toHaveBeenCalled();
 			});
 
-			it("the datepicker should be disabled when 'disabled' is true and it should NOT emit a 'dateTimeChange' event", () => {
-				spyOn(hostComponent, "onValueChange");
-				component.dateTimeChange.subscribe(mockObserver);
+			it("the datepicker should respect the provided 'disabled' input state and it should NOT emit a 'dateTimeChange' event", () => {
+				renderHost((host) => {
+					host.isDisabled = true;
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
-				hostComponent.isDisabled = true;
-				hostFixture.detectChanges();
 				expect(component.datePicker.disabled).toBe(true);
+				expect(hostComponent.onValueChange).not.toHaveBeenCalled();
 
-				hostComponent.isDisabled = false;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.isDisabled = false;
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+
 				expect(component.datePicker.disabled).toBe(false);
 
 				expect(hostComponent.onValueChange).not.toHaveBeenCalled();
@@ -685,12 +732,12 @@ describe("DateTimePickerComponent", () => {
 			});
 
 			it("the datepicker value should be the same as the date part of the 'value' input and it should not emit a 'dateChange' event", () => {
-				spyOn(hostComponent, "onValueChange");
-				component.dateTimeChange.subscribe(mockObserver);
-
 				const date = new Date(2018, 6, 3, 10, 15, 20);
-				hostComponent.value = date;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.value = date;
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+
 				expect(component.datePicker.value).not.toBeNull();
 				expect(component.datePicker.value).toEqual(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
 
@@ -702,19 +749,18 @@ describe("DateTimePickerComponent", () => {
 		});
 
 		describe("time input properties", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("should be set correctly according to the specified inputs and WITHOUT emitting a 'dateTimeChange' event", () => {
-				spyOn(hostComponent, "onValueChange");
-				component.dateTimeChange.subscribe(mockObserver);
-
-				hostComponent.pickerId = "test-id";
-				hostComponent.pickerName = "test-name";
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.pickerId = "test-id";
+					host.pickerName = "test-name";
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				expect(hostFixture.debugElement.query(By.css(timeInputSelector))).toBeTruthy();
 				expect(hostFixture.nativeElement.querySelector("input#test-id-time-input")).toBeTruthy(); // the "-time-input" suffix is appended to the pickerId
@@ -726,21 +772,25 @@ describe("DateTimePickerComponent", () => {
 				expect(mockObserver.complete).not.toHaveBeenCalled();
 			});
 
-			it("the time input should be disabled when 'disabled' is true and it should NOT emit a 'dateTimeChange' event", () => {
-				spyOn(hostComponent, "onValueChange");
-				component.dateTimeChange.subscribe(mockObserver);
+			it("the time input should respect the provided 'disabled' input state and it should NOT emit a 'dateTimeChange' event", () => {
+				renderHost((host) => {
+					host.isDisabled = true;
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				const timeInputDebugElement = hostFixture.debugElement.query(By.css(timeInputSelector));
 				expect(timeInputDebugElement).toBeTruthy();
 
-				hostComponent.isDisabled = true;
-				hostFixture.detectChanges();
 				expect(timeInputDebugElement.properties["disabled"]).toBe(true);
 				expect(component.timeInput.nativeElement.disabled).toBe(true);
-				//
-				hostComponent.isDisabled = false;
-				hostFixture.detectChanges();
-				expect(timeInputDebugElement.properties["disabled"]).toBe(false);
+				expect(hostComponent.onValueChange).not.toHaveBeenCalled();
+
+				renderHost((host) => {
+					host.isDisabled = false;
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+
+				expect(hostFixture.debugElement.query(By.css(timeInputSelector)).properties["disabled"]).toBe(false);
 				expect(component.timeInput.nativeElement.disabled).toBe(false);
 
 				expect(hostComponent.onValueChange).not.toHaveBeenCalled();
@@ -750,12 +800,12 @@ describe("DateTimePickerComponent", () => {
 			});
 
 			it("the time input value should be the same as the time part of 'value' and it should not emit a 'dateChange' event", () => {
-				spyOn(hostComponent, "onValueChange");
-				component.dateTimeChange.subscribe(mockObserver);
-
 				const date = new Date(2018, 6, 3, 10, 15, 20);
-				hostComponent.value = date;
-				hostFixture.detectChanges();
+				renderHost((host) => {
+					host.value = date;
+				});
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
+
 				expect(component.timeInput.nativeElement.value).not.toBeNull();
 				expect(component.timeInput.nativeElement.value).toEqual(`${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`);
 
@@ -767,15 +817,14 @@ describe("DateTimePickerComponent", () => {
 		});
 
 		describe("date changes", () => {
-			let mockObserver: SpyObj<Observer<any>>;
+			let mockObserver: ObserverSpy;
 
 			beforeEach(() => {
-				mockObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+				mockObserver = createObserverSpy();
 			});
 
 			it("should emit the new value in the 'dateChange' output", () => {
-				spyOn(hostComponent, "onValueChange").and.callThrough();
-				component.dateTimeChange.subscribe(mockObserver);
+				component.dateTimeChange.subscribe(mockObserver.next, mockObserver.error, mockObserver.complete);
 
 				const date = new Date(2018, 6, 3);
 				component.datePicker.picker.select(moment(date)); // select a date in the internal date picker
@@ -785,8 +834,8 @@ describe("DateTimePickerComponent", () => {
 				expect(hostComponent.onValueChange).toHaveBeenCalledWith(date);
 				expect(mockObserver.next).toHaveBeenCalledTimes(1);
 				expect(mockObserver.next).toHaveBeenCalledWith(date);
-				(<Spy>hostComponent.onValueChange).calls.reset();
-				mockObserver.next.calls.reset();
+				hostComponent.onValueChange.mockClear();
+				mockObserver.next.mockClear();
 
 				const dateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 15, 30, 45);
 				component.timeInput.nativeElement.value = `${dateTime.getHours()}:${dateTime.getMinutes()}:${dateTime.getSeconds()}`;
