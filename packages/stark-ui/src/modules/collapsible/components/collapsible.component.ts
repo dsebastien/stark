@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import {
 	ChangeDetectionStrategy,
 	Component,
@@ -10,6 +11,9 @@ import {
 	Renderer2,
 	ViewEncapsulation
 } from "@angular/core";
+import { MatExpansionModule } from "@angular/material/expansion";
+import { MatIconModule } from "@angular/material/icon";
+import { TranslateModule } from "@ngx-translate/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { AbstractStarkUiComponent } from "@nationalbankbelgium/stark-ui/src/internal-common";
 
@@ -25,13 +29,15 @@ const DEFAULT_COLLAPSIBLE_ICON = "chevron-right";
 
 /**
  * Component to display an accordion around embedded HTML
- * using {@link https://v7.material.angular.io/components/expansion/examples|Angular Material's Expansion Panel}.
+ * using {@link https://material.angular.dev/components/expansion/examples|Angular Material's Expansion Panel}.
  */
 @Component({
+	standalone: true,
 	selector: "stark-collapsible",
 	templateUrl: "./collapsible.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, MatExpansionModule, MatIconModule, TranslateModule],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName
