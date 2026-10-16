@@ -4,6 +4,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { getConfirmPasswordValidator } from "./password-validator";
 
 @Component({
+	standalone: false,
 	selector: "reactive-form-errors",
 	templateUrl: "./reactive-form-errors.html",
 	styleUrls: ["./reactive-form-errors.scss"]

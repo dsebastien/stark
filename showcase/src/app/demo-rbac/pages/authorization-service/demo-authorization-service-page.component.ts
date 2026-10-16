@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { ReferenceLink } from "../../../shared/components/reference-block";
 
 @Component({
+	standalone: false,
 	selector: "demo-authorization-service",
 	templateUrl: "./demo-authorization-service-page.component.html",
 	styleUrls: ["./demo-authorization-service-page.component.scss"]
@@ -53,12 +54,12 @@ export class DemoAuthorizationServicePageComponent {
 		},
 		{
 			name: "demo-rbac.protected-page-super-admin",
-			url: "/protected-page-manager",
+			url: "/protected-page-super-admin",
 			data: {
 				permissions: {
 					only: ["super-admin"],
 					redirectTo: {
-						stateName: "news"
+						stateName: "welcome.news"
 					}
 				}
 			},

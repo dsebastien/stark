@@ -4,6 +4,7 @@ import { StarkRBACDirectivePermission } from "@nationalbankbelgium/stark-rbac";
 import { ReferenceLink } from "../../../shared/components/reference-block";
 
 @Component({
+	standalone: false,
 	selector: "demo-authorization-directives",
 	templateUrl: "./demo-authorization-directives-page.component.html",
 	styleUrls: ["./demo-authorization-directives-page.component.scss"]
