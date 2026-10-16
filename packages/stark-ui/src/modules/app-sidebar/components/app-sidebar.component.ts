@@ -1,6 +1,7 @@
+import { CommonModule } from "@angular/common";
 import { Component, ElementRef, Inject, Input, OnDestroy, OnInit, Renderer2, ViewChild, ViewEncapsulation } from "@angular/core";
 import { BreakpointObserver, BreakpointState } from "@angular/cdk/layout";
-import { MatDrawerMode, MatDrawerToggleResult, MatSidenav, MatSidenavContainer } from "@angular/material/sidenav";
+import { MatDrawerMode, MatDrawerToggleResult, MatSidenav, MatSidenavContainer, MatSidenavModule } from "@angular/material/sidenav";
 import { from, Subscription } from "rxjs";
 import {
 	STARK_LOGGING_SERVICE,
@@ -21,12 +22,14 @@ const componentName = "stark-app-sidebar";
 
 /**
  * Component to display the application's sidebar
- * Only 2 sidebars are allowed: https://github.com/angular/material2/issues/1514
+ * Only 2 sidebars are allowed: https://github.com/angular/components/issues/1514
  */
 @Component({
+	standalone: true,
 	selector: "stark-app-sidebar",
 	templateUrl: "./app-sidebar.component.html",
 	encapsulation: ViewEncapsulation.None,
+	imports: [CommonModule, MatSidenavModule],
 	host: {
 		class: componentName
 	}
@@ -109,7 +112,11 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 	/**
 	 * Function to deregister the routing transition hook
 	 */
-	public deregisterTransitionHook!: Function;
+	public deregisterTransitionHook!: VoidFunction;
+
+	private initialContentMarginRefreshCompleted = false;
+
+	private initialContentMarginResizeObserver?: ResizeObserver;
 
 	/**
 	 * Class constructor
@@ -139,6 +146,7 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 		this.logger.debug(componentName + ": component initialized");
 
 		this.sidenavLeftOpened = this.breakpointObserver.isMatched([this.mediaQueryGtLg]);
+		this.sidenavLeftMode = this.sidenavLeftOpened ? "side" : "over";
 
 		this.openSidebarSubscription = this.sidebarService.openSidebar$.subscribe((event: StarkAppSidebarOpenEvent) => {
 			this.onOpenSidenav(event);
@@ -171,7 +179,9 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 		this.openSidebarSubscription.unsubscribe();
 		this.closeSidebarSubscription.unsubscribe();
 		this.toggleSidebarSubscription.unsubscribe();
-		/* eslint-disable-next-line @angular-eslint/no-lifecycle-call */
+		this.initialContentMarginResizeObserver?.disconnect();
+		this.initialContentMarginResizeObserver = undefined;
+
 		this.breakpointObserver.ngOnDestroy();
 		this.deregisterTransitionHook();
 	}
@@ -313,10 +323,48 @@ export class StarkAppSidebarComponent extends AbstractStarkUiComponent implement
 			this.renderer.addClass(this.elementRef.nativeElement, "sidebar-open");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-open-start");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-close");
+			if (this.sidenavLeftMode === "side") {
+				this.refreshInitialContentMarginWhenReady();
+			}
 		} else {
 			this.renderer.addClass(this.elementRef.nativeElement, "sidebar-close");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-close-start");
 			this.renderer.removeClass(this.elementRef.nativeElement, "sidebar-open");
+		}
+	}
+
+	private refreshInitialContentMarginWhenReady(): void {
+		if (this.initialContentMarginRefreshCompleted || this.initialContentMarginResizeObserver) {
+			return;
+		}
+
+		// Material can measure projected menu content before it has a width during initial rendering.
+		// Observe only until that first measurable layout, then let Material manage subsequent changes.
+		const sidenav = (<HTMLElement>this.elementRef.nativeElement).querySelector<HTMLElement>(".stark-app-sidenav-left");
+		if (!sidenav) {
+			return;
+		}
+
+		const refreshContentMargin = (): boolean => {
+			if (this.initialContentMarginRefreshCompleted || sidenav.offsetWidth <= 0) {
+				return false;
+			}
+
+			this.initialContentMarginRefreshCompleted = true;
+			this.initialContentMarginResizeObserver?.disconnect();
+			this.initialContentMarginResizeObserver = undefined;
+			this.appSidenavContainer.updateContentMargins();
+			return true;
+		};
+
+		if (refreshContentMargin()) {
+			return;
+		}
+
+		const resizeObserverConstructor = sidenav.ownerDocument.defaultView?.ResizeObserver;
+		if (resizeObserverConstructor) {
+			this.initialContentMarginResizeObserver = new resizeObserverConstructor(() => refreshContentMargin());
+			this.initialContentMarginResizeObserver.observe(sidenav);
 		}
 	}
 
