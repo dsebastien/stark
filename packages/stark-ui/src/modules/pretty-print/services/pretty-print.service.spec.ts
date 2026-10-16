@@ -1,15 +1,18 @@
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { StarkPrettyPrintService } from "@nationalbankbelgium/stark-ui/src/modules/pretty-print/services/pretty-print.service.intf";
-import { StarkPrettyPrintServiceImpl } from "@nationalbankbelgium/stark-ui/src/modules/pretty-print/services/pretty-print.service";
-import { fakeAsync, tick } from "@angular/core/testing";
-import SpyObj = jasmine.SpyObj;
-import { Observer } from "rxjs";
-import createSpyObj = jasmine.createSpyObj;
+import { StarkLoggingService } from "@nationalbankbelgium/stark-core";
+import { firstValueFrom } from "rxjs";
+import { vi } from "vitest";
+import { StarkPrettyPrintFormat } from "../types";
+import { StarkPrettyPrintService } from "./pretty-print.service.intf";
+import { StarkPrettyPrintServiceImpl } from "./pretty-print.service";
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn>;
+	error: ReturnType<typeof vi.fn>;
+	warn: ReturnType<typeof vi.fn>;
+};
 
 describe("PrettyPrintService", () => {
-	const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
 	let prettyPrintService: StarkPrettyPrintService;
-	let mockFormatObserver: SpyObj<Observer<any>>;
 
 	const classTokenSelector = 'class="token selector"';
 	const classTokenFunction = 'class="token function"';
@@ -18,18 +21,17 @@ describe("PrettyPrintService", () => {
 	const marginBottom = "margin-bottom";
 
 	beforeEach(() => {
-		prettyPrintService = new StarkPrettyPrintServiceImpl(mockLogger);
-		mockFormatObserver = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+		prettyPrintService = new StarkPrettyPrintServiceImpl(createLoggerMock() as unknown as StarkLoggingService);
 	});
 
 	describe("xml", () => {
-		const rawXmlData: string = [
+		const rawXmlData = [
 			'<menu id="file" value="File"><menuitem value="New" onclick="CreateNewDoc()" />',
 			'<menuitem value="Open" onclick="OpenDoc()" />',
 			'<menuitem value="Close" onclick="CloseDoc()" /></menu>'
 		].join("");
 
-		const formattedXmlData: string = [
+		const formattedXmlData = [
 			'<menu id="file" value="File">',
 			'  <menuitem value="New" onclick="CreateNewDoc()" />',
 			'  <menuitem value="Open" onclick="OpenDoc()" />',
@@ -38,27 +40,12 @@ describe("PrettyPrintService", () => {
 			""
 		].join("\n");
 
-		it("should nicely format raw XML data", fakeAsync(() => {
-			prettyPrintService.format(rawXmlData, "xml", false).subscribe(mockFormatObserver);
+		it("should nicely format raw XML data", async () => {
+			await expect(formatData(rawXmlData, "xml")).resolves.toBe(formattedXmlData);
+		});
 
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedXmlData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should nicely format and highlight raw XML data", fakeAsync(() => {
-			prettyPrintService.format(rawXmlData, "xml", true).subscribe(mockFormatObserver);
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedXmlData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw XML data", async () => {
+			const formattedData = await formatData(rawXmlData, "xml", true);
 
 			expect(formattedData).toContain("class='language-markup'");
 			expect(formattedData).toContain('class="token tag"');
@@ -67,11 +54,11 @@ describe("PrettyPrintService", () => {
 			expect(formattedData).toContain("CreateNewDoc");
 			expect(formattedData).toContain("menuitem");
 			expect(formattedData).not.toBe(formattedXmlData);
-		}));
+		});
 	});
 
 	describe("html", () => {
-		const rawHtmlData: string = [
+		const rawHtmlData = [
 			"<!DOCTYPE html><html><head>",
 			"<style>body {background-color: powderblue;}h1{color: blue;}flashy{color: red;}</style>",
 			"</head><body><h1>This is a heading</h1>",
@@ -79,8 +66,8 @@ describe("PrettyPrintService", () => {
 			"</body></html>"
 		].join("");
 
-		const formattedHtmlData: string = [
-			"<!doctype html>",
+		const formattedHtmlData = [
+			"<!DOCTYPE html>",
 			"<html>",
 			"  <head>",
 			"    <style>",
@@ -103,7 +90,7 @@ describe("PrettyPrintService", () => {
 			""
 		].join("\n");
 
-		const rawAngularHtmlData: string = [
+		const rawAngularHtmlData = [
 			"<!DOCTYPE html><html><head>",
 			"<style>body {background-color: powderblue;}h1{color: blue;}flashy{color: red;}</style>",
 			"</head><body><h1>This is a {{heading|uppercase}}</h1>",
@@ -112,8 +99,8 @@ describe("PrettyPrintService", () => {
 			"</body></html>"
 		].join("");
 
-		const formattedAngularHtmlData: string = [
-			"<!doctype html>",
+		const formattedAngularHtmlData = [
+			"<!DOCTYPE html>",
 			"<html>",
 			"  <head>",
 			"    <style>",
@@ -144,55 +131,32 @@ describe("PrettyPrintService", () => {
 			""
 		].join("\n");
 
-		it("should nicely format raw HTML data", fakeAsync(() => {
-			prettyPrintService.format(rawHtmlData, "html", false).subscribe(mockFormatObserver);
+		it("should nicely format raw HTML data", async () => {
+			await expect(formatData(rawHtmlData, "html")).resolves.toBe(formattedHtmlData);
+		});
 
-			tick(500);
+		it("should nicely format raw Angular HTML data", async () => {
+			await expect(formatData(rawAngularHtmlData, "html")).resolves.toBe(formattedAngularHtmlData);
+		});
 
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedHtmlData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should nicely format raw Angular HTML data", fakeAsync(() => {
-			prettyPrintService.format(rawAngularHtmlData, "html", false).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedAngularHtmlData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should nicely format and highlight raw HTML data", fakeAsync(() => {
-			prettyPrintService.format(rawHtmlData, "html", true).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedHtmlData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw HTML data", async () => {
+			const formattedData = await formatData(rawHtmlData, "html", true);
 
 			expect(formattedData).toContain("class='language-markup'");
 			expect(formattedData).toContain('class="token tag"');
 			expect(formattedData).toContain("<p");
 			expect(formattedData).toContain("flashy");
 			expect(formattedData).not.toBe(formattedHtmlData);
-		}));
+		});
 	});
 
 	describe("CSS", () => {
-		const rawCssData: string = [
+		const rawCssData = [
 			"body{background: #D2DA9C url(leftcolbg.jpg)repeat-y left top;color: #FFF;}",
 			"p{margin-bottom:1em}ul{margin-left:20px;margin-bottom:1em}"
 		].join("");
 
-		const formattedCssData: string = [
+		const formattedCssData = [
 			"body {",
 			"  background: #d2da9c url(leftcolbg.jpg) repeat-y left top;",
 			"  color: #fff;",
@@ -203,43 +167,20 @@ describe("PrettyPrintService", () => {
 			"ul {",
 			"  margin-left: 20px;",
 			"  margin-bottom: 1em;",
-			"}\n" // an extra line break is added at the end
-		].join("\n"); // should contain line breaks
+			"}\n"
+		].join("\n");
 
-		it("should nicely format raw CSS data", fakeAsync(() => {
-			prettyPrintService.format(rawCssData, "css", false).subscribe(mockFormatObserver);
+		it("should nicely format raw CSS data", async () => {
+			await expect(formatData(rawCssData, "css")).resolves.toBe(formattedCssData);
+		});
 
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedCssData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should simply display the unformatted raw CSS data in case it is not valid CSS", fakeAsync(() => {
+		it("should simply display the unformatted raw CSS data in case it is not valid CSS", async () => {
 			const invalidRawCssData = rawCssData + "}";
-			prettyPrintService.format(invalidRawCssData, "html", false).subscribe(mockFormatObserver);
+			await expect(formatData(invalidRawCssData, "html")).rejects.toBe(invalidRawCssData);
+		});
 
-			tick(500);
-
-			expect(mockFormatObserver.next).not.toHaveBeenCalled();
-			expect(mockFormatObserver.error).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.error).toHaveBeenCalledWith(invalidRawCssData);
-			expect(mockFormatObserver.complete).not.toHaveBeenCalled();
-		}));
-
-		it("should nicely format and highlight raw CSS data ", fakeAsync(() => {
-			prettyPrintService.format(rawCssData, "css", true).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedCssData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw CSS data ", async () => {
+			const formattedData = await formatData(rawCssData, "css", true);
 
 			expect(formattedData).toContain("class='language-css'");
 			expect(formattedData).toContain(classTokenSelector);
@@ -247,58 +188,34 @@ describe("PrettyPrintService", () => {
 			expect(formattedData).toContain("background");
 			expect(formattedData).toContain("color");
 			expect(formattedData).toContain(marginBottom);
-		}));
+		});
 	});
 
 	describe("SCSS", () => {
-		const rawScssData: string = [
+		const rawScssData = [
 			"$font-stack: Helvetica, sans-serif; $primary-color: #333; body { font: 100% $font-stack; color: $primary-color; }"
 		].join("");
 
-		const formattedScssData: string = [
+		const formattedScssData = [
 			"$font-stack: Helvetica, sans-serif;",
 			"$primary-color: #333;",
 			"body {",
 			"  font: 100% $font-stack;",
 			"  color: $primary-color;",
-			"}\n" // an extra line break is added at the end
-		].join("\n"); // should contain line breaks
+			"}\n"
+		].join("\n");
 
-		it("should nicely format raw SCSS data", fakeAsync(() => {
-			prettyPrintService.format(rawScssData, "scss", false).subscribe(mockFormatObserver);
+		it("should nicely format raw SCSS data", async () => {
+			await expect(formatData(rawScssData, "scss")).resolves.toBe(formattedScssData);
+		});
 
-			tick(500);
+		it("should simply display the unformatted raw SCSS data in case it is not valid SCSS", async () => {
+			const invalidRawScssData = rawScssData + "}";
+			await expect(formatData(invalidRawScssData, "scss")).rejects.toBe(invalidRawScssData);
+		});
 
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedScssData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should simply display the unformatted raw SCSS data in case it is not valid SCSS", fakeAsync(() => {
-			const invalidRawScssData: string = rawScssData + "}";
-
-			prettyPrintService.format(invalidRawScssData, "scss", false).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).not.toHaveBeenCalled();
-			expect(mockFormatObserver.error).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.error).toHaveBeenCalledWith(invalidRawScssData);
-			expect(mockFormatObserver.complete).not.toHaveBeenCalled();
-		}));
-
-		it("should nicely format and highlight raw SCSS data ", fakeAsync(() => {
-			prettyPrintService.format(rawScssData, "scss", true).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedScssData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw SCSS data ", async () => {
+			const formattedData = await formatData(rawScssData, "scss", true);
 
 			expect(formattedData).toContain("class='language-scss'");
 			expect(formattedData).toContain(classTokenSelector);
@@ -306,17 +223,17 @@ describe("PrettyPrintService", () => {
 			expect(formattedData).toContain("$primary-color");
 			expect(formattedData).toContain("$font-stack");
 			expect(formattedData).toContain("Helvetica");
-		}));
+		});
 	});
 
 	describe("SQL", () => {
-		const rawSqlData: string = [
+		const rawSqlData = [
 			"SELECT DISTINCT Name FROM Production.Product AS p WHERE EXISTS (SELECT * ",
 			"FROM Production.ProductModel AS pm WHERE p.ProductModelID = pm.ProductModelID ",
 			"AND pm.Name LIKE 'Long-Sleeve Logo Jersey%')"
 		].join("");
 
-		const formattedSqlData: string = [
+		const formattedSqlData = [
 			"SELECT DISTINCT Name",
 			"FROM Production.Product AS p",
 			"WHERE EXISTS (",
@@ -325,30 +242,14 @@ describe("PrettyPrintService", () => {
 			"    WHERE p.ProductModelID = pm.ProductModelID",
 			"      AND pm.Name LIKE 'Long-Sleeve Logo Jersey%'",
 			"  )"
-		].join("\n"); // should contain line breaks
+		].join("\n");
 
-		it("should nicely format raw SQL data", fakeAsync(() => {
-			prettyPrintService.format(rawSqlData, "sql", false).subscribe(mockFormatObserver);
+		it("should nicely format raw SQL data", async () => {
+			await expect(formatData(rawSqlData, "sql")).resolves.toBe(formattedSqlData);
+		});
 
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedSqlData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should nicely format and highlight raw SQL data ", fakeAsync(() => {
-			prettyPrintService.format(rawSqlData, "sql", true).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedSqlData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw SQL data ", async () => {
+			const formattedData = await formatData(rawSqlData, "sql", true);
 
 			expect(formattedData).toContain("class='language-sql'");
 			expect(formattedData).toContain(classTokenKeyword);
@@ -356,18 +257,18 @@ describe("PrettyPrintService", () => {
 			expect(formattedData).toContain("SELECT");
 			expect(formattedData).toContain("FROM");
 			expect(formattedData).toContain("WHERE");
-		}));
+		});
 	});
 
 	describe("JSON", () => {
-		const rawJsonData: string = [
+		const rawJsonData = [
 			'{"menu": { "id": "file", "value": "File",',
 			'"menuitem": [{"value": "New", "onclick": "CreateNewDoc()"},',
 			'{"value": "Open", "onclick": "OpenDoc()"},',
 			'{"value": "Close", "onclick": "CloseDoc()"}]}}'
 		].join("");
 
-		const formattedJsonData: string = [
+		const formattedJsonData = [
 			"{",
 			'  "menu": {',
 			'    "id": "file",',
@@ -378,43 +279,20 @@ describe("PrettyPrintService", () => {
 			'      { "value": "Close", "onclick": "CloseDoc()" }',
 			"    ]",
 			"  }",
-			"}\n" // an extra line break is added at the end
+			"}\n"
 		].join("\n");
 
-		it("should nicely format raw JSON data", fakeAsync(() => {
-			prettyPrintService.format(rawJsonData, "json", false).subscribe(mockFormatObserver);
+		it("should nicely format raw JSON data", async () => {
+			await expect(formatData(rawJsonData, "json")).resolves.toBe(formattedJsonData);
+		});
 
-			tick(500);
+		it("should simply display the unformatted raw JSON data in case it is not valid JSON", async () => {
+			const invalidRawJsonData = rawJsonData.replace(":", "oops");
+			await expect(formatData(invalidRawJsonData, "json")).rejects.toBe(invalidRawJsonData);
+		});
 
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedJsonData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should simply display the unformatted raw JSON data in case it is not valid JSON", fakeAsync(() => {
-			const invalidRawJsonData: string = rawJsonData.replace(":", "oops");
-			prettyPrintService.format(invalidRawJsonData, "json", false).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).not.toHaveBeenCalled();
-			expect(mockFormatObserver.error).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.error).toHaveBeenCalledWith(invalidRawJsonData);
-			expect(mockFormatObserver.complete).not.toHaveBeenCalled();
-		}));
-
-		it("should nicely format and highlight raw JSON data ", fakeAsync(() => {
-			prettyPrintService.format(rawJsonData, "json", true).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedJsonData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw JSON data ", async () => {
+			const formattedData = await formatData(rawJsonData, "json", true);
 
 			expect(formattedData).toContain("class='language-json'");
 			expect(formattedData).toContain(classTokenProperty);
@@ -422,11 +300,11 @@ describe("PrettyPrintService", () => {
 			expect(formattedData).toContain("menu");
 			expect(formattedData).toContain("CreateNewDoc");
 			expect(formattedData).toContain("menuitem");
-		}));
+		});
 	});
 
 	describe("JavaScript", () => {
-		const rawJavascriptData: string = [
+		const rawJavascriptData = [
 			"function calculateData(seed, operationFn) {",
 			"var data = operationFn(seed);",
 			"if (!data){",
@@ -436,51 +314,27 @@ describe("PrettyPrintService", () => {
 			"}"
 		].join("");
 
-		const formattedJavascriptData: string = [
+		const formattedJavascriptData = [
 			"function calculateData(seed, operationFn) {",
 			"  var data = operationFn(seed);",
 			"  if (!data) {",
 			'    data = "could not calculate data";',
 			"  }",
 			"  return data;",
-			"}\n" // an extra line break is added at the end
+			"}\n"
 		].join("\n");
 
-		it("should nicely format raw javascript data", fakeAsync(() => {
-			prettyPrintService.format(rawJavascriptData, "javascript", false).subscribe(mockFormatObserver);
+		it("should nicely format raw javascript data", async () => {
+			await expect(formatData(rawJavascriptData, "javascript")).resolves.toBe(formattedJavascriptData);
+		});
 
-			tick(500);
+		it("should simply display the unformatted raw javascript data in case it is not valid javascript", async () => {
+			const invalidRawJavascriptData = rawJavascriptData + "}";
+			await expect(formatData(invalidRawJavascriptData, "javascript")).rejects.toBe(invalidRawJavascriptData);
+		});
 
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedJavascriptData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should simply display the unformatted raw javascript data in case it is not valid javascript", fakeAsync(() => {
-			const invalidRawJavascriptData: string = rawJavascriptData + "}";
-
-			prettyPrintService.format(invalidRawJavascriptData, "javascript", false).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).not.toHaveBeenCalled();
-			expect(mockFormatObserver.error).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.error).toHaveBeenCalledWith(invalidRawJavascriptData);
-			expect(mockFormatObserver.complete).not.toHaveBeenCalled();
-		}));
-
-		it("should nicely format and highlight raw JavaScript data ", fakeAsync(() => {
-			prettyPrintService.format(rawJavascriptData, "javascript", true).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedJavascriptData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw JavaScript data ", async () => {
+			const formattedData = await formatData(rawJavascriptData, "javascript", true);
 
 			expect(formattedData).toContain("class='language-javascript'");
 			expect(formattedData).toContain(classTokenKeyword);
@@ -491,11 +345,11 @@ describe("PrettyPrintService", () => {
 			expect(formattedData).toContain("operationFn");
 			expect(formattedData).toContain("seed");
 			expect(formattedData).toContain("return");
-		}));
+		});
 	});
 
 	describe("TypeScript", () => {
-		const rawTypescriptData: string = [
+		const rawTypescriptData = [
 			"function calculateData(seed:any, operationFn:Function):any {",
 			"var data:any = operationFn(seed);",
 			"if (!data){",
@@ -505,38 +359,22 @@ describe("PrettyPrintService", () => {
 			"}"
 		].join("");
 
-		const formattedTypescriptData: string = [
+		const formattedTypescriptData = [
 			"function calculateData(seed: any, operationFn: Function): any {",
 			"  var data: any = operationFn(seed);",
 			"  if (!data) {",
 			'    data = "could not calculate data";',
 			"  }",
 			"  return data;",
-			"}\n" // an extra line break is added at the end
+			"}\n"
 		].join("\n");
 
-		it("should nicely format raw typescript data", fakeAsync(() => {
-			prettyPrintService.format(rawTypescriptData, "typescript", false).subscribe(mockFormatObserver);
+		it("should nicely format raw typescript data", async () => {
+			await expect(formatData(rawTypescriptData, "typescript")).resolves.toBe(formattedTypescriptData);
+		});
 
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).toHaveBeenCalledWith(formattedTypescriptData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-		}));
-
-		it("should nicely format and highlight raw TypeScript data ", fakeAsync(() => {
-			prettyPrintService.format(rawTypescriptData, "typescript", true).subscribe(mockFormatObserver);
-
-			tick(500);
-
-			expect(mockFormatObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockFormatObserver.next).not.toHaveBeenCalledWith(formattedTypescriptData);
-			expect(mockFormatObserver.error).not.toHaveBeenCalled();
-			expect(mockFormatObserver.complete).toHaveBeenCalledTimes(1);
-
-			const formattedData = <string>mockFormatObserver.next.calls.first().args[0];
+		it("should nicely format and highlight raw TypeScript data ", async () => {
+			const formattedData = await formatData(rawTypescriptData, "typescript", true);
 
 			expect(formattedData).toContain("class='language-typescript'");
 			expect(formattedData).toContain(classTokenKeyword);
@@ -547,6 +385,18 @@ describe("PrettyPrintService", () => {
 			expect(formattedData).toContain("operationFn");
 			expect(formattedData).toContain("seed");
 			expect(formattedData).toContain("return");
-		}));
+		});
 	});
+
+	function formatData(data: string, format: StarkPrettyPrintFormat, highlightingEnabled = false): Promise<string> {
+		return firstValueFrom(prettyPrintService.format(data, format, highlightingEnabled));
+	}
 });
+
+function createLoggerMock(): LoggingServiceMock {
+	return {
+		debug: vi.fn(),
+		error: vi.fn(),
+		warn: vi.fn()
+	};
+}

@@ -13,7 +13,7 @@ import "prismjs/components/prism-css-extras.min.js";
 import "prismjs/components/prism-scss.min.js";
 /* eslint-enable import/no-unassigned-import */
 
-import { Options, format as prettierFormat } from "prettier";
+import { Options, Plugin, format as prettierFormat } from "prettier";
 import * as prettierParserAngular from "prettier/plugins/angular";
 import * as prettierParserEstree from "prettier/plugins/estree";
 import * as prettierParserBabel from "prettier/plugins/babel";
@@ -30,10 +30,54 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
  */
 const prismClassPrefix = "language-";
 
+/**
+ * Prettier Angular parser plugin loaded explicitly for the Angular formatter pipeline.
+ */
+const prettierAngularPlugin = <Plugin>(<unknown>prettierParserAngular);
+
+/**
+ * Prettier ESTree parser plugin loaded explicitly for shared JavaScript-based formatters.
+ */
+const prettierEstreePlugin = <Plugin>(<unknown>prettierParserEstree);
+
+/**
+ * Prettier Babel parser plugin loaded explicitly for JavaScript-based formatters.
+ */
+const prettierBabelPlugin = <Plugin>(<unknown>prettierParserBabel);
+
+/**
+ * Prettier HTML parser plugin loaded explicitly for markup formatting.
+ */
+const prettierHtmlPlugin = <Plugin>(<unknown>prettierParserHtml);
+
+/**
+ * Prettier PostCSS parser plugin loaded explicitly for CSS and SCSS formatting.
+ */
+const prettierPostcssPlugin = <Plugin>(<unknown>prettierParserPostcss);
+
+/**
+ * Prettier TypeScript parser plugin loaded explicitly for TypeScript formatting.
+ */
+const prettierTypescriptPlugin = <Plugin>(<unknown>prettierParserTypescript);
+
+/**
+ * Default implementation of the pretty-print service used by the Stark UI components.
+ */
 @Injectable()
 export class StarkPrettyPrintServiceImpl implements StarkPrettyPrintService {
+	/**
+	 * Class constructor.
+	 * @param logger - The `StarkLoggingService` instance of the application.
+	 */
 	public constructor(@Inject(STARK_LOGGING_SERVICE) public logger: StarkLoggingService) {}
 
+	/**
+	 * Formats raw source text and optionally wraps the result with Prism syntax highlighting markup.
+	 * @param data - The input source to format.
+	 * @param format - The expected source language.
+	 * @param highlightingEnabled - Whether Prism highlighting markup should be generated.
+	 * @returns An observable producing the formatted output.
+	 */
 	public format(data: string, format: StarkPrettyPrintFormat, highlightingEnabled: boolean): Observable<string> {
 		let prismGrammar: Grammar = <any>"";
 		let prismClass = "";
@@ -45,7 +89,7 @@ export class StarkPrettyPrintServiceImpl implements StarkPrettyPrintService {
 				prismClass = prismClassPrefix + "markup";
 				options.parser = "html";
 				options.htmlWhitespaceSensitivity = "ignore";
-				options.plugins = [prettierParserHtml];
+				options.plugins = [prettierHtmlPlugin];
 				break;
 			case "html":
 				prismGrammar = Prism.languages["markup"];
@@ -53,11 +97,11 @@ export class StarkPrettyPrintServiceImpl implements StarkPrettyPrintService {
 				options.parser = "angular";
 				options.htmlWhitespaceSensitivity = "ignore";
 				options.plugins = [
-					prettierParserAngular,
-					prettierParserEstree,
-					prettierParserBabel,
-					prettierParserHtml,
-					prettierParserPostcss
+					prettierAngularPlugin,
+					prettierEstreePlugin,
+					prettierBabelPlugin,
+					prettierHtmlPlugin,
+					prettierPostcssPlugin
 				];
 				break;
 			case "json":
@@ -70,19 +114,19 @@ export class StarkPrettyPrintServiceImpl implements StarkPrettyPrintService {
 					return throwError(data);
 				}
 				options.parser = "json";
-				options.plugins = [prettierParserEstree, prettierParserBabel];
+				options.plugins = [prettierEstreePlugin, prettierBabelPlugin];
 				break;
 			case "css":
 				prismGrammar = Prism.languages["css"];
 				prismClass = prismClassPrefix + format;
 				options.parser = "css";
-				options.plugins = [prettierParserPostcss];
+				options.plugins = [prettierPostcssPlugin];
 				break;
 			case "scss":
 				prismGrammar = Prism.languages["scss"];
 				prismClass = prismClassPrefix + format;
 				options.parser = "scss";
-				options.plugins = [prettierParserPostcss];
+				options.plugins = [prettierPostcssPlugin];
 				break;
 			case "sql":
 				prismGrammar = Prism.languages["sql"];
@@ -93,13 +137,13 @@ export class StarkPrettyPrintServiceImpl implements StarkPrettyPrintService {
 				prismGrammar = Prism.languages["javascript"];
 				prismClass = prismClassPrefix + format;
 				options.parser = "babel";
-				options.plugins = [prettierParserEstree, prettierParserBabel];
+				options.plugins = [prettierEstreePlugin, prettierBabelPlugin];
 				break;
 			case "typescript":
 				prismGrammar = Prism.languages["typescript"];
 				prismClass = prismClassPrefix + format;
 				options.parser = "typescript";
-				options.plugins = [prettierParserEstree, prettierParserTypescript];
+				options.plugins = [prettierEstreePlugin, prettierTypescriptPlugin];
 				break;
 			default:
 				this.logger.warn(starkPrettyPrintServiceName + " : Unknown format -> ", format);

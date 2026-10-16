@@ -16,10 +16,10 @@
     // Typography fix
     code[class*="language-"],
     pre[class*="language-"] {
-      font-family: mat.font-family(stark-typography.$typography-config);
-      font-size: mat.font-size(stark-typography.$typography-config, body-1);
-      font-weight: mat.font-weight(stark-typography.$typography-config, body-1);
-      line-height: mat.line-height(stark-typography.$typography-config, body-1);
+      font-family: mat.m2-font-family(stark-typography.$typography-config);
+      font-size: mat.m2-font-size(stark-typography.$typography-config, body-2);
+      font-weight: mat.m2-font-weight(stark-typography.$typography-config, body-2);
+      line-height: mat.m2-line-height(stark-typography.$typography-config, body-2);
     }
   }
 }
