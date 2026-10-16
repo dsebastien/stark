@@ -1,27 +1,16 @@
 /* eslint-disable @angular-eslint/no-lifecycle-call */
 
-/* angular imports */
-import { ComponentFixture, fakeAsync, TestBed, tick, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { Component, DebugElement, ViewChild } from "@angular/core";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { By } from "@angular/platform-browser";
-import { CommonModule } from "@angular/common";
-import { MatLegacySelectModule as MatSelectModule } from "@angular/material/legacy-select";
-import { MatLegacyOptionModule as MatOptionModule } from "@angular/material/legacy-core";
-import { MatIconModule } from "@angular/material/icon";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { FormsModule } from "@angular/forms";
-/* rxjs imports */
-import { BehaviorSubject, Observable, Observer } from "rxjs";
-/* stark-core imports */
+import { TranslateModule } from "@ngx-translate/core";
+import { BehaviorSubject, Observable } from "rxjs";
 import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-import { TranslateModule, TranslateService } from "@ngx-translate/core";
-/* stark-ui imports */
+import { vi } from "vitest";
 import { StarkMessagePaneComponent, StarkMessagePaneNavItem } from "./message-pane.component";
 import { STARK_MESSAGE_PANE_SERVICE } from "../services";
-import { MockStarkMessagePaneService } from "@nationalbankbelgium/stark-ui/testing";
 import {
 	starkMessagePaneAlignClassPrefix,
 	starkMessagePaneDisplayAnimatedClass,
@@ -30,20 +19,41 @@ import {
 import { StarkMessage, StarkMessageCollection, StarkMessageType } from "@nationalbankbelgium/stark-ui/src/common";
 import { StarkDOMUtil } from "@nationalbankbelgium/stark-ui/src/util";
 
-/* jasmine imports */
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
 
-/**
- * To be able to test changes to the input fields, the message pane component is hosted inside the TestComponentHost class.
- */
+type MessagePaneServiceMock = {
+	getAll: ReturnType<typeof vi.fn<() => Observable<StarkMessageCollection>>>;
+	clearAll: ReturnType<typeof vi.fn<() => void>>;
+	remove: ReturnType<typeof vi.fn<(messages: StarkMessage[]) => void>>;
+	clearOnNavigation: boolean;
+};
+
+type ObserverSpy<T> = {
+	next: ReturnType<typeof vi.fn<(value: T) => void>>;
+	error: ReturnType<typeof vi.fn<(error: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
+
+function createObserverSpy<T>(): ObserverSpy<T> {
+	return {
+		next: vi.fn<(value: T) => void>(),
+		error: vi.fn<(error: unknown) => void>(),
+		complete: vi.fn<() => void>()
+	};
+}
+
 @Component({
-	selector: `host-component`,
-	template: ` <stark-message-pane [clearOnNavigation]="clearOnNavigation" [align]="align"></stark-message-pane> `
+	standalone: true,
+	selector: "host-component",
+	imports: [StarkMessagePaneComponent],
+	template: ` <stark-message-pane [clearOnNavigation]="clearOnNavigation" [align]="$any(align)"></stark-message-pane> `
 })
 class TestHostComponent {
 	@ViewChild(StarkMessagePaneComponent, { static: true })
 	public messagePaneComponent!: StarkMessagePaneComponent;
+
 	public clearOnNavigation?: boolean;
 	public align?: string;
 }
@@ -53,14 +63,14 @@ describe("MessagePaneComponent", () => {
 	let debugElementComponent: DebugElement;
 	let hostComponent: TestHostComponent;
 	let hostFixture: ComponentFixture<TestHostComponent>;
+	let mockLogger: LoggingServiceMock;
+	let mockMessagePaneService: MessagePaneServiceMock;
+	let mockMessages: StarkMessageCollection;
+	let messageCollection$: BehaviorSubject<StarkMessageCollection>;
 
 	const mockClearOnNavigation = false;
 	const mockDefaultAlign: "center" | "left" | "right" | undefined = "right";
 	const mockCenterAlign: "center" | "left" | "right" | undefined = "center";
-
-	const mockMessagePaneService: MockStarkMessagePaneService = new MockStarkMessagePaneService();
-	let mockMessages: StarkMessageCollection;
-	let messageCollection$: BehaviorSubject<StarkMessageCollection>;
 
 	const mockInfoMessage1: StarkMessage = {
 		id: "3",
@@ -117,21 +127,17 @@ describe("MessagePaneComponent", () => {
 		hostFixture.detectChanges();
 
 		const messageElements: NodeListOf<Element> = getMessageElements(messagePaneContent);
-		const closeButton: HTMLElement = <HTMLElement>messageElements[messageIndex].querySelector("button");
+		const closeButton: HTMLElement = messageElements[messageIndex].querySelector("button") as HTMLElement;
 		closeButton.click();
 		hostFixture.detectChanges();
 	}
 
-	/**
-	 * @ignore
-	 * check the total number of messages and the max level
-	 */
 	function assertDisplayedTotalMessages(messageType: StarkMessagePaneNavItem, numberOfMessages: number): void {
 		const totalMessagesButton: DebugElement = debugElementComponent.query(By.css(".stark-message-pane-total"));
-		const messagesTab: HTMLElement = <HTMLElement>totalMessagesButton.query(By.css("b")).nativeElement;
+		const messagesTab: HTMLElement = totalMessagesButton.query(By.css("b")).nativeElement;
 
 		expect(totalMessagesButton.classes[messageType]).toBe(true);
-		expect(messagesTab.innerText).toEqual(`${numberOfMessages}`);
+		expect(messagesTab.textContent).toEqual(`${numberOfMessages}`);
 	}
 
 	function assertDisplayedMessages(messageType: StarkMessagePaneNavItem, messages: StarkMessage[]): void {
@@ -140,14 +146,11 @@ describe("MessagePaneComponent", () => {
 		const messagePaneContent: HTMLElement = debugElementComponent.query(By.css(".stark-message-pane-content")).nativeElement;
 
 		if (messages.length > 0) {
-			// if there are messages for the error-type
-			// the button should be displayed
 			expect(messagesButton).toBeTruthy();
 			expect(messagePaneContent).toBeTruthy();
 			expect(messagesTab).toBeTruthy();
-			expect(messagesTab.nativeElement.innerText).toEqual(`${messages.length}`);
+			expect(messagesTab.nativeElement.textContent).toEqual(`${messages.length}`);
 
-			// clicking on the button should display the message-pane content
 			messagesButton.nativeElement.click();
 			hostFixture.detectChanges();
 
@@ -157,40 +160,34 @@ describe("MessagePaneComponent", () => {
 			let messageElements: NodeListOf<Element> = getMessageElements(messagePaneContent);
 			expect(messageElements.length).toBe(messages.length);
 
-			// clicking again on the button should hide the message-pane content
 			messagesButton.nativeElement.click();
 			hostFixture.detectChanges();
 			messageElements = getMessageElements(messagePaneContent);
 			expect(messageElements.length).toBe(0);
 		} else {
-			// if there are no messages for the error-type, then the button should not ne displayed
 			expect(messagesButton).toBeNull();
 		}
 	}
 
-	/**
-	 * async beforeEach
-	 */
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkMessagePaneComponent, TestHostComponent],
-			imports: [
-				CommonModule,
-				MatIconModule,
-				MatIconTestingModule,
-				MatSelectModule,
-				MatTooltipModule,
-				MatOptionModule,
-				FormsModule,
-				TranslateModule.forRoot(),
-				NoopAnimationsModule
-			],
+	beforeEach(async () => {
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		mockMessagePaneService = {
+			getAll: vi.fn<() => Observable<StarkMessageCollection>>(),
+			clearAll: vi.fn<() => void>(),
+			remove: vi.fn<(messages: StarkMessage[]) => void>(),
+			clearOnNavigation: false
+		};
+
+		await TestBed.configureTestingModule({
+			imports: [MatIconTestingModule, TranslateModule.forRoot(), NoopAnimationsModule, TestHostComponent],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_MESSAGE_PANE_SERVICE, useValue: mockMessagePaneService },
-				TranslateService
+				{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger },
+				{ provide: STARK_MESSAGE_PANE_SERVICE, useValue: mockMessagePaneService }
 			]
-		}).compileComponents()));
+		}).compileComponents();
+	});
 
 	beforeEach(() => {
 		hostFixture = TestBed.createComponent(TestHostComponent);
@@ -198,12 +195,12 @@ describe("MessagePaneComponent", () => {
 		component = hostComponent.messagePaneComponent;
 		debugElementComponent = hostFixture.debugElement.query(By.directive(StarkMessagePaneComponent));
 
-		spyOn(component, "clearAllMessages").and.callThrough();
-		spyOn(component, "collapseMessages").and.callThrough();
-		spyOn(component, "expandMessages").and.callThrough();
-		spyOn(component, "hidePane").and.callThrough();
-		spyOn(component, "showPane").and.callThrough();
-		spyOn(component, "toggleActive").and.callThrough();
+		vi.spyOn(component, "clearAllMessages");
+		vi.spyOn(component, "collapseMessages");
+		vi.spyOn(component, "expandMessages");
+		vi.spyOn(component, "hidePane");
+		vi.spyOn(component, "showPane");
+		vi.spyOn(component, "toggleActive");
 
 		mockMessages = {
 			infoMessages: [],
@@ -211,18 +208,21 @@ describe("MessagePaneComponent", () => {
 			errorMessages: []
 		};
 		messageCollection$ = new BehaviorSubject<StarkMessageCollection>(mockMessages);
-		mockMessagePaneService.getAll.and.returnValue(messageCollection$);
+		mockMessagePaneService.getAll.mockReturnValue(messageCollection$);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	describe("on initialization", () => {
 		beforeEach(() => {
-			hostFixture.detectChanges(); // trigger initial data binding
+			hostFixture.detectChanges();
 		});
 
 		it("should set internal component properties", () => {
 			expect(hostFixture).toBeDefined();
 			expect(component).toBeDefined();
-
 			expect(component.logger).toBeTruthy();
 			expect(component.messagePaneService).toBeTruthy();
 		});
@@ -237,8 +237,7 @@ describe("MessagePaneComponent", () => {
 		beforeEach(() => {
 			hostComponent.clearOnNavigation = mockClearOnNavigation;
 			hostComponent.align = mockCenterAlign;
-
-			hostFixture.detectChanges(); // trigger initial data binding
+			hostFixture.detectChanges();
 		});
 
 		describe("inputs", () => {
@@ -246,6 +245,7 @@ describe("MessagePaneComponent", () => {
 				expect(component.clearOnNavigation).toBe(mockClearOnNavigation);
 				expect(component.align).toBe(mockCenterAlign);
 			});
+
 			it("should have the correct CSS classes", () => {
 				const alignClassname: string = starkMessagePaneAlignClassPrefix + mockCenterAlign;
 				expect(debugElementComponent.classes[alignClassname]).toBe(true);
@@ -254,7 +254,8 @@ describe("MessagePaneComponent", () => {
 	});
 
 	describe("showPane", () => {
-		it("should add classes to the root element", fakeAsync(() => {
+		it("should add classes to the root element", () => {
+			vi.useFakeTimers();
 			component.ngOnInit();
 
 			expect(debugElementComponent).toBeTruthy();
@@ -264,12 +265,13 @@ describe("MessagePaneComponent", () => {
 			component.showPane();
 
 			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true);
-			tick(component.showAnimationDelay + 10);
+			vi.advanceTimersByTime(component.showAnimationDelay + 10);
 			expect(debugElementComponent.classes[starkMessagePaneDisplayAnimatedClass]).toBe(true);
-		}));
+		});
 
-		it("when called right after hidePane(), it should wait fot the panel to be hidden before re-showing the pane", fakeAsync(() => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+		it("when called right after hidePane(), it should wait fot the panel to be hidden before re-showing the pane", () => {
+			vi.useFakeTimers();
+			const mockObserver: ObserverSpy<string> = createObserverSpy<string>();
 
 			component.ngOnInit();
 			component["renderer"].addClass(component["elementRef"].nativeElement, starkMessagePaneDisplayAnimatedClass);
@@ -282,37 +284,42 @@ describe("MessagePaneComponent", () => {
 			component.hidePane();
 
 			expect(component.hide$).toBeDefined();
-			(<Observable<string>>component.hide$).subscribe(mockObserver);
+			(component.hide$ as Observable<string>).subscribe({
+				next: mockObserver.next,
+				error: mockObserver.error,
+				complete: mockObserver.complete
+			});
 
 			expect(debugElementComponent.classes[starkMessagePaneDisplayAnimatedClass]).toBeUndefined();
-			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true); // not yet removed
+			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true);
 
 			component.showPane();
 
-			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true); // because of showPane()
+			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true);
 			expect(debugElementComponent.classes[starkMessagePaneDisplayAnimatedClass]).toBeUndefined();
 
 			expect(mockObserver.next).not.toHaveBeenCalled();
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
-			tick(component.hideAnimationDelay + 10);
+			vi.advanceTimersByTime(component.hideAnimationDelay + 10);
 
-			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true); // because of showPane()
+			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true);
 			expect(debugElementComponent.classes[starkMessagePaneDisplayAnimatedClass]).toBeUndefined();
 
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockObserver.next.calls.argsFor(0)[0]).toContain("pane hidden");
+			expect(mockObserver.next).toHaveBeenCalledWith(expect.stringContaining("pane hidden"));
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).toHaveBeenCalledTimes(1);
 
-			tick(component.showAnimationDelay + 10);
+			vi.advanceTimersByTime(component.showAnimationDelay + 10);
 			expect(debugElementComponent.classes[starkMessagePaneDisplayAnimatedClass]).toBe(true);
-		}));
+		});
 	});
 
 	describe("hidePane", () => {
-		it("should remove classes from the root element", fakeAsync(() => {
+		it("should remove classes from the root element", () => {
+			vi.useFakeTimers();
 			component.ngOnInit();
 			expect(component["elementRef"].nativeElement).toBeTruthy();
 			component["renderer"].addClass(component["elementRef"].nativeElement, starkMessagePaneDisplayAnimatedClass);
@@ -323,14 +330,15 @@ describe("MessagePaneComponent", () => {
 
 			component.hidePane();
 			expect(debugElementComponent.classes[starkMessagePaneDisplayAnimatedClass]).toBeUndefined();
-			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true); // not yet removed
+			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true);
 
-			tick(component.hideAnimationDelay + 10);
+			vi.advanceTimersByTime(component.hideAnimationDelay + 10);
 			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBeUndefined();
-		}));
+		});
 
-		it("should create a new hide$ Subject that should emit once the hide process has finished", fakeAsync(() => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+		it("should create a new hide$ Subject that should emit once the hide process has finished", () => {
+			vi.useFakeTimers();
+			const mockObserver: ObserverSpy<string> = createObserverSpy<string>();
 
 			component.ngOnInit();
 			component["renderer"].addClass(component["elementRef"].nativeElement, starkMessagePaneDisplayAnimatedClass);
@@ -343,28 +351,32 @@ describe("MessagePaneComponent", () => {
 			component.hidePane();
 
 			expect(component.hide$).toBeDefined();
-			(<Observable<string>>component.hide$).subscribe(mockObserver);
+			(component.hide$ as Observable<string>).subscribe({
+				next: mockObserver.next,
+				error: mockObserver.error,
+				complete: mockObserver.complete
+			});
 
 			expect(mockObserver.next).not.toHaveBeenCalled();
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).not.toHaveBeenCalled();
 
 			expect(debugElementComponent.classes[starkMessagePaneDisplayAnimatedClass]).toBeUndefined();
-			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true); // not yet removed
+			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBe(true);
 
-			tick(component.hideAnimationDelay + 10);
+			vi.advanceTimersByTime(component.hideAnimationDelay + 10);
 			expect(debugElementComponent.classes[starkMessagePaneDisplayedClass]).toBeUndefined();
 
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
-			expect(mockObserver.next.calls.argsFor(0)[0]).toContain("pane hidden");
+			expect(mockObserver.next).toHaveBeenCalledWith(expect.stringContaining("pane hidden"));
 			expect(mockObserver.error).not.toHaveBeenCalled();
 			expect(mockObserver.complete).toHaveBeenCalledTimes(1);
-		}));
+		});
 	});
 
 	describe("message pane", () => {
 		beforeEach(() => {
-			hostFixture.detectChanges(); // trigger initial data binding (executes the ngOnInit)
+			hostFixture.detectChanges();
 
 			mockMessages = {
 				infoMessages: [mockInfoMessage1],
@@ -373,7 +385,7 @@ describe("MessagePaneComponent", () => {
 			};
 
 			messageCollection$.next(mockMessages);
-			hostFixture.detectChanges(); // trigger changes in data binding (it does not execute ngOnInit again -> it remembers!)
+			hostFixture.detectChanges();
 		});
 
 		describe("display message pane", () => {
@@ -387,30 +399,26 @@ describe("MessagePaneComponent", () => {
 				expect(activeTab).toBeNull();
 
 				const errorMessagesTab: HTMLElement = debugElementComponent.query(By.css(".errors b")).nativeElement;
-				expect(errorMessagesTab).toBeTruthy();
-
 				const warningMessagesTab: HTMLElement = debugElementComponent.query(By.css(".warnings b")).nativeElement;
-				expect(warningMessagesTab).toBeTruthy();
-
 				const infoMessagesTab: HTMLElement = debugElementComponent.query(By.css(".infos b")).nativeElement;
-				expect(infoMessagesTab).toBeTruthy();
-
 				const totalMessagesTab: HTMLElement = debugElementComponent.query(By.css(".stark-message-pane-total b")).nativeElement;
-				expect(totalMessagesTab).toBeTruthy();
-
 				const totalMessages: number =
 					mockMessages.infoMessages.length + mockMessages.warningMessages.length + mockMessages.errorMessages.length;
 
-				expect(errorMessagesTab.innerText).toEqual(`${mockMessages.errorMessages.length}`);
-				expect(warningMessagesTab.innerText).toEqual(`${mockMessages.warningMessages.length}`);
-				expect(infoMessagesTab.innerText).toEqual(`${mockMessages.infoMessages.length}`);
-				expect(totalMessagesTab.innerText).toEqual(`${totalMessages}`);
+				expect(errorMessagesTab).toBeTruthy();
+				expect(warningMessagesTab).toBeTruthy();
+				expect(infoMessagesTab).toBeTruthy();
+				expect(totalMessagesTab).toBeTruthy();
+				expect(errorMessagesTab.textContent).toEqual(`${mockMessages.errorMessages.length}`);
+				expect(warningMessagesTab.textContent).toEqual(`${mockMessages.warningMessages.length}`);
+				expect(infoMessagesTab.textContent).toEqual(`${mockMessages.infoMessages.length}`);
+				expect(totalMessagesTab.textContent).toEqual(`${totalMessages}`);
 			});
 		});
 
 		describe("collapse, expand and hide the message pane", () => {
-			beforeEach(fakeAsync(() => {
-				mockMessagePaneService.clearAll.and.callFake(() => {
+			beforeEach(() => {
+				mockMessagePaneService.clearAll.mockImplementation(() => {
 					const emptyMessageCollection: StarkMessageCollection = {
 						infoMessages: [],
 						warningMessages: [],
@@ -420,7 +428,7 @@ describe("MessagePaneComponent", () => {
 					messageCollection$.next(emptyMessageCollection);
 					hostFixture.detectChanges();
 				});
-			}));
+			});
 
 			it("should expand and collapse upon button clicks", () => {
 				const collapseMessagesButton: DebugElement = debugElementComponent.query(By.css(".collapse-pane"));
@@ -428,8 +436,6 @@ describe("MessagePaneComponent", () => {
 
 				expect(collapseMessagesButton.nativeElement).toBeTruthy();
 				expect(totalMessagesButton.nativeElement).toBeTruthy();
-
-				// the max. message level, initially mocked 'errors'
 				expect(totalMessagesButton.classes["errors"]).toBe(true);
 				expect(debugElementComponent.classes["collapsed"]).toBeUndefined();
 
@@ -456,16 +462,13 @@ describe("MessagePaneComponent", () => {
 
 				expect(component.clearAllMessages).toHaveBeenCalledTimes(1);
 				expect(mockMessagePaneService.clearAll).toHaveBeenCalledTimes(1);
-
 				expect(component.hidePane).toHaveBeenCalledTimes(1);
 				expect(component.isVisible).toBe(false);
 
-				// no more messages should be displayed
 				const messagePaneContent: HTMLElement = debugElementComponent.query(By.css(".stark-message-pane-content")).nativeElement;
 				const messageElements: NodeListOf<Element> = getMessageElements(messagePaneContent);
 				expect(messageElements.length).toBe(0);
 
-				// all tabs are removed as well
 				assertDisplayedMessages("warnings", []);
 				assertDisplayedMessages("infos", []);
 				assertDisplayedMessages("errors", []);
@@ -482,7 +485,7 @@ describe("MessagePaneComponent", () => {
 
 		describe("messages", () => {
 			beforeEach(() => {
-				hostFixture.detectChanges(); // trigger initial data binding (executes the ngOnInit)
+				hostFixture.detectChanges();
 
 				mockMessages = {
 					infoMessages: [mockInfoMessage1],
@@ -491,9 +494,9 @@ describe("MessagePaneComponent", () => {
 				};
 
 				messageCollection$.next(mockMessages);
-				hostFixture.detectChanges(); // trigger changes in data binding (it does not execute ngOnInit again -> it remembers!)
+				hostFixture.detectChanges();
 
-				mockMessagePaneService.remove.and.callFake((messagesToRemove: StarkMessage[]) => {
+				mockMessagePaneService.remove.mockImplementation((messagesToRemove: StarkMessage[]) => {
 					for (const message of messagesToRemove) {
 						let messageArray: StarkMessage[];
 						switch (message.type) {
@@ -509,13 +512,15 @@ describe("MessagePaneComponent", () => {
 							default:
 								throw new Error("unknown message type");
 						}
+
 						const idx: number = messageArray.indexOf(message);
 						if (idx !== -1) {
 							messageArray.splice(idx, 1);
 						}
 					}
+
 					messageCollection$.next(mockMessages);
-					hostFixture.detectChanges(); // trigger changes in data binding (it does not execute ngOnInit again -> it remembers!)
+					hostFixture.detectChanges();
 				});
 			});
 
@@ -526,19 +531,16 @@ describe("MessagePaneComponent", () => {
 
 				indexToRemove = mockMessages.errorMessages.indexOf(mockErrorMessage1);
 				closeMessage("errors", indexToRemove);
-				// check if the button is removed
 				assertDisplayedMessages("errors", mockMessages.errorMessages);
 				assertDisplayedTotalMessages("warnings", 2);
 
 				indexToRemove = mockMessages.warningMessages.indexOf(mockWarningMessage1);
 				closeMessage("warnings", indexToRemove);
-				// check if the button is removed
 				assertDisplayedMessages("warnings", mockMessages.warningMessages);
 				assertDisplayedTotalMessages("infos", 1);
 
 				indexToRemove = mockMessages.infoMessages.indexOf(mockInfoMessage1);
 				closeMessage("infos", indexToRemove);
-				// check if the button is removed
 				assertDisplayedMessages("infos", mockMessages.infoMessages);
 				assertDisplayedTotalMessages("infos", 0);
 			});

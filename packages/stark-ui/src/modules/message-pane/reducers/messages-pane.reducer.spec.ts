@@ -3,8 +3,7 @@ import { StarkMessage, StarkMessageCollection, StarkMessageType } from "@nationa
 import { StarkMessagePaneActions } from "../actions";
 
 import { messagesReducer } from "./messages-pane.reducer";
-
-const deepFreeze: Function = require("deep-freeze-strict");
+import deepFreeze from "deep-freeze-strict";
 
 const mockInfoMessage: StarkMessage = {
 	id: "3",

@@ -1,9 +1,6 @@
-import { BehaviorSubject, Observable, Observer } from "rxjs";
-
 import { Store } from "@ngrx/store";
-
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
-
+import { BehaviorSubject, Observable } from "rxjs";
+import { vi } from "vitest";
 import {
 	StarkMessage,
 	StarkMessageCollection,
@@ -11,16 +8,33 @@ import {
 	StarkMessageType,
 	StarkUIApplicationState
 } from "@nationalbankbelgium/stark-ui/src/common";
-
+import { StarkMessagePaneActions } from "../actions";
 import { StarkMessagePaneServiceImpl } from "./message-pane.service";
 
-import { StarkMessagePaneActions } from "../actions";
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+type StoreMock = {
+	dispatch: ReturnType<typeof vi.fn<(action: unknown) => void>>;
+	pipe: ReturnType<typeof vi.fn<(...args: unknown[]) => Observable<StarkMessageCollection>>>;
+};
+
+type ObserverSpy<T> = {
+	next: ReturnType<typeof vi.fn<(value: T) => void>>;
+	error: ReturnType<typeof vi.fn<(error: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
+
+const createObserverSpy = <T>(): ObserverSpy<T> => ({
+	next: vi.fn<(value: T) => void>(),
+	error: vi.fn<(error: unknown) => void>(),
+	complete: vi.fn<() => void>()
+});
 
 describe("MessagePaneService", () => {
-	let mockStore: SpyObj<Store<StarkUIApplicationState>>;
-	const mockLogger: MockStarkLoggingService = new MockStarkLoggingService();
+	let mockStore: StoreMock;
+	let mockLogger: LoggingServiceMock;
 	let appMessagesState$: BehaviorSubject<StarkMessageCollection>;
 	let mockMessageCollection: StarkMessageCollection;
 	let messagePaneService: MessagePaneServiceHelper;
@@ -48,7 +62,13 @@ describe("MessagePaneService", () => {
 	};
 
 	beforeEach(() => {
-		mockStore = jasmine.createSpyObj<Store<StarkUIApplicationState>>("store", ["dispatch", "pipe"]);
+		mockStore = {
+			dispatch: vi.fn<(action: unknown) => void>(),
+			pipe: vi.fn<(...args: unknown[]) => Observable<StarkMessageCollection>>()
+		};
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
 
 		mockMessageCollection = {
 			errorMessages: [],
@@ -57,9 +77,9 @@ describe("MessagePaneService", () => {
 		};
 
 		appMessagesState$ = new BehaviorSubject(mockMessageCollection);
-		mockStore.pipe.and.returnValue(appMessagesState$);
+		mockStore.pipe.mockReturnValue(appMessagesState$);
 
-		messagePaneService = new MessagePaneServiceHelper(mockLogger, <Store<StarkUIApplicationState>>(<unknown>mockStore));
+		messagePaneService = new MessagePaneServiceHelper(mockLogger as any, mockStore as unknown as Store<StarkUIApplicationState>);
 	});
 
 	afterEach(() => {
@@ -71,9 +91,13 @@ describe("MessagePaneService", () => {
 			expect(mockStore.pipe).toHaveBeenCalledTimes(1);
 			expect(messagePaneService.messages$).toBeDefined();
 
-			const mockMessagesObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockMessagesObserver = createObserverSpy<StarkMessageCollection>();
 
-			messagePaneService.messages$.subscribe(mockMessagesObserver);
+			messagePaneService.messages$.subscribe({
+				next: mockMessagesObserver.next,
+				error: mockMessagesObserver.error,
+				complete: mockMessagesObserver.complete
+			});
 
 			expect(mockMessagesObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockMessagesObserver.next).toHaveBeenCalledWith(mockMessageCollection);
@@ -165,12 +189,16 @@ describe("MessagePaneService", () => {
 		it("should dispatch the GET_ALL_MESSAGES action passing the given messages in the payload", () => {
 			expect(messagePaneService.messages$).toBeDefined();
 
-			const mockMessagesObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
+			const mockMessagesObserver = createObserverSpy<StarkMessageCollection>();
 
 			const getAll$: Observable<StarkMessageCollection> = messagePaneService.getAll();
 			expect(getAll$).toBe(messagePaneService.messages$);
 
-			getAll$.subscribe(mockMessagesObserver);
+			getAll$.subscribe({
+				next: mockMessagesObserver.next,
+				error: mockMessagesObserver.error,
+				complete: mockMessagesObserver.complete
+			});
 
 			expect(mockMessagesObserver.next).toHaveBeenCalledTimes(1);
 			expect(mockMessagesObserver.next).toHaveBeenCalledWith(mockMessageCollection);
@@ -203,5 +231,5 @@ describe("MessagePaneService", () => {
 });
 
 class MessagePaneServiceHelper extends StarkMessagePaneServiceImpl {
-	public declare messages$: Observable<StarkMessageCollection>;
+	declare public messages$: Observable<StarkMessageCollection>;
 }
