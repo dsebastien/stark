@@ -25,8 +25,9 @@ class StarkIsBBANConstraint implements ValidatorConstraintInterface {
 	public validate(bban: string, validationArguments?: ValidationArguments): boolean {
 		const validator: StarkValidator = getFromContainer<StarkValidatorImpl>(StarkValidatorImpl);
 		const constraint: string = validationArguments && validationArguments.constraints[0] ? validationArguments.constraints[0] : "";
+		const validationTarget = <Record<string, string> | undefined>validationArguments?.object;
 
-		return validator.starkIsBBAN(bban, validationArguments ? validationArguments.object[constraint] : "");
+		return validator.starkIsBBAN(bban, validationTarget ? (validationTarget[constraint] ?? "") : "");
 	}
 
 	/**
@@ -41,13 +42,13 @@ class StarkIsBBANConstraint implements ValidatorConstraintInterface {
  * Validator decorator that uses the StarkIsBBAN validator constraint
  * @param property - the bban number
  * @param validationOptions - the options to ensure the bban is valid
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkIsBBAN(property: string, validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkIsBBAN(property: string, validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [property],
 			validator: StarkIsBBANConstraint

@@ -64,13 +64,13 @@ class StarkArrayIsValidConstraint implements ValidatorConstraintInterface {
 /**
  * Validator decorator that uses the StarkArrayIsValid validator constraint
  * @param validationOptions - options to determine if the array is valid
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkArrayIsValid(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkArrayIsValid(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkArrayIsValidConstraint

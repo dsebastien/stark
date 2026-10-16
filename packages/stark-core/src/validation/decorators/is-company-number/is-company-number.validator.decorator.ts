@@ -32,13 +32,13 @@ class StarkIsCompanyNumberConstraint implements ValidatorConstraintInterface {
 /**
  * Validator decorator that uses the StarkIsCompanyNumber validator constraint
  * @param validationOptions - that ensure that the company number is valid
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkIsCompanyNumber(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkIsCompanyNumber(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkIsCompanyNumberConstraint

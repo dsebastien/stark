@@ -31,11 +31,11 @@ class StarkMapNotEmptyConstraint implements ValidatorConstraintInterface {
  * Validator decorator that uses the StarkMapNotEmpty validator constraint
  * @param validationOptions - that ensure that the map is valid or not
  */
-export function StarkMapNotEmpty(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkMapNotEmpty(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkMapNotEmptyConstraint

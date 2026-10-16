@@ -32,13 +32,13 @@ class StarkIsIBANConstraint implements ValidatorConstraintInterface {
 /**
  * Validator decorator that uses the StarkIsIBAN validator constraint
  * @param validationOptions - that ensure the iban is valid
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkIsIBAN(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkIsIBAN(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkIsIBANConstraint

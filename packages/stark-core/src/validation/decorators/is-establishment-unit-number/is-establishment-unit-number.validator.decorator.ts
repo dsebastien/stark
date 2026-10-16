@@ -33,13 +33,13 @@ class StarkIsEstablishmentUnitNumberConstraint implements ValidatorConstraintInt
 /**
  * Validator decorator that uses the StarkIsIsEstablishmentUnitNumber validator constraint
  * @param validationOptions - The options that will define the validity of the establishment number
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkIsEstablishmentUnitNumber(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkIsEstablishmentUnitNumber(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkIsEstablishmentUnitNumberConstraint

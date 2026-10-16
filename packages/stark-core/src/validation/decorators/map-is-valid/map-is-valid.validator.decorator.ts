@@ -76,13 +76,13 @@ class StarkMapIsValidConstraint implements ValidatorConstraintInterface {
 /**
  * Validator decorator that uses the StarkMapIsValid validator constraint
  * @param validationOptions - options to determine if the map is valid
- * @returns Function
+ * @returns PropertyDecorator
  */
-export function StarkMapIsValid(validationOptions?: ValidationOptions): Function {
-	return (object: object, propertyName: string): void => {
+export function StarkMapIsValid(validationOptions?: ValidationOptions): PropertyDecorator {
+	return (object: object, propertyName: string | symbol): void => {
 		registerDecorator({
 			target: object.constructor,
-			propertyName: propertyName,
+			propertyName: String(propertyName),
 			options: validationOptions,
 			constraints: [],
 			validator: StarkMapIsValidConstraint
