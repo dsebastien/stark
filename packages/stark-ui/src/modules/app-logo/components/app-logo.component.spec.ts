@@ -1,46 +1,50 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
+import { vi } from "vitest";
 import { StarkAppLogoComponent } from "./app-logo.component";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+type RoutingServiceMock = {
+	navigateToHome: ReturnType<typeof vi.fn<(params?: { [property: string]: any }) => void>>;
+};
 
 describe("AppLogoComponent", () => {
 	let component: StarkAppLogoComponent;
 	let fixture: ComponentFixture<StarkAppLogoComponent>;
+	let mockLogger: LoggingServiceMock;
+	let mockRoutingService: RoutingServiceMock;
 
-	/**
-	 * async beforeEach
-	 */
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkAppLogoComponent],
+	beforeEach(async () => {
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		mockRoutingService = {
+			navigateToHome: vi.fn<(params?: { [property: string]: any }) => void>()
+		};
+
+		await TestBed.configureTestingModule({
+			imports: [StarkAppLogoComponent],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_ROUTING_SERVICE, useClass: MockStarkRoutingService }
+				{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger },
+				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService }
 			]
-		})
-			/**
-			 * Compile template and css
-			 */
-			.compileComponents()));
+		}).compileComponents();
+	});
 
-	/**
-	 * Synchronous beforeEach
-	 */
 	beforeEach(() => {
 		fixture = TestBed.createComponent(StarkAppLogoComponent);
 		component = fixture.componentInstance;
-
-		fixture.detectChanges(); // trigger initial data binding
+		fixture.detectChanges();
+		mockRoutingService.navigateToHome.mockClear();
 	});
 
 	describe("on initialization", () => {
 		it("should set internal component properties", () => {
 			expect(fixture).toBeDefined();
 			expect(component).toBeDefined();
-
 			expect(component.logger).not.toBeNull();
 			expect(component.logger).toBeDefined();
 			expect(component.routingService).not.toBeNull();
@@ -54,18 +58,19 @@ describe("AppLogoComponent", () => {
 
 	describe("logoClickHandler()", () => {
 		it("should navigate to Home", () => {
-			const dummyClickEvent: SpyObj<Event> = createSpyObj("dummyClickEvent", ["preventDefault"]);
+			const dummyClickEvent = {
+				preventDefault: vi.fn<() => void>()
+			} as unknown as Event;
 
 			component.homeStateParams = {
 				someParam: "dummy param"
 			};
 			fixture.detectChanges();
 
-			// routingService.navigateToHome is already an Spy
-			(<Spy>component.routingService.navigateToHome).calls.reset();
 			component.logoClickHandler(dummyClickEvent);
-			expect(component.routingService.navigateToHome).toHaveBeenCalledTimes(1);
-			expect(component.routingService.navigateToHome).toHaveBeenCalledWith(component.homeStateParams);
+
+			expect(mockRoutingService.navigateToHome).toHaveBeenCalledTimes(1);
+			expect(mockRoutingService.navigateToHome).toHaveBeenCalledWith(component.homeStateParams);
 		});
 	});
 });

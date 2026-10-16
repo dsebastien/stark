@@ -11,6 +11,7 @@ const componentName = "stark-app-logo";
  * Component to display the application's logo
  */
 @Component({
+	standalone: true,
 	selector: "stark-app-logo",
 	templateUrl: "./app-logo.component.html",
 	encapsulation: ViewEncapsulation.None,

@@ -2,7 +2,8 @@ import { NgModule } from "@angular/core";
 import { StarkAppLogoComponent } from "./components";
 
 @NgModule({
-	declarations: [StarkAppLogoComponent],
+	declarations: [],
+	imports: [StarkAppLogoComponent],
 	exports: [StarkAppLogoComponent]
 })
 export class StarkAppLogoModule {}
