@@ -1,18 +1,27 @@
-<!-- Support for changing multiSelect after init. https://material.angular.io/components/select/overview#error-cannot-change-code-multiple-code-mode-of-select-after-initialization -->
+<!-- Support for changing multiSelect after init. https://material.angular.dev/components/select/overview#error-cannot-change-code-multiple-code-mode-of-select-after-initialization -->
+<!--
+	MDC form fields no longer promote a custom MatFormFieldControl placeholder to
+	a visible floating label. Keep the established Stark dropdown contract until
+	applications can migrate to explicit mat-label content.
+-->
+<span class="stark-dropdown-floating-label" aria-hidden="true"> {{ placeholder }}<span *ngIf="required"> *</span> </span>
+
 <!-- single-selection view -->
 <mat-select
 	#singleSelectEl
 	*ngIf="!multiSelect"
 	[value]="value"
 	[id]="dropdownId"
-	[placeholder]="placeholder"
+	[placeholder]="required ? placeholder + ' *' : placeholder"
 	[attr.aria-label]="dropdownName | translate"
 	[required]="required"
 	[disabled]="disabled"
+	[panelWidth]="panelWidth"
+	[panelClass]="materialPanelClass"
 	(selectionChange)="onSelectionChange($event)"
 	(openedChange)="onOpenedChange()"
 >
-	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/material2/pull/7835 -->
+	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/components/pull/7835 -->
 	<!--<mat-select-header-->
 	<!--*ngIf="header !== undefined && header !== ''"-->
 	<!--class="stark-dropdown-header"-->
@@ -33,15 +42,17 @@
 	*ngIf="multiSelect"
 	[value]="value"
 	[id]="dropdownId"
-	[placeholder]="placeholder"
+	[placeholder]="required ? placeholder + ' *' : placeholder"
 	[attr.aria-label]="dropdownName | translate"
 	[required]="required"
 	[disabled]="disabled"
+	[panelWidth]="panelWidth"
+	[panelClass]="materialPanelClass"
 	(selectionChange)="onSelectionChange($event)"
 	(openedChange)="onOpenedChange()"
 	multiple
 >
-	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/material2/pull/7835 -->
+	<!-- FIXME find a replacement for md-select-header as mat-select-header does not exist yet https://github.com/angular/components/pull/7835 -->
 	<!--<mat-select-header-->
 	<!--ng-if="$ctrl.header !== undefined && $ctrl.header !== ''"-->
 	<!--class="stark-dropdown-header"-->
