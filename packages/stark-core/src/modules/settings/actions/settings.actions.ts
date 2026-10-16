@@ -1,4 +1,4 @@
-import { createAction, props, union } from "@ngrx/store";
+import { createAction, props } from "@ngrx/store";
 import { starkSettingsStoreKey } from "../constants";
 
 /**
@@ -36,8 +36,8 @@ export const persistPreferredLanguageFailure = createAction(
  */
 export const setPreferredLanguage = createAction(`[${starkSettingsStoreKey}] Set Preferred Language`, props<{ language: string }>());
 
-/**
- * @ignore
- */
-const all = union({ persistPreferredLanguage, persistPreferredLanguageSuccess, persistPreferredLanguageFailure, setPreferredLanguage });
-export type Types = typeof all;
+export type Types =
+	| ReturnType<typeof persistPreferredLanguage>
+	| ReturnType<typeof persistPreferredLanguageSuccess>
+	| ReturnType<typeof persistPreferredLanguageFailure>
+	| ReturnType<typeof setPreferredLanguage>;

@@ -1,25 +1,25 @@
-import SpyObj = jasmine.SpyObj;
-import createSpyObj = jasmine.createSpyObj;
 import { StarkSettingsEffects } from "./settings.effects";
 import { StarkSettingsActions } from "../actions";
 import { STARK_SESSION_SERVICE } from "../../session/services";
-import { MockStarkSessionService } from "@nationalbankbelgium/stark-core/testing";
+import { MockStarkSessionService, createMockObject } from "@nationalbankbelgium/stark-core/testing";
 import { TestBed } from "@angular/core/testing";
-import { Observable, Observer, ReplaySubject } from "rxjs";
+import { Observer, ReplaySubject } from "rxjs";
 import { provideMockActions } from "@ngrx/effects/testing";
 
 describe("Effect: StarkSettingsEffects", () => {
 	let settingsEffects: StarkSettingsEffects;
 
 	let mockSessionService: MockStarkSessionService;
-	let actions: Observable<any>;
+	let actions: ReplaySubject<any>;
 
 	// Inject module dependencies
 	beforeEach(() => {
+		actions = new ReplaySubject(1);
+
 		TestBed.configureTestingModule({
 			providers: [
 				StarkSettingsEffects,
-				provideMockActions(() => actions),
+				provideMockActions(() => actions.asObservable()),
 				{
 					provide: STARK_SESSION_SERVICE,
 					useFactory: (): MockStarkSessionService => new MockStarkSessionService()
@@ -34,15 +34,12 @@ describe("Effect: StarkSettingsEffects", () => {
 
 	describe("On setPreferredLanguage$", () => {
 		it("should set the language successfully", () => {
-			const mockObserver: SpyObj<Observer<any>> = createSpyObj<Observer<any>>("observerSpy", ["next", "error", "complete"]);
-			mockSessionService.setCurrentLanguage.and.returnValue(undefined);
+			const mockObserver = createMockObject<Observer<any>>(["next", "error", "complete"]);
+			mockSessionService.setCurrentLanguage.mockReturnValue(undefined);
 
-			const subject: ReplaySubject<any> = new ReplaySubject(1);
-			actions = subject.asObservable();
+			settingsEffects.setPreferredLanguage$.subscribe(mockObserver as Observer<any>);
 
-			settingsEffects.setPreferredLanguage$.subscribe(mockObserver);
-
-			subject.next(StarkSettingsActions.setPreferredLanguage({ language: "NL" }));
+			actions.next(StarkSettingsActions.setPreferredLanguage({ language: "NL" }));
 
 			expect(mockSessionService.setCurrentLanguage).toHaveBeenCalledWith("NL");
 			expect(mockObserver.next).toHaveBeenCalledTimes(1);
