@@ -1,25 +1,40 @@
 /* eslint-disable @angular-eslint/no-lifecycle-call */
+import { NgModule } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { StoreModule } from "@ngrx/store";
-import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
+import { TranslateModule } from "@ngx-translate/core";
+import { STARK_LOGGING_SERVICE, type StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { HomePageComponent } from "./home-page.component";
+import { vi } from "vitest";
+
+type LoggingServiceMock = Pick<StarkLoggingService, "debug"> & {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+@NgModule({
+	declarations: [HomePageComponent],
+	imports: [TranslateModule]
+})
+class HomePageTestModule {}
 
 describe(`Home`, () => {
 	let comp: HomePageComponent;
 	let fixture: ComponentFixture<HomePageComponent>;
-	let logger: MockStarkLoggingService;
+	let logger: LoggingServiceMock;
 
 	/**
 	 * async beforeEach.
 	 */
 	beforeEach(waitForAsync(() => {
+		logger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+
 		return (
 			TestBed.configureTestingModule({
-				declarations: [HomePageComponent],
-				imports: [StoreModule.forRoot({}), HttpClientTestingModule],
-				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
+				imports: [StoreModule.forRoot({}), HttpClientTestingModule, TranslateModule.forRoot(), HomePageTestModule],
+				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: logger }]
 			})
 
 				/**
@@ -33,8 +48,6 @@ describe(`Home`, () => {
 	 * Synchronous beforeEach.
 	 */
 	beforeEach(() => {
-		logger = TestBed.inject<MockStarkLoggingService>(STARK_LOGGING_SERVICE);
-
 		fixture = TestBed.createComponent(HomePageComponent);
 		comp = fixture.componentInstance;
 
@@ -42,7 +55,7 @@ describe(`Home`, () => {
 		 * Trigger initial data binding.
 		 */
 		fixture.detectChanges();
-		logger.debug.calls.reset();
+		logger.debug.mockClear();
 	});
 
 	it("should log ngOnInit", () => {

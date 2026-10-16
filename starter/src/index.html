@@ -1,15 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="<%= starkOptions.starkAppConfig.defaultLanguage %>">
 	<head>
-		<!-- The base href is defined through the Webpack configuration and can be customized through the angular.json file -->
+		<!-- The base href is defined through the Angular build configuration and can be customized through angular.json -->
 		<!-- necessary for HTML5 History API which adds support for pretty URLs (see app.ts) -->
 		<meta charset="utf-8" />
 
 		<title><%= starkOptions.starkAppMetadata.name %></title>
 		<meta name="description" content="<%= starkOptions.starkAppMetadata.description %>" />
+		<!-- Additional head tags are generated from config/index-head-config.js -->
 
 		<!-- Stylesheets -->
-		<!-- Generated CSS stylesheets will be added by webpack: mini-css-extract-plugin -->
+		<!-- Generated CSS stylesheets will be added by the Angular application builder -->
 	</head>
 	<body class="">
 		<noscript>
@@ -61,7 +62,6 @@
 			}
 		</script>
 
-		<!-- CSS will be injected by webpack here -->
-		<!-- Generated bundle scripts will be injected by webpack here: html-webpack-plugin -->
+		<!-- CSS and bundle scripts will be injected by the Angular application builder -->
 	</body>
 </html>

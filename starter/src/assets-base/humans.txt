@@ -19,6 +19,6 @@
   ES20xy
   HTML5
   CSS3
-  Webpack  
+  Angular CLI
   NodeJS
   NPM
