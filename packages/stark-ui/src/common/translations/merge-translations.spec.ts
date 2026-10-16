@@ -1,4 +1,4 @@
-import { inject, TestBed } from "@angular/core/testing";
+import { TestBed } from "@angular/core/testing";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { StarkLocale } from "@nationalbankbelgium/stark-core";
 import { mergeUiTranslations } from "./merge-translations";
@@ -41,12 +41,11 @@ describe("Translations: mergeUiTranslations", () => {
 		});
 	});
 
-	// Inject module dependencies
-	beforeEach(inject([TranslateService], (_translateService: TranslateService) => {
-		translateService = _translateService;
+	beforeEach(() => {
+		translateService = TestBed.inject(TranslateService);
 		translateService.addLangs(["en", "fr", "nl", "de"]);
 		translateService.setDefaultLang("en");
-	}));
+	});
 
 	describe("mergeUiTranslations", () => {
 		it("should return the merged translations from common Core, common Ui, module and app", () => {

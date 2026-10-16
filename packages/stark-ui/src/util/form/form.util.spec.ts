@@ -1,6 +1,15 @@
-import { StarkFormControlState, StarkFormUtil } from "./form.util";
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
 import startCase from "lodash-es/startCase";
+import { vi } from "vitest";
+import { StarkFormControlState, StarkFormUtil } from "./form.util";
+
+type MockFormControl = {
+	setValue: ReturnType<typeof vi.fn>;
+	markAsUntouched: ReturnType<typeof vi.fn>;
+	markAsTouched: ReturnType<typeof vi.fn>;
+	markAsPristine: ReturnType<typeof vi.fn>;
+	markAsDirty: ReturnType<typeof vi.fn>;
+};
 
 describe("Util: FormUtil", () => {
 	const formItemStates: string[] = ["untouched", "touched", "pristine", "dirty"];
@@ -9,34 +18,36 @@ describe("Util: FormUtil", () => {
 	let mockFormControls: UntypedFormControl[];
 
 	function getMockFormControl(name: string): UntypedFormControl {
-		// prettier-ignore
-		return <UntypedFormControl>
-			(<unknown>(
-				jasmine.createSpyObj<UntypedFormControl>(name, [
-					"value",
-					"setValue",
-					"markAsUntouched",
-					"markAsTouched",
-					"markAsPristine",
-					"markAsDirty"
-				])
-			)
-		);
+		const mockFormControl: MockFormControl = {
+			setValue: vi.fn().mockName(`${name}.setValue`),
+			markAsUntouched: vi.fn().mockName(`${name}.markAsUntouched`),
+			markAsTouched: vi.fn().mockName(`${name}.markAsTouched`),
+			markAsPristine: vi.fn().mockName(`${name}.markAsPristine`),
+			markAsDirty: vi.fn().mockName(`${name}.markAsDirty`)
+		};
+
+		return mockFormControl as unknown as UntypedFormControl;
 	}
 
 	function assertFormControl(formItem: UntypedFormControl, newState?: string): void {
+		const formItemSpy = formItem as unknown as MockFormControl & Record<string, ReturnType<typeof vi.fn>>;
+
 		if (newState) {
 			const newStateSetter: string = "markAs" + startCase(newState);
-			expect(formItem[newStateSetter]).toHaveBeenCalledTimes(1);
+			expect(formItemSpy[newStateSetter]).toHaveBeenCalledTimes(1);
 		}
 
 		// check that the setters for other states where not called
 		const nonUsedStates: string[] = formItemStates.filter((state: string) => state !== newState);
 		for (const nonUsedState of nonUsedStates) {
 			const nonUsedStateSetter: string = "markAs" + startCase(nonUsedState);
-			expect(formItem[nonUsedStateSetter]).not.toHaveBeenCalled();
+			expect(formItemSpy[nonUsedStateSetter]).not.toHaveBeenCalled();
 		}
 	}
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
 
 	beforeEach(() => {
 		mockFormControls = [getMockFormControl("item1"), getMockFormControl("item2")];
@@ -151,13 +162,13 @@ describe("Util: FormUtil", () => {
 
 	describe("isFormGroupValid", () => {
 		it("should set form state to 'pristine' and return TRUE if the form is valid", () => {
-			spyOn(StarkFormUtil, "setFormChildControlsState");
+			const setFormChildControlsStateSpy = vi.spyOn(StarkFormUtil, "setFormChildControlsState");
 
 			const result: boolean = StarkFormUtil.isFormGroupValid(mockUntypedFormGroup);
 
 			expect(result).toBe(true);
-			expect(StarkFormUtil.setFormChildControlsState).toHaveBeenCalledTimes(1);
-			expect(StarkFormUtil.setFormChildControlsState).toHaveBeenCalledWith(mockUntypedFormGroup, ["pristine"]);
+			expect(setFormChildControlsStateSpy).toHaveBeenCalledTimes(1);
+			expect(setFormChildControlsStateSpy).toHaveBeenCalledWith(mockUntypedFormGroup, ["pristine"]);
 		});
 
 		it("should set form state to 'touched' and return FALSE if the form is NOT valid", () => {
@@ -169,13 +180,13 @@ describe("Util: FormUtil", () => {
 				invalid: true
 			};
 
-			spyOn(StarkFormUtil, "setFormChildControlsState");
+			const setFormChildControlsStateSpy = vi.spyOn(StarkFormUtil, "setFormChildControlsState");
 
 			const result: boolean = StarkFormUtil.isFormGroupValid(mockUntypedFormGroup);
 
 			expect(result).toBe(false);
-			expect(StarkFormUtil.setFormChildControlsState).toHaveBeenCalledTimes(1);
-			expect(StarkFormUtil.setFormChildControlsState).toHaveBeenCalledWith(mockUntypedFormGroup, ["touched"]);
+			expect(setFormChildControlsStateSpy).toHaveBeenCalledTimes(1);
+			expect(setFormChildControlsStateSpy).toHaveBeenCalledWith(mockUntypedFormGroup, ["touched"]);
 		});
 	});
 
