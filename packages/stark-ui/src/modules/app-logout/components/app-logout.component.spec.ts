@@ -1,4 +1,7 @@
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { MatIconTestingModule } from "@angular/material/icon/testing";
+import { TranslateModule } from "@ngx-translate/core";
 import {
 	STARK_LOGGING_SERVICE,
 	STARK_ROUTING_SERVICE,
@@ -7,58 +10,66 @@ import {
 	StarkSessionConfig,
 	starkSessionLogoutStateName
 } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService, MockStarkSessionService } from "@nationalbankbelgium/stark-core/testing";
+import { vi } from "vitest";
 import { StarkAppLogoutComponent } from "./app-logout.component";
-import { MatLegacyButtonModule as MatButtonModule } from "@angular/material/legacy-button";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { MatIconModule } from "@angular/material/icon";
-import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { TranslateModule } from "@ngx-translate/core";
-import Spy = jasmine.Spy;
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+type RoutingServiceMock = {
+	navigateTo: ReturnType<typeof vi.fn<(state: string) => void>>;
+};
+
+type SessionServiceMock = {
+	logout: ReturnType<typeof vi.fn<() => void>>;
+};
 
 describe("AppLogoutComponent", () => {
 	let component: StarkAppLogoutComponent;
 	let fixture: ComponentFixture<StarkAppLogoutComponent>;
+	let mockLogger: LoggingServiceMock;
+	let mockRoutingService: RoutingServiceMock;
+	let mockSessionService: SessionServiceMock;
 
 	const mockStarkSessionConfig: StarkSessionConfig = {
 		sessionLogoutStateName: "logout-state"
 	};
 
-	/**
-	 * async beforeEach
-	 */
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			imports: [MatTooltipModule, MatButtonModule, MatIconModule, MatIconTestingModule, TranslateModule.forRoot()],
-			declarations: [StarkAppLogoutComponent],
+	beforeEach(async () => {
+		mockLogger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+		mockRoutingService = {
+			navigateTo: vi.fn<(state: string) => void>()
+		};
+		mockSessionService = {
+			logout: vi.fn<() => void>()
+		};
+
+		await TestBed.configureTestingModule({
+			imports: [MatIconTestingModule, NoopAnimationsModule, TranslateModule.forRoot(), StarkAppLogoutComponent],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_SESSION_SERVICE, useValue: new MockStarkSessionService() },
-				{ provide: STARK_ROUTING_SERVICE, useClass: MockStarkRoutingService },
-				// Need to clone the object to avoid mutation of it between tests
+				{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger },
+				{ provide: STARK_SESSION_SERVICE, useValue: mockSessionService },
+				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService },
 				{ provide: STARK_SESSION_CONFIG, useValue: { ...mockStarkSessionConfig } }
 			]
-		})
-			/**
-			 * Compile template and css
-			 */
-			.compileComponents()));
+		}).compileComponents();
+	});
 
-	/**
-	 * Synchronous beforeEach
-	 */
 	beforeEach(() => {
 		fixture = TestBed.createComponent(StarkAppLogoutComponent);
 		component = fixture.componentInstance;
-
-		fixture.detectChanges(); // trigger initial data binding
+		fixture.detectChanges();
+		mockSessionService.logout.mockClear();
+		mockRoutingService.navigateTo.mockClear();
 	});
 
 	describe("on initialization", () => {
 		it("should set internal component properties", () => {
 			expect(fixture).toBeDefined();
 			expect(component).toBeDefined();
-
 			expect(component.logger).not.toBeNull();
 			expect(component.logger).toBeDefined();
 			expect(component.routingService).not.toBeNull();
@@ -78,22 +89,21 @@ describe("AppLogoutComponent", () => {
 
 	describe("logout()", () => {
 		it("should log out the user and navigate to sessionLogoutStateName defined in sessionConfig", () => {
-			(<Spy>component.routingService.navigateTo).calls.reset();
 			component.logout();
-			expect(component.sessionService.logout).toHaveBeenCalledTimes(1);
-			expect(component.routingService.navigateTo).toHaveBeenCalledTimes(1);
-			expect(component.routingService.navigateTo).toHaveBeenCalledWith(<string>mockStarkSessionConfig.sessionLogoutStateName);
+
+			expect(mockSessionService.logout).toHaveBeenCalledTimes(1);
+			expect(mockRoutingService.navigateTo).toHaveBeenCalledTimes(1);
+			expect(mockRoutingService.navigateTo).toHaveBeenCalledWith(mockStarkSessionConfig.sessionLogoutStateName as string);
 		});
 
 		it("should log out the user and navigate to starkSessionLogoutStateName", () => {
-			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 			component.sessionConfig!.sessionLogoutStateName = undefined;
 
-			(<Spy>component.routingService.navigateTo).calls.reset();
 			component.logout();
-			expect(component.sessionService.logout).toHaveBeenCalledTimes(1);
-			expect(component.routingService.navigateTo).toHaveBeenCalledTimes(1);
-			expect(component.routingService.navigateTo).toHaveBeenCalledWith(starkSessionLogoutStateName);
+
+			expect(mockSessionService.logout).toHaveBeenCalledTimes(1);
+			expect(mockRoutingService.navigateTo).toHaveBeenCalledTimes(1);
+			expect(mockRoutingService.navigateTo).toHaveBeenCalledWith(starkSessionLogoutStateName);
 		});
 	});
 });

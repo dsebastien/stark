@@ -1,3 +1,6 @@
+import { MatButtonModule } from "@angular/material/button";
+import { MatIconModule } from "@angular/material/icon";
+import { MatTooltipModule } from "@angular/material/tooltip";
 import {
 	ChangeDetectionStrategy,
 	Component,
@@ -9,6 +12,7 @@ import {
 	Renderer2,
 	ViewEncapsulation
 } from "@angular/core";
+import { TranslateModule } from "@ngx-translate/core";
 
 import {
 	STARK_LOGGING_SERVICE,
@@ -32,10 +36,12 @@ const componentName = "stark-app-logout";
  * Component to display the application's logout button
  */
 @Component({
+	standalone: true,
 	selector: "stark-app-logout",
 	templateUrl: "./app-logout.component.html",
 	encapsulation: ViewEncapsulation.None,
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [MatButtonModule, MatIconModule, MatTooltipModule, TranslateModule],
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
 		class: componentName
