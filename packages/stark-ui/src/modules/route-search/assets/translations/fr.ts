@@ -1,7 +1,9 @@
+import { type TranslationObject } from "@ngx-translate/core";
+
 /**
  * @ignore
  */
-export const translationsFr: object = {
+export const translationsFr: TranslationObject = {
 	STARK: {
 		ROUTE_SEARCH: {
 			ABOUT: "Chercher une page",
