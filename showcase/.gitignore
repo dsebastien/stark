@@ -1,10 +1,16 @@
 /.angular/cache
 # Build
 dist/
+.stark/
 .awcache/
 
 # Reports directory
 reports/
+
+# Playwright browser-test artifacts
+test-results/
+playwright-report/
+artifacts/
 
 # Logs
 logs/
