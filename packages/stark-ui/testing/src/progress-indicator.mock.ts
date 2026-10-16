@@ -1,34 +1,32 @@
 import { StarkProgressIndicatorService } from "@nationalbankbelgium/stark-ui";
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
 
 /**
  * Mock class of the {@link StarkProgressIndicatorService} interface.
  */
-export class MockStarkProgressIndicatorService implements SpyObj<StarkProgressIndicatorService> {
+export class MockStarkProgressIndicatorService {
 	/**
 	 * See [StarkProgressIndicatorService register()]{@link StarkProgressIndicatorService#register} method
 	 */
-	public register: Spy<StarkProgressIndicatorService["register"]> = createSpy("register");
+	public register = vi.fn<StarkProgressIndicatorService["register"]>();
 
 	/**
 	 * See [StarkProgressIndicatorService deregister()]{@link StarkProgressIndicatorService#deregister} method
 	 */
-	public deregister: Spy<StarkProgressIndicatorService["deregister"]> = createSpy("deregister");
+	public deregister = vi.fn<StarkProgressIndicatorService["deregister"]>();
 
 	/**
 	 * See [StarkProgressIndicatorService show()]{@link StarkProgressIndicatorService#show} method
 	 */
-	public show: Spy<StarkProgressIndicatorService["show"]> = createSpy("show");
+	public show = vi.fn<StarkProgressIndicatorService["show"]>();
 
 	/**
 	 * See [StarkProgressIndicatorService hide()]{@link StarkProgressIndicatorService#hide} method
 	 */
-	public hide: Spy<StarkProgressIndicatorService["hide"]> = createSpy("hide");
+	public hide = vi.fn<StarkProgressIndicatorService["hide"]>();
 
 	/**
 	 * See [StarkProgressIndicatorService isVisible()]{@link StarkProgressIndicatorService#isVisible} method
 	 */
-	public isVisible: Spy<StarkProgressIndicatorService["isVisible"]> = createSpy("isVisible");
+	public isVisible = vi.fn<StarkProgressIndicatorService["isVisible"]>();
 }
