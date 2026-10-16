@@ -2,6 +2,7 @@ import { Component, Inject } from "@angular/core";
 import { STARK_APP_SIDEBAR_SERVICE, StarkAppSidebarService } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-sidebar",
 	templateUrl: "./demo-sidebar.component.html"
 })
