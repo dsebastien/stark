@@ -3,6 +3,7 @@ import { StarkMenuConfig } from "@nationalbankbelgium/stark-ui";
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-menu",
 	templateUrl: "./demo-menu-page.component.html",
 	styleUrls: ["./demo-menu-page.component.scss"]
