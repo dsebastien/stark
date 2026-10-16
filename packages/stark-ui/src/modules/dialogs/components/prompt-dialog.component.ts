@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Inject, ViewEncapsulation } from "@angular/core";
 import { UntypedFormControl } from "@angular/forms";
-import { MAT_LEGACY_DIALOG_DATA as MAT_DIALOG_DATA, MatLegacyDialogRef as MatDialogRef } from "@angular/material/legacy-dialog";
+import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
 import { StarkPromptDialogContent } from "./prompt-dialog-content.intf";
 
 /**
@@ -16,6 +16,7 @@ export type StarkPromptDialogResult = string | "cancel" | undefined;
  * Prompt dialog component to be opened via the Angular Material's {@link MatDialog} service
  */
 @Component({
+	standalone: false,
 	selector: "stark-prompt-dialog",
 	templateUrl: "./prompt-dialog.component.html",
 	encapsulation: ViewEncapsulation.None,

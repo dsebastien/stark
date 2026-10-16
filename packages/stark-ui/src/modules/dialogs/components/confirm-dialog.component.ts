@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, Inject, ViewEncapsulation } from "@angular/core";
-import { MAT_LEGACY_DIALOG_DATA as MAT_DIALOG_DATA, MatLegacyDialogRef as MatDialogRef } from "@angular/material/legacy-dialog";
+import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
 import { StarkConfirmDialogContent } from "./confirm-dialog-content.intf";
 
 /**
@@ -15,6 +15,7 @@ export type StarkConfirmDialogResult = "ok" | "cancel" | undefined;
  * Confirmation dialog component to be opened via the Angular Material's {@link MatDialog} service
  */
 @Component({
+	standalone: false,
 	selector: "stark-confirm-dialog",
 	templateUrl: "./confirm-dialog.component.html",
 	encapsulation: ViewEncapsulation.None,

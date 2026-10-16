@@ -1,27 +1,36 @@
 /* eslint-disable @angular-eslint/no-lifecycle-call */
-import { ComponentFixture, fakeAsync, inject, TestBed, tick, waitForAsync } from "@angular/core/testing";
 import { CommonModule } from "@angular/common";
-import { Component, ComponentFactoryResolver } from "@angular/core";
-import {
-	MatLegacyDialog as MatDialog,
-	MatLegacyDialogModule as MatDialogModule,
-	MatLegacyDialogRef as MatDialogRef
-} from "@angular/material/legacy-dialog";
+import { Component, NgModule } from "@angular/core";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { MatButtonModule } from "@angular/material/button";
+import { MatDialog, MatDialogModule, MatDialogRef } from "@angular/material/dialog";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { OverlayContainer } from "@angular/cdk/overlay";
 import { ESCAPE } from "@angular/cdk/keycodes";
 import { TranslateModule } from "@ngx-translate/core";
 import { Observer } from "rxjs";
+import { vi } from "vitest";
 import { StarkConfirmDialogContent } from "./confirm-dialog-content.intf";
 import { StarkConfirmDialogComponent, StarkConfirmDialogResult } from "./confirm-dialog.component";
-import createSpyObj = jasmine.createSpyObj;
-import SpyObj = jasmine.SpyObj;
+
+type ObserverSpy<T> = Observer<T> & {
+	next: ReturnType<typeof vi.fn<(value: T) => void>>;
+	error: ReturnType<typeof vi.fn<(err: unknown) => void>>;
+	complete: ReturnType<typeof vi.fn<() => void>>;
+};
 
 @Component({
+	standalone: false,
 	selector: `host-component`,
 	template: ` no content `
 })
 class TestHostComponent {}
+
+@NgModule({
+	declarations: [TestHostComponent, StarkConfirmDialogComponent],
+	imports: [CommonModule, NoopAnimationsModule, MatButtonModule, MatDialogModule, TranslateModule.forRoot()]
+})
+class ConfirmDialogTestModule {}
 
 describe("ConfirmDialogComponent", () => {
 	let hostFixture: ComponentFixture<TestHostComponent>;
@@ -29,8 +38,7 @@ describe("ConfirmDialogComponent", () => {
 	let dialogService: MatDialog;
 	let overlayContainer: OverlayContainer;
 	let overlayContainerElement: HTMLElement;
-	let dialogComponentSelector: string;
-	let mockObserver: SpyObj<Observer<StarkConfirmDialogResult>>;
+	let mockObserver: ObserverSpy<StarkConfirmDialogResult>;
 
 	const dummyDialogContent: StarkConfirmDialogContent = {
 		title: "This is the dialog title",
@@ -39,10 +47,11 @@ describe("ConfirmDialogComponent", () => {
 		cancel: "Cancel button label"
 	};
 
-	const matDialogSelector = "mat-dialog-container";
+	const matDialogSelector = "mat-dialog-container.mat-mdc-dialog-container";
 	const matDialogTitleSelector = "[mat-dialog-title]";
 	const matDialogContentSelector = "[mat-dialog-content]";
 	const matDialogActionsSelector = "[mat-dialog-actions]";
+	const dialogComponentSelector = "stark-confirm-dialog";
 
 	function openDialog(dialogData: StarkConfirmDialogContent): MatDialogRef<StarkConfirmDialogComponent, StarkConfirmDialogResult> {
 		return dialogService.open<StarkConfirmDialogComponent, StarkConfirmDialogContent, StarkConfirmDialogResult>(
@@ -57,46 +66,50 @@ describe("ConfirmDialogComponent", () => {
 		element.click();
 	}
 
+	function createObserverSpy<T>(): ObserverSpy<T> {
+		return {
+			next: vi.fn<(value: T) => void>(),
+			error: vi.fn<(err: unknown) => void>(),
+			complete: vi.fn<() => void>()
+		};
+	}
+
 	/**
 	 * Angular Material dialogs listen to the Escape key on the keydown event
 	 */
 	function triggerKeydownEscape(element: HTMLElement): void {
-		// more verbose way to create and trigger an event (the only way it works in IE)
-		// https://developer.mozilla.org/en-US/docs/Web/Guide/Events/Creating_and_triggering_events
-		const keydownEvent: Event = document.createEvent("Event");
-		keydownEvent.initEvent("keydown", true, true);
-		keydownEvent["key"] = "Escape";
-		keydownEvent["keyCode"] = ESCAPE;
+		const keydownEvent = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+		Object.defineProperty(keydownEvent, "keyCode", { get: (): number => ESCAPE });
 		element.dispatchEvent(keydownEvent);
+	}
+
+	async function waitForDialogToClose(): Promise<void> {
+		await hostFixture.whenStable();
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		hostFixture.detectChanges();
+		await hostFixture.whenStable();
+		hostFixture.detectChanges();
 	}
 
 	beforeEach(waitForAsync(() =>
 		TestBed.configureTestingModule({
-			declarations: [TestHostComponent, StarkConfirmDialogComponent],
-			imports: [CommonModule, NoopAnimationsModule, MatDialogModule, TranslateModule.forRoot()],
-			providers: []
+			imports: [ConfirmDialogTestModule]
 		}).compileComponents()));
-
-	beforeEach(inject(
-		[MatDialog, OverlayContainer, ComponentFactoryResolver],
-		(d: MatDialog, oc: OverlayContainer, cfr: ComponentFactoryResolver) => {
-			dialogService = d;
-			overlayContainer = oc;
-			overlayContainerElement = oc.getContainerElement();
-			dialogComponentSelector = cfr.resolveComponentFactory(StarkConfirmDialogComponent).selector;
-		}
-	));
 
 	afterEach(() => {
 		overlayContainer.ngOnDestroy();
 	});
 
 	beforeEach(() => {
+		dialogService = TestBed.inject(MatDialog);
+		overlayContainer = TestBed.inject(OverlayContainer);
+		overlayContainerElement = overlayContainer.getContainerElement();
+
 		hostFixture = TestBed.createComponent(TestHostComponent);
 		hostComponent = hostFixture.componentInstance;
 		hostFixture.detectChanges();
 
-		mockObserver = createSpyObj<Observer<StarkConfirmDialogResult>>("observerSpy", ["next", "error", "complete"]);
+		mockObserver = createObserverSpy<StarkConfirmDialogResult>();
 	});
 
 	it("should be correctly opened via the MatDialog service", () => {
@@ -124,11 +137,11 @@ describe("ConfirmDialogComponent", () => {
 		expect(dialogActionsElement).toBeDefined();
 		const dialogButtonElements: NodeListOf<HTMLElement> = (<HTMLElement>dialogActionsElement).querySelectorAll("button");
 		expect(dialogButtonElements.length).toBe(2);
-		expect(dialogButtonElements[0].innerHTML).toBe(<string>dummyDialogContent.cancel);
-		expect(dialogButtonElements[1].innerHTML).toBe(<string>dummyDialogContent.ok);
+		expect(dialogButtonElements[0].textContent?.trim()).toBe(<string>dummyDialogContent.cancel);
+		expect(dialogButtonElements[1].textContent?.trim()).toBe(<string>dummyDialogContent.ok);
 	});
 
-	it("should return 'ok' as result when the 'Ok' button is clicked", fakeAsync(() => {
+	it("should return 'ok' as result when the 'Ok' button is clicked", async () => {
 		const dialogRef: MatDialogRef<StarkConfirmDialogComponent, StarkConfirmDialogResult> = openDialog(dummyDialogContent);
 		hostFixture.detectChanges();
 
@@ -145,17 +158,15 @@ describe("ConfirmDialogComponent", () => {
 
 		triggerClick(dialogButtonElements[1]); // clicking the "ok" button
 		hostFixture.detectChanges();
-
-		// to avoid NgZone error: "Error: 3 timer(s) still in the queue"
-		tick(500); // the amount of mills can be known by calling flush(): const remainingMills: number = flush();
+		await waitForDialogToClose();
 
 		expect(mockObserver.next).toHaveBeenCalledTimes(1);
 		expect(mockObserver.next).toHaveBeenCalledWith("ok");
 		expect(mockObserver.error).not.toHaveBeenCalled();
 		expect(mockObserver.complete).toHaveBeenCalled();
-	}));
+	});
 
-	it("should return 'cancel' as result when the 'Cancel' button is clicked", fakeAsync(() => {
+	it("should return 'cancel' as result when the 'Cancel' button is clicked", async () => {
 		const dialogRef: MatDialogRef<StarkConfirmDialogComponent, StarkConfirmDialogResult> = openDialog(dummyDialogContent);
 		hostFixture.detectChanges();
 
@@ -172,17 +183,15 @@ describe("ConfirmDialogComponent", () => {
 
 		triggerClick(dialogButtonElements[0]); // clicking the "cancel" button
 		hostFixture.detectChanges();
-
-		// to avoid NgZone error: "Error: 3 timer(s) still in the queue"
-		tick(500); // the amount of mills can be known by calling flush(): const remainingMills: number = flush();
+		await waitForDialogToClose();
 
 		expect(mockObserver.next).toHaveBeenCalledTimes(1);
 		expect(mockObserver.next).toHaveBeenCalledWith("cancel");
 		expect(mockObserver.error).not.toHaveBeenCalled();
 		expect(mockObserver.complete).toHaveBeenCalled();
-	}));
+	});
 
-	it("should return undefined as result when it is cancelled by clicking outside of the dialog", fakeAsync(() => {
+	it("should return undefined as result when it is cancelled by clicking outside of the dialog", async () => {
 		const dialogRef: MatDialogRef<StarkConfirmDialogComponent, StarkConfirmDialogResult> = openDialog(dummyDialogContent);
 		hostFixture.detectChanges();
 
@@ -190,17 +199,15 @@ describe("ConfirmDialogComponent", () => {
 
 		triggerClick(<HTMLElement>overlayContainerElement.querySelector(".cdk-overlay-backdrop")); // clicking on the backdrop
 		hostFixture.detectChanges();
-
-		// to avoid NgZone error: "Error: 3 timer(s) still in the queue"
-		tick(500); // the amount of mills can be known by calling flush(): const remainingMills: number = flush();
+		await waitForDialogToClose();
 
 		expect(mockObserver.next).toHaveBeenCalledTimes(1);
 		expect(mockObserver.next).toHaveBeenCalledWith(undefined);
 		expect(mockObserver.error).not.toHaveBeenCalled();
 		expect(mockObserver.complete).toHaveBeenCalled();
-	}));
+	});
 
-	it("should return undefined as result when it is cancelled by pressing the ESC key", fakeAsync(() => {
+	it("should return undefined as result when it is cancelled by pressing the ESC key", async () => {
 		const dialogRef: MatDialogRef<StarkConfirmDialogComponent, StarkConfirmDialogResult> = openDialog(dummyDialogContent);
 		hostFixture.detectChanges();
 
@@ -208,13 +215,11 @@ describe("ConfirmDialogComponent", () => {
 
 		triggerKeydownEscape(overlayContainerElement); // pressing Esc key in the overlay
 		hostFixture.detectChanges();
-
-		// to avoid NgZone error: "Error: 3 timer(s) still in the queue"
-		tick(500); // the amount of mills can be known by calling flush(): const remainingMills: number = flush();
+		await waitForDialogToClose();
 
 		expect(mockObserver.next).toHaveBeenCalledTimes(1);
 		expect(mockObserver.next).toHaveBeenCalledWith(undefined);
 		expect(mockObserver.error).not.toHaveBeenCalled();
 		expect(mockObserver.complete).toHaveBeenCalled();
-	}));
+	});
 });
