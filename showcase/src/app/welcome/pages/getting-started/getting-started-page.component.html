@@ -1,5 +1,5 @@
 <div class="getting-started-content">
-	<div class="mat-display-2">Getting started</div>
+	<div class="mat-headline-3">Getting started</div>
 
 	<table-of-contents headerSelectors=".custom-title,.custom-subtitle"></table-of-contents>
 
@@ -7,28 +7,21 @@
 		<h1 id="install-stark" class="custom-title">How to install Stark ?</h1>
 		<p>To install Stark, you have to make sure your system is well configured, and then simply install the packages you need.</p>
 		<h2 id="system_configuration" class="custom-subtitle">System Configuration</h2>
-		<p>Ensure that you are running the latest version:</p>
+		<p>Ensure that you are running the toolchain used by the Angular 22 Stark workspace:</p>
 		<ul>
-			<li>Node 12.x.x +</li>
-			<li>NPM 7.x.x +</li>
+			<li>Node 22.x LTS or newer</li>
+			<li>NPM 10.x or newer</li>
 		</ul>
 		<p>
-			If you have <span class="custom-code">nvm</span> installed, which is highly recommended, you can do a
-			<span class="custom-code">nvm install --lts && nvm use</span> in <span class="custom-code">$</span> to run with the latest Node
-			LTS. You can also have this<span class="custom-code">zsh</span> done for you
-			<a
-				class="custom-link"
-				href="https://github.com/creationix/nvm#calling-nvm-use-automatically-in-a-directory-with-a-nvmrc-file"
-				target="_blank"
-				rel="noopener noreferrer"
-				>automatically</a
-			>.
+			Use your Node version manager to select Node 22 before installing dependencies. For example, with
+			<span class="custom-code">nvm</span> you can run <span class="custom-code">nvm install 22 && nvm use 22</span>; on Windows,
+			<span class="custom-code">fnm</span> or <span class="custom-code">nvm-windows</span> are common alternatives.
 		</p>
 
 		<h2 id="packages_installation" class="custom-subtitle">Packages installation</h2>
 
 		<p>To install the different packages of the Stark framework, for example, the stark-core package, just do:</p>
-		<span class="custom-code">npm install "@nationalbankbelgium/stark-core"</span>
+		<span class="custom-code">npm install "&#64;nationalbankbelgium/stark-core"</span>
 		<p>Those packages are available at the following locations in NPM:</p>
 		<ul>
 			<li>
@@ -65,12 +58,12 @@
 			To do so, you'll have to simply clone the repository, adapt your configuration if needed and then, run it once you've made the
 			changes you want.
 		</p>
-		<p>Of course, you'll be able to run tests as well, such as unit tests and E2E tests.</p>
+		<p>Of course, you'll be able to run unit tests as well.</p>
 
 		<h2 id="clone_repo" class="custom-subtitle">Clone the repository</h2>
 
 		<p>To clone the project, use the following command line:</p>
-		<stark-pretty-print [data]="installingProject" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="installingProject"></stark-pretty-print>
 		<p>
 			Then, go to the starter folder (<span class="custom-code">cd starter</span>) and install all dependencies using:
 			<span class="custom-code">npm install</span>
@@ -79,7 +72,7 @@
 		<h2 id="application_structure" class="custom-subtitle">Application structure</h2>
 		<p>
 			The Starter follows the
-			<a href="https://angular.io/guide/styleguide#folders-by-feature-structure" target="_blank" rel="noopener noreferrer"
+			<a href="https://angular.dev/style-guide#project-file-structure" target="_blank" rel="noopener noreferrer"
 				>folders-by-feature structure</a
 			>
 			with logical groupings trying to match Angular concepts:
@@ -93,53 +86,47 @@
 		<h2 id="app_running" class="custom-subtitle">Running the application</h2>
 		<p>
 			Have you already installed all dependencies? Then you can run the app! Run <span class="custom-code">npm run server</span> to
-			start a local (development) server using <span class="custom-code">webpack-dev-server</span> which will watch, build
-			(in-memory), and reload for you. The port will be displayed to you as <span class="custom-code">http;//0.0.0.0:3000</span> (or
-			if you prefer IPv6, if you're using <span class="custom-code">express</span> server, then it is
-			<span class="custom-code">http://[::1]:3000</span>).
+			start the local Angular dev server, which watches the app, rebuilds it in memory, and reloads the browser for you. By default it
+			opens on <span class="custom-code">http://localhost:3000/</span>.
 		</p>
-		<p>You may enable Hot Module Replacement (HMR) using:</p>
-		<stark-pretty-print [data]="runningHMR" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<p>You may enable Angular dev-server Hot Module Replacement (HMR) using:</p>
+		<stark-pretty-print [data]="runningHMR"></stark-pretty-print>
 
 		<p>You may also start the server in production mode using the following</p>
-		<stark-pretty-print [data]="runningProject" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="runningProject"></stark-pretty-print>
 
 		<p>To build the files themselves, simply use:</p>
-		<stark-pretty-print [data]="buildFiles" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="buildFiles"></stark-pretty-print>
 
 		<p>To run the watch mode:</p>
-		<stark-pretty-print [data]="watchMode" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="watchMode"></stark-pretty-print>
 
 		<h2 id="unit_tests" class="custom-subtitle">Unit testing</h2>
 
 		<p>Simply enter the following command line:</p>
-		<stark-pretty-print [data]="unitTestRunning" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="unitTestRunning"></stark-pretty-print>
 		<p>And you can also enable the watch mode for the following</p>
-		<stark-pretty-print [data]="watchAndRunTests" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="watchAndRunTests"></stark-pretty-print>
 
-		<h2 id="e2e_tests" class="custom-subtitle">E2E testing</h2>
-		<p>The command line to execute E2E tests is similar than the one for unit tests:</p>
-		<stark-pretty-print [data]="runEndToEndTests" format="html" [enableHighlighting]="true"></stark-pretty-print>
-
-		<p>Be aware that you can execute both unit tests and E2E tests with the same command line:</p>
-		<stark-pretty-print [data]="continuousIntegrationTests" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<h2 id="ci_tests" class="custom-subtitle">Continuous Integration (CI)</h2>
+		<p>The CI shortcut runs linting, the unit-test suite, and the production build:</p>
+		<stark-pretty-print [data]="continuousIntegrationTests"></stark-pretty-print>
 
 		<h2 id="polyfills_import" class="custom-subtitle">Polyfills</h2>
 		<p>
-			In the case you want your application to be compatible with non modern browsers (i.e. Internet Explorer) or browsers that don't
-			support some of the latest standards, you might be interested in polyfills. Stark doesn't use any polyfills by default, but in
-			case you need them, you can follow the steps mentioned below.
+			Angular 22 targets modern supported browsers through the Angular CLI and Browserslist configuration. Stark no longer targets
+			Internet Explorer. Add polyfills only for optional browser features that your application explicitly uses.
 		</p>
 		<p>
 			An empty file called <span class="custom-code">polyfills.browser.ts</span> should be created at the following location:
 			<span class="custom-code"> src > polyfills.browser.ts</span>
 		</p>
-		<p>The following polyfills are suitable for most of the cases, especially when targeting Internet Explorer: </p>
+		<p>The default file only needs Zone.js unless your application relies on additional browser APIs:</p>
 		<stark-pretty-print [data]="polyfillsBrowsersContent" format="typescript" [enableHighlighting]="true"></stark-pretty-print>
 		<p>
 			For more information about which polyfills are required to support the Angular feature you want to use, feel free to refer to
 			Angular
-			<a href="https://angular.io/guide/browser-support#mandatory-polyfills" target="_blank" rel="noopener noreferrer">
+			<a href="https://angular.dev/reference/versions#browser-support" target="_blank" rel="noopener noreferrer">
 				browser support guide.</a
 			>
 		</p>
@@ -170,17 +157,17 @@
 			</li>
 			<li>Don’t use functions in your providers, routes or declarations, export a function and then reference that function name</li>
 			<li>
-				@Inputs, @Outputs, View or Content Child(ren), Hostbindings, and any field you use from the template or annotate for Angular
-				should be public
+				&#64;Inputs, &#64;Outputs, View or Content Child(ren), Hostbindings, and any field you use from the template or annotate for
+				Angular should be public
 			</li>
 		</ul>
 
 		<h2 id="typedef" class="custom-subtitle">Type definitions</h2>
 		<p>
 			When including 3rd party modules you also need to include the type definition for the module. When you include a module that
-			doesn't include TypeScript type definitions inside of the module you can include external type definitions with @types
+			doesn't include TypeScript type definitions inside of the module you can include external type definitions with &#64;types
 		</p>
-		<stark-pretty-print [data]="installType" format="html" [enableHighlighting]="true"></stark-pretty-print>
+		<stark-pretty-print [data]="installType"></stark-pretty-print>
 
 		<p>
 			If you can't find the type definition in the registry then you can make use of an ambient definition in the custom-typings.d.ts
@@ -222,33 +209,32 @@
 				<ul>
 					<li>
 						The <span class="custom-code">EADDRINUSE</span> error means the port <span class="custom-code">3000</span> is
-						currently being used and <span class="custom-code">EACCES</span> is lack of permission for webpack to build files to
-						<span class="custom-code">./dist/</span>
+						currently being used. Stop the other process or start the server with a different port, for example
+						<span class="custom-code">npm run server -- --port 4300</span>.
 					</li>
 				</ul>
 			</li>
 			<li>
-				Error: Cannot find module 'tapable'
+				Dependency installation looks stale after switching Node versions
 				<ul>
 					<li>
-						Remove <span class="custom-code">node_modules/</span> and run <span class="custom-code">npm cache clean</span>
-						then
-						<span class="custom-code">npm install</span>
+						Remove <span class="custom-code">node_modules/</span> and <span class="custom-code">package-lock.json</span>, then
+						run <span class="custom-code">npm install</span> with Node 22 selected.
 					</li>
 				</ul>
 			</li>
 			<li>
 				How do I turn on Hot Module Replacement
 				<ul>
-					<li>Run <span class="custom-code">npm run server:dev:hmr</span></li>
+					<li>Run <span class="custom-code">npm run server:dev:hmr</span> to use Angular dev-server HMR</li>
 				</ul>
 			</li>
 			<li>
 				<span class="custom-code">RangeError: Maximum call stack size exceeded</span>
 				<ul>
 					<li>
-						This is a problem with minifying Angular and its recent JIT templates. If you set
-						<span class="custom-code">mangle</span> to <span class="custom-code">false</span> then you should be good
+						This usually means stale generated output or dependency state. Clean <span class="custom-code">dist/</span> and
+						<span class="custom-code">node_modules/</span>, reinstall, and rerun the command.
 					</li>
 				</ul>
 			</li>
@@ -268,10 +254,10 @@
 				</ul>
 			</li>
 			<li>
-				node-pre-gyp ERR in npm install (Windows)
+				Native dependency errors during <span class="custom-code">npm install</span>
 				<ul>
-					<li>install Python x86 version between 2.5 and 3.0 on windows</li>
-					<li>or try <span class="custom-code">--no-optional</span></li>
+					<li>Verify that Node 22 is selected and reinstall from a clean <span class="custom-code">node_modules/</span>.</li>
+					<li>On Windows, make sure the Visual Studio Build Tools are available when a dependency needs native compilation.</li>
 				</ul>
 			</li>
 		</ul>

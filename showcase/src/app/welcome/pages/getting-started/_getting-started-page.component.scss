@@ -1,7 +1,14 @@
 @use "@nationalbankbelgium/stark-ui/styles/media-queries" as *;
+@use "sass:string";
 
 .getting-started-content {
   padding-right: 200px;
+
+  > .mat-headline-3 {
+    // Match the legacy mat-display-2 face and tracking for this guide title.
+    font-family: string.unquote('Roboto, "Helvetica Neue", sans-serif');
+    letter-spacing: -0.005em;
+  }
 }
 
 .file-structure-title {

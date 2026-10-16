@@ -3,6 +3,7 @@ import { Component, HostBinding, Input } from "@angular/core";
 type Colors = "primary" | "accent" | "warning" | "success";
 
 @Component({
+	standalone: false,
 	selector: "app-card",
 	templateUrl: "./card.component.html",
 	styleUrls: ["./card.component.scss"]

@@ -1,12 +1,12 @@
 .app-card mat-form-field.maximum-height {
-  .mat-form-field-wrapper {
+  .mat-mdc-text-field-wrapper {
     padding-bottom: 40px;
 
-    .mat-form-field-underline {
+    .mdc-line-ripple {
       bottom: 40px;
     }
 
-    .mat-form-field-subscript-wrapper {
+    + .mat-mdc-form-field-subscript-wrapper {
       top: calc(100% - 40px);
     }
   }

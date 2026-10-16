@@ -2,6 +2,6 @@
 @use "@nationalbankbelgium/stark-ui" as stark-ui;
 
 .custom-news-page-button {
-  color: mat.get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
-  background-color: mat.get-color-from-palette(stark-ui.$primary-palette, 700);
+  color: mat.m2-get-contrast-color-from-palette(stark-ui.$primary-palette, 500);
+  background-color: mat.m2-get-color-from-palette(stark-ui.$primary-palette, 700);
 }

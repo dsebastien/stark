@@ -1,28 +1,39 @@
 /* eslint-disable @angular-eslint/no-lifecycle-call */
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { provideMockStore } from "@ngrx/store/testing";
-import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
+import { STARK_LOGGING_SERVICE, type StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { NewsPageComponent } from "./news-page.component";
-import SpyObj = jasmine.SpyObj;
+import { vi } from "vitest";
+
+type LoggingServiceMock = Pick<StarkLoggingService, "debug"> & {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
+@NgModule({
+	declarations: [NewsPageComponent],
+	schemas: [NO_ERRORS_SCHEMA]
+})
+class NewsPageTestModule {}
 
 describe(`News`, () => {
 	let comp: NewsPageComponent;
 	let fixture: ComponentFixture<NewsPageComponent>;
-	let logger: SpyObj<StarkLoggingService>;
+	let logger: LoggingServiceMock;
 
 	/**
 	 * async beforeEach.
 	 */
 	beforeEach(waitForAsync(() => {
+		logger = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
+
 		return (
 			TestBed.configureTestingModule({
-				declarations: [NewsPageComponent],
-				schemas: [NO_ERRORS_SCHEMA], // to avoid errors due to "mat-icon" directive not known (which we don't want to add in these tests)
-				imports: [HttpClientTestingModule],
-				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }, provideMockStore()]
+				imports: [HttpClientTestingModule, NewsPageTestModule],
+				providers: [{ provide: STARK_LOGGING_SERVICE, useValue: logger }, provideMockStore()]
 			})
 
 				/**
@@ -36,8 +47,6 @@ describe(`News`, () => {
 	 * Synchronous beforeEach.
 	 */
 	beforeEach(() => {
-		logger = TestBed.get(STARK_LOGGING_SERVICE);
-
 		fixture = TestBed.createComponent(NewsPageComponent);
 		comp = fixture.componentInstance;
 
@@ -45,7 +54,7 @@ describe(`News`, () => {
 		 * Trigger initial data binding.
 		 */
 		fixture.detectChanges();
-		logger.debug.calls.reset();
+		logger.debug.mockClear();
 	});
 
 	it("should log ngOnInit", () => {

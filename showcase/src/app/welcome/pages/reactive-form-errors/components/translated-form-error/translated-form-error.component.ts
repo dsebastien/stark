@@ -4,6 +4,7 @@ import { Observable } from "rxjs";
 import { NgxFormErrorComponent, NgxFormFieldError } from "@nationalbankbelgium/ngx-form-errors";
 
 @Component({
+	standalone: false,
 	selector: "app-translated-form-error",
 	templateUrl: "./translated-form-error.component.html"
 })
