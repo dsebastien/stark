@@ -1,21 +1,2 @@
-[production]
-> 1%
-
-[modern]
-last 5 chrome version
-last 5 firefox version
-
-[ssr]
-node 14
-
-# This file is used by the build system to adjust CSS and JS output to support the specified browsers below.
-# For additional information regarding the format and rule options, please see:
-# https://github.com/browserslist/browserslist#queries
-
-# You can see what browsers were selected by your queries by running:
-#   npx browserslist
-
-> 0.5%
-last 8 versions
-Firefox ESR
-not dead
+# Match the Baseline date embedded in @angular/build 22.0.8.
+baseline widely available on 2026-05-07

@@ -1,6 +1,7 @@
 /.angular/cache
 # Build
 dist/
+.stark/
 .awcache/
 
 # Reports directory
