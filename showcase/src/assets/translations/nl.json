@@ -408,14 +408,14 @@
     },
     "HOMEPAGE": {
       "CORE": "Stark Core",
-      "DESCRIPTION_DETAIL": "<p>Stark levert de belangrijkste instrumenten om de front-end ontwikkeling te versnellen.<br>U zult een betrouwbare en herbruikbare build gebouwd op Webpack vinden, een Starter project, core en ui modules dat interessante visuele componenten verschaffen, ... <br>Deze modules zijn zoals LEGO: Voegt wat u nodig hebt, niet meer en niet minder!</p>",
+      "DESCRIPTION_DETAIL": "<p>Stark biedt bouwstenen die front-endontwikkeling versnellen.<br>Het omvat een Angular CLI-configuratie, een starterapplicatie, herbruikbare core-services en toegankelijke UI-componenten.<br>Gebruik alleen de modules die uw applicatie nodig heeft.</p>",
       "DOCUMENTATION_CORE_DESC": "<p>Stark Core, ook bekend als stark-core, is een module dat herbruikbare APIs verstrekt, zoals routing, logging, log shipping,enzovoort.</p>",
       "DOCUMENTATION_MAIN_TITLE": "Documentatie",
       "DOCUMENTATION_RBAC_DESC": "<p>De RBAC-module van Stark (ook bekend als stark-rbac) is een afzonderlijke module in Stark die optioneel kan worden opgenomen in elke op Stark gebaseerde toepassing om verschillende elementen (directives, services en componenten) te bieden om Role Based Access Control (RBAC) mechanisme te ondersteunen.</p>",
       "DOCUMENTATION_SHOWCASE_DESC": "<p>De Showcase, u zich hier bevindt!<br>Veel plezier met de ontdekking van onze componenten lijst !</p>",
       "DOCUMENTATION_UI_DESC": "<p>Stark UI levert UI herbruikbare componenten : gegevenstabel, dialoogvenster, ... maar ook themas.</p>",
       "GETTING_STARTED": "Ermee beginnen",
-      "INTRODUCTION": "Een front-end framework gebaseerd op Angular 16",
+      "INTRODUCTION": "Een front-end framework gebaseerd op Angular 22",
       "LATEST_API": "Laatste API",
       "LATEST_NEWS": "Laatste nieuws",
       "MAIN_TITLE": "Wat is Stark?",
@@ -492,7 +492,7 @@
           "TITLE": "Geavanceerde kaart"
         },
         "BASIC": {
-          "DETAILS": "Stark biedt een alternatieve opmaak aan voor kaarten. Je kan de html structuur behouden en de klas <code>.stark-card</code> aan de Angular Material kaart toevoegen. We raden aan om het <code>h3</code> label te gebruiken binnen een <code>mat-card-title</code>.<br>Meer informatie over de kaarten van Angular Material, kan je terugvinden via deze link: <a href=\"https://material.angular.io/components/card/overview\" target=\"_blank\">https://material.angular.io/components/card/overview</a>",
+          "DETAILS": "Stark biedt een alternatieve opmaak aan voor kaarten. Je kan de html structuur behouden en de klas <code>.stark-card</code> aan de Angular Material kaart toevoegen. We raden aan om het <code>h3</code> label te gebruiken binnen een <code>mat-card-title</code>.<br>Meer informatie over de kaarten van Angular Material, kan je terugvinden via deze link: <a href=\"https://material.angular.dev/components/card/overview\" target=\"_blank\">https://material.angular.dev/components/card/overview</a>",
           "TITLE": "Basiskaart"
         },
         "CODE": "Hier is de code om een kaart te tonen:",
@@ -504,15 +504,15 @@
           "TITLE": "Stark alternative palettes"
         },
         "BASIC": {
-          "DETAILS": "Stark provides an alternative layout for cards. You can keep the same html structure and add the <code>.stark-card</code> class to the Angular Material card. We also recommend to use <code>h3</code> tag inside the <code>mat-card-title</code>.<br><br><br>For more information on Angular Material's card, check out this link: <a href=\"https://material.angular.io/components/card/overview\" target=\"_blank\">https://material.angular.io/components/card/overview</a>",
+          "DETAILS": "Stark provides an alternative layout for cards. You can keep the same html structure and add the <code>.stark-card</code> class to the Angular Material card. We also recommend to use <code>h3</code> tag inside the <code>mat-card-title</code>.<br><br><br>For more information on Angular Material's card, check out this link: <a href=\"https://material.angular.dev/components/card/overview\" target=\"_blank\">https://material.angular.dev/components/card/overview</a>",
           "TITLE": "Material palettes"
         },
         "CUSTOM": {
-          "DETAILS": "If you want to customize those palettes, you first need to create a palette and this tool is really useful: <a href=\"http://mcg.mbitson.com/\" target=\"_blank\">http://mcg.mbitson.com/</a>. Just define your main color and it will generate the full palette, then you just need to copy the SCSS code and associate it to the palette you want to modify. Don't forget to import stark theming after the maps declaration. <br>Here, an example with default values on how to achieve this:",
+          "DETAILS": "If you want to customize those palettes, start from the current Material Design color system and generate a tonal scheme with Material Theme Builder: <a href=\"https://m3.material.io/styles/color/resources\" target=\"_blank\">https://m3.material.io/styles/color/resources</a>. Then copy the generated values you need into the palette you want to modify. Don't forget to import Stark theming after the maps declaration. <br>Here, an example with default values on how to achieve this:",
           "TITLE": "Customize palettes"
         },
         "LINKS": {
-          "DETAILS": "You can find the Material Design color palettes here: <a href=\"https://material.io/design/color/the-color-system.html#tools-for-picking-colors\" target=\"_blank\">https://material.io/design/color/the-color-system.html#tools-for-picking-colors</a>",
+          "DETAILS": "You can find the current Material Design color system here: <a href=\"https://m3.material.io/styles/color/system/overview\" target=\"_blank\">https://m3.material.io/styles/color/system/overview</a>",
           "TITLE": "Useful links"
         },
         "TITLE": "Color Palettes"
@@ -545,20 +545,20 @@
           "DETAILS_2": "The font stack used to get the optimal sans-serif font the system provides:",
           "CUSTOM_FONT_EXPLAINED": "To set a web font (eg: Roboto) you must first add the font (ttf, woff, ...) to your projects assets, add it as a font-face in SCSS and set it trough the <code>$stark-typography-theme</code> (more about customization below).",
           "IE_NOTE": "* The font format woff2 is not supported by IE. <a href=\"https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face#Browser_compatibility\" target=\"_blank\" rel=\"noopener\">MDN</a>",
-          "CDN_FONT_EXPLAINED": "To set a web font from an external source (CDN) webpack needs to be told to allow fonts from external sources. To do this add a the host/port to cspFontSrc in <code>config/webpack-custom-config.dev.json</code>. For more details check out: <a href=\"https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/font-src\" target=\"_blank\" rel=\"noopener\"> CSP: font-src </a>."
+          "CDN_FONT_EXPLAINED": "To set a web font from an external source (CDN), add that origin to the <code>font-src</code> directives under <code>projects.&lt;app&gt;.architect.serve.options.headers</code> in <code>angular.json</code>. For more details check out: <a href=\"https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/font-src\" target=\"_blank\" rel=\"noopener\"> CSP: font-src </a>."
         },
         "MATERIAL_BASED": {
-          "DETAILS": "We try to keep consistency with Angular Material. For more details checkout: <a href=\"https://material.angular.io/guide/typography\" target=\"_blank\">https://material.angular.io/guide/typography</a>",
+          "DETAILS": "We try to keep consistency with Angular Material. For more details checkout: <a href=\"https://material.angular.dev/guide/typography\" target=\"_blank\">https://material.angular.dev/guide/typography</a>",
           "TITLE": "Based on Angular Material"
         },
         "TITLE": "Typography"
       },
       "LAYOUT": {
         "TITLE": "Layout",
-        "INTRO": "We raden aan om <a href=\"https://github.com/angular/flex-layout#angular-flex-layout\" target=\"_blank\" rel=\"noopener noreferrer\">Angular Flex-Layout</a> te gebruiken als hulp bij het samenstellen van de lay-out van uw app. Volledige documentatie is beschikbaar op hun <a href=\"https://github.com/angular/flex-layout/wiki/API-Documentation\"  target=\"_blank\" rel=\"noopener noreferrer\">wiki</a>.",
-        "ANGULAR_FLEX_LAYOUT": "Angular Flex Layout",
+        "INTRO": "Gebruik native <a href=\"https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_flexible_box_layout\" target=\"_blank\" rel=\"noopener noreferrer\">CSS Flexbox</a> en <a href=\"https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout\" target=\"_blank\" rel=\"noopener noreferrer\">CSS Grid</a> voor responsieve applicatielay-outs.",
+        "CSS_LAYOUT": "Native CSS-layout",
         "FLEX": "Flexbox",
-        "GRID_WARNING": "Waarschuwing, hoewel bepaalde grid directives beschikbaar zijn via de Angular Flex-Layout bibliotheek, zijn ze niet volledig gedocumenteerd. Hou er ook rekening met dat niet alle browsers CSS Grid Layout ondersteunen.  <a href=\"https://developer.mozilla.org/en-US/docs/Web/CSS/grid#Browser_compatibility\" target=\"_blank\" rel=\"noopener noreferrer\">MDN</a>",
+        "GRID_WARNING": "Dit voorbeeld gebruikt native CSS Grid en schakelt op het desktopbreekpunt van één naar vier kolommen.",
         "GRID": "Grid layout"
       }
     }
