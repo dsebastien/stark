@@ -10,7 +10,7 @@
 @mixin stark-app-data-theme($material-theme-config, $stark-theme-config) {
   .stark-app-data {
     & .label {
-      color: mat.get-color-from-palette(map.get($stark-theme-config, grey-palette), 700);
+      color: mat.m2-get-color-from-palette(map.get($stark-theme-config, grey-palette), 700);
     }
 
     &.dropdown {
@@ -41,7 +41,8 @@
   /* ------------------------------------------------ */
   /*              app data "detail" slot              */
   /* ------------------------------------------------ */
-  .stark-app-data.mat-menu-panel {
+  .stark-app-data.dropdown-detail,
+  .stark-app-data.menu-detail {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 
     & .stark-app-data-detail {
