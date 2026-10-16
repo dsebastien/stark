@@ -1,26 +1,59 @@
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { Component, ViewChild } from "@angular/core";
-import { UIRouterModule } from "@uirouter/angular";
-import { MatExpansionModule } from "@angular/material/expansion";
-import { MatIconModule } from "@angular/material/icon";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyListModule as MatListModule } from "@angular/material/legacy-list";
-import { STARK_LOGGING_SERVICE, STARK_ROUTING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService, MockStarkRoutingService } from "@nationalbankbelgium/stark-core/testing";
+import {
+	STARK_LOGGING_SERVICE,
+	STARK_ROUTING_SERVICE,
+	type StarkLoggingService,
+	type StarkRoutingService
+} from "@nationalbankbelgium/stark-core";
+import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { StarkAppMenuItemComponent } from "./app-menu-item.component";
 import { StarkMenuGroup } from "./app-menu-group.intf";
+import { vi } from "vitest";
+import { StarkAppMenuModule } from "../app-menu.module";
 
 describe("AppMenuItemComponent", () => {
+	const loggingServiceMock: StarkLoggingService = {
+		correlationId: "dummyCorrelationId",
+		correlationIdHttpHeaderName: "Correlation-Id-HttpHeaderName",
+		generateNewCorrelationId: vi.fn(),
+		debug: vi.fn(),
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn()
+	} as unknown as StarkLoggingService;
+
+	const mockRoutingService = {
+		navigateTo: vi.fn(),
+		isCurrentUiStateIncludedIn: vi.fn(),
+		isCurrentUiState: vi.fn(),
+		addTransitionHook: vi.fn(() => vi.fn())
+	};
+
+	function getTransitionHookCallback(index: number): () => void {
+		const call = mockRoutingService.addTransitionHook.mock.calls[index] as unknown[] | undefined;
+		const callback = call?.[2];
+
+		if (typeof callback !== "function") {
+			throw new Error(`Expected addTransitionHook call ${index} to register a callback`);
+		}
+
+		return callback as () => void;
+	}
+
 	@Component({
+		standalone: true,
 		selector: "host-component",
+		imports: [StarkAppMenuModule],
 		template: ` <stark-app-menu-item [level]="level" [menuGroup]="menuGroup"></stark-app-menu-item> `
 	})
 	class TestHostComponent {
 		@ViewChild(StarkAppMenuItemComponent, { static: true })
 		public starkAppMenuItem!: StarkAppMenuItemComponent;
 
-		public level?: number;
+		public level = 1;
 		public menuGroup: StarkMenuGroup = {
 			id: "id-item",
 			label: "Label",
@@ -35,18 +68,29 @@ describe("AppMenuItemComponent", () => {
 	let hostComponent: TestHostComponent;
 	let component: StarkAppMenuItemComponent;
 	let hostFixture: ComponentFixture<TestHostComponent>;
-	const mockRoutingService: MockStarkRoutingService = new MockStarkRoutingService();
+
+	const renderHost = (initializer?: (host: TestHostComponent) => void): void => {
+		hostFixture?.destroy();
+		hostFixture = TestBed.createComponent(TestHostComponent);
+		hostComponent = hostFixture.componentInstance;
+		initializer?.(hostComponent);
+		hostFixture.detectChanges();
+		component = hostComponent.starkAppMenuItem;
+		mockRoutingService.navigateTo.mockClear();
+		mockRoutingService.isCurrentUiStateIncludedIn.mockClear();
+		mockRoutingService.isCurrentUiState.mockClear();
+	};
 
 	/**
 	 * async beforeEach
 	 */
 	beforeEach(waitForAsync(() =>
 		TestBed.configureTestingModule({
-			declarations: [StarkAppMenuItemComponent, TestHostComponent],
-			imports: [MatExpansionModule, MatIconModule, MatIconTestingModule, MatListModule, NoopAnimationsModule, UIRouterModule],
+			imports: [MatIconTestingModule, NoopAnimationsModule, TestHostComponent, TranslateModule.forRoot()],
 			providers: [
-				{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() },
-				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService }
+				{ provide: STARK_LOGGING_SERVICE, useValue: loggingServiceMock },
+				{ provide: STARK_ROUTING_SERVICE, useValue: mockRoutingService as unknown as StarkRoutingService },
+				TranslateService
 			]
 		})
 			/**
@@ -58,15 +102,9 @@ describe("AppMenuItemComponent", () => {
 	 * Synchronous beforeEach
 	 */
 	beforeEach(() => {
-		mockRoutingService.addTransitionHook.calls.reset();
-		hostFixture = TestBed.createComponent(TestHostComponent);
-		hostComponent = hostFixture.componentInstance;
-		hostComponent.level = 1;
-		hostFixture.detectChanges();
-		component = hostComponent.starkAppMenuItem;
-		mockRoutingService.navigateTo.calls.reset();
-		mockRoutingService.isCurrentUiStateIncludedIn.calls.reset();
-		mockRoutingService.isCurrentUiState.calls.reset();
+		mockRoutingService.addTransitionHook.mockReset();
+		mockRoutingService.addTransitionHook.mockImplementation(() => vi.fn());
+		renderHost();
 	});
 
 	describe("simple menu item", () => {
@@ -84,8 +122,9 @@ describe("AppMenuItemComponent", () => {
 		});
 
 		it("should have the 'stark-disabled' class set when 'isEnabled' is false", () => {
-			hostComponent.menuGroup = { ...hostComponent.menuGroup, isEnabled: false };
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.menuGroup = { ...host.menuGroup, isEnabled: false };
+			});
 
 			const item: HTMLElement = hostFixture.nativeElement.querySelector("#" + hostComponent.menuGroup.id);
 			item.click();
@@ -111,42 +150,54 @@ describe("AppMenuItemComponent", () => {
 		});
 
 		it("should be displayed when 'isVisible' is true", () => {
-			hostComponent.menuGroup = { ...hostComponent.menuGroup, isVisible: false };
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.menuGroup = { ...host.menuGroup, isVisible: false };
+			});
 
 			let item: HTMLElement = hostFixture.nativeElement.querySelector("#" + hostComponent.menuGroup.id);
 			expect(item).toBeFalsy();
 
-			hostComponent.menuGroup = { ...hostComponent.menuGroup, isVisible: true };
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.menuGroup = { ...host.menuGroup, isVisible: true };
+			});
 
 			item = hostFixture.nativeElement.querySelector("#" + hostComponent.menuGroup.id);
 			expect(item).toBeTruthy();
 		});
 
 		it("should dispatch 'activated' event when 'isActive' is true", () => {
-			spyOn(component.activated, "emit");
+			const emitSpy = vi.spyOn(component.activated, "emit");
 			component.isActive = true;
 			hostFixture.detectChanges();
 
-			expect(component.activated.emit).toHaveBeenCalledTimes(1);
+			expect(emitSpy).toHaveBeenCalledTimes(1);
 		});
 
 		it("should dispatch 'deactivated' event when 'isActive' is false", () => {
-			spyOn(component.deactivated, "emit");
+			const emitSpy = vi.spyOn(component.deactivated, "emit");
 			component.isActive = false;
 			hostFixture.detectChanges();
 
-			expect(component.deactivated.emit).toHaveBeenCalledTimes(1);
+			expect(emitSpy).toHaveBeenCalledTimes(1);
+		});
+
+		it("should render the configured menu item icon", () => {
+			renderHost((host: TestHostComponent) => {
+				host.menuGroup = { ...host.menuGroup, icon: "home" };
+			});
+
+			const icon: HTMLElement = hostFixture.nativeElement.querySelector("mat-icon.stark-small-icon");
+
+			expect(icon).toBeTruthy();
 		});
 
 		it("should activate when child state is selected and do not have child menu", () => {
 			hostFixture.detectChanges();
 			// `stateChange` is attached to `routingTransitionSuccessCallback` in `StarkAppMenuItemComponent`
-			const stateChange = <() => void>mockRoutingService.addTransitionHook.calls.first().args[2];
-			mockRoutingService.isCurrentUiStateIncludedIn.withArgs("test").and.returnValue(true);
+			const stateChange = getTransitionHookCallback(0);
+			mockRoutingService.isCurrentUiStateIncludedIn.mockImplementation((state) => state === "test");
 			stateChange();
-			expect(component.isActive).toBeTrue();
+			expect(component.isActive).toBe(true);
 			expect(mockRoutingService.isCurrentUiStateIncludedIn).toHaveBeenCalledWith("test");
 			expect(mockRoutingService.isCurrentUiState).not.toHaveBeenCalledWith("test");
 		});
@@ -181,10 +232,10 @@ describe("AppMenuItemComponent", () => {
 		it("should not activate when child state is selected and do not have child menu", () => {
 			hostFixture.detectChanges();
 			// `stateChange` is attached to `routingTransitionSuccessCallback` in `StarkAppMenuItemComponent`
-			const stateChange = <() => void>mockRoutingService.addTransitionHook.calls.first().args[2];
-			mockRoutingService.isCurrentUiState.withArgs("test").and.returnValue(false);
+			const stateChange = getTransitionHookCallback(0);
+			mockRoutingService.isCurrentUiState.mockImplementation((state) => state === "active-state");
 			stateChange();
-			expect(component.isActive).toBeFalse();
+			expect(component.isActive).toBe(false);
 			expect(mockRoutingService.isCurrentUiStateIncludedIn).not.toHaveBeenCalledWith("test");
 			expect(mockRoutingService.isCurrentUiState).toHaveBeenCalledWith("test");
 		});

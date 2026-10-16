@@ -9,8 +9,11 @@
 @mixin stark-app-menu($material-theme-config, $stark-theme-config) {
   $primary-palette: map.get($material-theme-config, primary);
   $typography-config: map.get($material-theme-config, typography);
+  $foreground-palette: map.get($material-theme-config, foreground);
 
   .stark-app-menu {
+    box-sizing: border-box;
+
     section {
       border-bottom: 1px solid #ddd;
       padding: 40px 0;
@@ -20,30 +23,64 @@
       }
     }
 
-    .mat-nav-list {
-      .mat-list-item {
-        font-size: mat.font-size($typography-config, button);
-        font-weight: mat.font-weight($typography-config, button);
+    .mat-mdc-nav-list {
+      // Paint hover on the square row itself: MDC's translucent overlay changes
+      // both the legacy hover color and the text compositing beneath it.
+      @include mat.list-overrides(
+        (
+          active-indicator-shape: 0,
+          list-item-hover-state-layer-opacity: 0
+        )
+      );
+
+      .mat-mdc-list-item {
+        font-size: mat.m2-font-size($typography-config, button);
+        font-weight: mat.m2-font-weight($typography-config, button);
         height: 42px;
-        line-height: mat.line-height($typography-config, button);
+        line-height: mat.m2-line-height($typography-config, button);
+
+        &:hover:not(:focus):not(.stark-disabled) {
+          background-color: mat.m2-get-color-from-palette($foreground-palette, base, 0.04);
+        }
+
+        .mdc-list-item__content {
+          display: flex;
+          align-items: center;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .mat-mdc-list-item-title {
+          flex: 1 1 auto;
+          min-width: 0;
+          font-size: inherit;
+          line-height: inherit;
+        }
+
+        .mat-mdc-list-item-unscoped-content {
+          display: flex;
+          flex: 0 0 auto;
+          align-items: center;
+          margin-left: auto;
+        }
 
         &.active {
-          .mat-list-text > * {
+          .mat-mdc-list-item-title {
             font-weight: bold;
-            color: mat.get-color-from-palette($primary-palette, 500);
+            color: mat.m2-get-color-from-palette($primary-palette, 500);
           }
         }
 
         @for $i from 2 through 3 {
-          &.stark-app-menu-item-level-#{$i} .mat-list-text {
-            padding-left: #{$i * 20 - 20}px;
+          &.stark-app-menu-item-level-#{$i} .mdc-list-item__content {
+            padding-inline-start: #{$i * 20 - 20}px;
           }
         }
       }
     }
 
-    .mat-nav-list {
-      padding-top: 0;
+    .mat-mdc-nav-list {
+      padding: 0;
     }
 
     .stark-section-title {
