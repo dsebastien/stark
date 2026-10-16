@@ -1,10 +1,10 @@
-/* eslint-disable @angular-eslint/template/use-track-by-function */
 import { StarkBreadcrumbPath } from "./breadcrumb-path.intf";
 import { StarkBreadcrumbConfig } from "./breadcrumb-config.intf";
 import {
 	ChangeDetectionStrategy,
 	Component,
 	ElementRef,
+	ErrorHandler,
 	Inject,
 	Input,
 	OnDestroy,
@@ -30,6 +30,7 @@ const componentName = "stark-breadcrumb";
  * Component to display the breadcrumb of the view where it is included.
  */
 @Component({
+	standalone: false,
 	selector: "stark-breadcrumb",
 	templateUrl: "./breadcrumb.component.html",
 	encapsulation: ViewEncapsulation.None,
@@ -63,12 +64,14 @@ export class StarkBreadcrumbComponent extends AbstractStarkUiComponent implement
 	 * Class constructor
 	 * @param logger - The `StarkLoggingService` instance of the application.
 	 * @param routingService - The `StarkRoutingService` instance of the application.
+	 * @param errorHandler - The Angular `ErrorHandler` used to surface navigation failures.
 	 * @param renderer - Angular `Renderer2` wrapper for DOM manipulations.
 	 * @param elementRef - Reference to the DOM element where this component is attached to.
 	 */
 	public constructor(
 		@Inject(STARK_LOGGING_SERVICE) public logger: StarkLoggingService,
 		@Inject(STARK_ROUTING_SERVICE) public routingService: StarkRoutingService,
+		private errorHandler: ErrorHandler,
 		renderer: Renderer2,
 		elementRef: ElementRef
 	) {
@@ -126,6 +129,8 @@ export class StarkBreadcrumbComponent extends AbstractStarkUiComponent implement
 	 * @param breadcrumbPath - StarkBreadcrumbPath on which the click was performed
 	 */
 	public breadcrumbClickHandler(breadcrumbPath: StarkBreadcrumbPath): void {
-		this.routingService.navigateTo(breadcrumbPath.state, breadcrumbPath.stateParams);
+		this.routingService.navigateTo(breadcrumbPath.state, breadcrumbPath.stateParams).subscribe({
+			error: (error: unknown) => this.errorHandler.handleError(error)
+		});
 	}
 }
