@@ -6,6 +6,7 @@ import { AbstractControl } from "@angular/forms";
 const MONTH_IN_MILLI = 2592000000;
 
 @Component({
+	standalone: false,
 	selector: "demo-date-range-picker",
 	templateUrl: "./demo-date-range-picker.component.html"
 })

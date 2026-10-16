@@ -2,10 +2,11 @@
 import { Component, Inject, OnDestroy } from "@angular/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import { AbstractControl, FormControl, FormGroup, ValidationErrors, Validators } from "@angular/forms";
-import { MatLegacyCheckboxChange as MatCheckboxChange } from "@angular/material/legacy-checkbox";
+import { MatCheckboxChange } from "@angular/material/checkbox";
 import { Subscription } from "rxjs";
 
 @Component({
+	standalone: false,
 	selector: "demo-date-range-picker",
 	templateUrl: "./demo-date-range-picker.component.html"
 })
