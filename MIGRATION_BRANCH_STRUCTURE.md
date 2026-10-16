@@ -4,7 +4,15 @@
 
 This file is the operational handoff for the Stark Angular 22 migration stack. Read it before changing migration history, moving branch pointers, or pushing rewritten commits.
 
-The migration is intentionally split into reviewable layers. Do not collapse the stack into one branch or merge a higher layer into a lower layer.
+## Stable branch (current baseline)
+
+`migration/angular-22/stable` is the current stable point. It is a single linear branch on top of `master`, rebuilt from `work/angular-22/consolidated-20260916` as small, focused commits ordered by layer: dependencies, build tooling, testing, `stark-core`, `stark-rbac`, `stark-ui` (one commit per component), showcase, starter, visual regression suite, then documentation. Its tree is identical to the consolidated branch, so each commit can be reviewed and integrated step by step.
+
+Intermediate commits are ordered logically but are not each guaranteed to build; the final tip is the validated state. The five-layer stack below is the previous structure and is kept only as history. Safety backups: `backup/pre-consolidation-checkpoint-20260916` and the former `migration/angular-22/0*` branches.
+
+## Previous layered stack (superseded)
+
+The migration was previously split into reviewable layers. Do not merge a higher layer into a lower layer.
 
 ## Canonical stack
 
