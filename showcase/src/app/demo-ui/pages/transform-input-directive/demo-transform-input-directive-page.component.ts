@@ -4,6 +4,7 @@ import { UntypedFormControl } from "@angular/forms";
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "showcase-demo-transform-input-directive-page",
 	templateUrl: "./demo-transform-input-directive-page.component.html"
 })

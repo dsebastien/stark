@@ -3,6 +3,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { FormControl } from "@angular/forms";
 
 @Component({
+	standalone: false,
 	selector: "demo-transform-input",
 	templateUrl: "./demo-transform-input.component.html"
 })

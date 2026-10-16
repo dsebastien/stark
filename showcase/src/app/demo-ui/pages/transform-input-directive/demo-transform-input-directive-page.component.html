@@ -1,4 +1,4 @@
-<h1 class="mat-display-3" translate>SHOWCASE.DEMO.DIRECTIVES.TRANSFORM.TITLE</h1>
+<h1 class="mat-headline-2" translate>SHOWCASE.DEMO.DIRECTIVES.TRANSFORM.TITLE</h1>
 <section class="stark-section">
 	<h1 translate>SHOWCASE.DEMO.SHARED.EXAMPLE_VIEWER_LIST</h1>
 	<example-viewer
@@ -7,8 +7,8 @@
 		filesPath="transform-input-directive/transform-input-directive"
 		exampleTitle="SHOWCASE.DEMO.DIRECTIVES.TRANSFORM.TITLE"
 	>
-		<div fxLayout="column" fxLayoutAlign="stretch" fxLayout.gt-sm="row wrap" fxLayoutAlign.gt-sm="space-between end" fxLayoutGap="20px">
-			<mat-form-field fxFlex>
+		<div class="showcase-layout-form-grid">
+			<mat-form-field>
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.TRANSFORM.ONLY_UPPER_CASE_LABEL</mat-label>
 				<input
 					matInput
@@ -17,7 +17,7 @@
 					starkTransformInput="uppercase"
 				/>
 			</mat-form-field>
-			<mat-form-field fxFlex>
+			<mat-form-field>
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.TRANSFORM.ONLY_LOWER_CASE_LABEL</mat-label>
 				<input
 					matInput
@@ -26,7 +26,7 @@
 					starkTransformInput="lowercase"
 				/>
 			</mat-form-field>
-			<mat-form-field class="emoji-example" fxFlex>
+			<mat-form-field class="emoji-example">
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.TRANSFORM.EMOJI_LABEL</mat-label>
 				<input
 					matInput
@@ -34,7 +34,7 @@
 					[starkTransformInput]="simpleEmojiTransform"
 				/>
 			</mat-form-field>
-			<mat-form-field fxFlex="0 0 100%">
+			<mat-form-field class="showcase-flex-full">
 				<mat-label translate>SHOWCASE.DEMO.DIRECTIVES.TRANSFORM.ONLY_UPPER_CASE_LABEL</mat-label>
 				<textarea
 					matInput
