@@ -11,10 +11,11 @@ import { Directive, ElementRef, EmbeddedViewRef, TemplateRef } from "@angular/co
  * </stark-table>
  */
 @Directive({
+	standalone: false,
 	selector: "[starkTableExpandDetail]"
 })
 export class StarkTableExpandDetailDirective extends TemplateRef<any> {
-	public readonly elementRef: ElementRef;
+	public override readonly elementRef: ElementRef;
 
 	// IMPORTANT: The "projected" content will be injected in the "template" property of this directive
 	// This is a workaround to be able to get the "projected" content and to add it as a nested "projected" content of the <stark-table-column>
@@ -27,7 +28,7 @@ export class StarkTableExpandDetailDirective extends TemplateRef<any> {
 	 * @ignore
 	 * @internal
 	 */
-	public createEmbeddedView(context: any): EmbeddedViewRef<any> {
+	public override createEmbeddedView(context: any): EmbeddedViewRef<any> {
 		return this.template.createEmbeddedView(context);
 	}
 }

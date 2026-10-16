@@ -1,7 +1,9 @@
+import { type TranslationObject } from "@ngx-translate/core";
+
 /**
  * @ignore
  */
-export const translationsFr: object = {
+export const translationsFr: TranslationObject = {
 	STARK: {
 		MULTI_COLUMN_SORTING: {
 			ADD_SORTING_LEVEL: "Ajouter le niveau de tri",

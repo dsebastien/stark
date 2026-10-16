@@ -2,9 +2,95 @@
 /*  S t a r k   T a b l e                                                         */
 /* ============================================================================== */
 /* stark-ui: src/modules/table/components/_table.component.scss */
+@use "@angular/material" as mat;
 
 @mixin stark-table() {
   .stark-table {
+    @include mat.table-overrides(
+      (
+        row-item-container-height: 48px,
+        footer-container-height: 48px,
+        header-headline-size: 12px
+      )
+    );
+
+    .mat-mdc-header-row,
+    .mat-mdc-row,
+    .mat-mdc-footer-row,
+    .mdc-data-table__content {
+      line-height: inherit;
+      -webkit-font-smoothing: auto;
+    }
+
+    .mat-mdc-header-cell,
+    .mat-mdc-cell {
+      overflow: visible;
+    }
+
+    .mat-mdc-header-cell,
+    .mat-mdc-cell,
+    .mat-mdc-footer-cell {
+      padding: 0;
+
+      &:first-child {
+        padding-inline-start: 24px;
+      }
+
+      &:last-child {
+        padding-inline-end: 24px;
+      }
+    }
+
+    .mat-mdc-cell.mat-column-select {
+      // Preserve opacity compositing for the MDC selection controls.
+      overflow: hidden;
+    }
+
+    .mat-mdc-row:last-child > .mat-mdc-cell,
+    .mat-mdc-footer-row > .mat-mdc-footer-cell {
+      border-bottom: var(--mat-table-row-item-outline-width, 1px) solid var(--mat-table-row-item-outline-color, rgba(0, 0, 0, 0.12));
+    }
+
+    .mat-column-select .mat-mdc-checkbox {
+      width: 16px;
+
+      // The MDC path is 1.3 times the legacy path inside a 12px content box.
+      .mdc-checkbox__checkmark {
+        scale: calc(40 / 39);
+        overflow: visible;
+      }
+
+      .mdc-checkbox__checkmark-path {
+        stroke-width: calc(32px / 15 * 1.3);
+      }
+
+      .mdc-checkbox__mixedmark {
+        width: 10px;
+        height: 2px;
+        flex-shrink: 0;
+        border: 0;
+        background-color: var(--mat-checkbox-selected-checkmark-color, #fafafa);
+      }
+
+      .mdc-checkbox__ripple,
+      .mat-mdc-checkbox-ripple {
+        width: 40px;
+        height: 40px;
+        left: -12px;
+        top: -11px;
+        right: auto;
+        bottom: auto;
+      }
+
+      .mdc-checkbox__ripple {
+        z-index: 1;
+      }
+
+      .mdc-checkbox__native-control:focus:not(:focus-visible) + .mdc-checkbox__ripple {
+        opacity: 0;
+      }
+    }
+
     .header {
       align-items: center;
       display: flex;
@@ -29,6 +115,12 @@
         }
 
         stark-minimap {
+          @include mat.icon-button-overrides(
+            (
+              icon-size: 18px
+            )
+          );
+
           mat-icon {
             width: 18px;
             height: 18px;
@@ -55,12 +147,14 @@
       }
     }
 
-    .mat-table-sticky:first-child {
+    .mat-table-sticky:first-child,
+    .mat-mdc-table-sticky:first-child {
       padding-right: 10px;
       border-right: 1px solid rgba(0, 0, 0, 0.12); // material-default
     }
 
-    .mat-table-sticky:last-child {
+    .mat-table-sticky:last-child,
+    .mat-mdc-table-sticky:last-child {
       padding-left: 10px;
       border-left: 1px solid rgba(0, 0, 0, 0.12); // material-default
     }
@@ -89,7 +183,8 @@
           white-space: nowrap;
         }
 
-        &.mat-header-cell {
+        &.mat-header-cell,
+        &.mat-mdc-header-cell {
           padding-right: 24px;
 
           .header-cell-content {
@@ -104,6 +199,11 @@
               display: flex;
               flex: 1 1 0%;
               user-select: none;
+
+              // Preserve the inline SVG baseline when header classes change the text size.
+              .mat-icon svg {
+                display: inline;
+              }
 
               &:hover {
                 .order-tip {
@@ -125,7 +225,8 @@
         }
 
         &.filtering {
-          &.mat-header-cell {
+          &.mat-header-cell,
+          &.mat-mdc-header-cell {
             .header-cell-content {
               .button-filter {
                 opacity: 1;
@@ -173,7 +274,7 @@
     }
   }
 
-  .mat-table-filter .mat-menu-content {
+  .mat-table-filter .mat-mdc-menu-content {
     padding: 8px;
   }
 }

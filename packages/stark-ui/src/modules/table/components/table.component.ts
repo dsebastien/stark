@@ -22,12 +22,8 @@ import {
 	ContentChild
 } from "@angular/core";
 import { UntypedFormControl } from "@angular/forms";
-import { MatLegacyDialog as MatDialog, MatLegacyDialogRef as MatDialogRef } from "@angular/material/legacy-dialog";
-import {
-	MatLegacyColumnDef as MatColumnDef,
-	MatLegacyTable as MatTable,
-	MatLegacyTableDataSource as MatTableDataSource
-} from "@angular/material/legacy-table";
+import { MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MatColumnDef, MatTable, MatTableDataSource } from "@angular/material/table";
 import { SelectionChange, SelectionModel } from "@angular/cdk/collections";
 import { BooleanInput, coerceBooleanProperty } from "@angular/cdk/coercion";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
@@ -79,15 +75,17 @@ const DEFAULT_COLUMN_PROPERTIES: Partial<StarkTableColumnProperties> = {
 };
 
 // FIXME: refactor the template of this component function to reduce its cyclomatic complexity
-/* eslint-disable @angular-eslint/template/cyclomatic-complexity */
+
 /**
  * Component to display array data in a table layout.
  */
 @Component({
+	standalone: false,
 	selector: "stark-table",
 	templateUrl: "./table.component.html",
 	encapsulation: ViewEncapsulation.None,
 	// See note on CdkTable for explanation on why this uses the default change detection strategy.
+	// eslint-disable-next-line @angular-eslint/prefer-on-push-component-change-detection -- CdkTable bindings still rely on the default strategy in this component.
 	changeDetection: ChangeDetectionStrategy.Default,
 	// We need to use host instead of @HostBinding: https://github.com/NationalBankBelgium/stark/issues/664
 	host: {
@@ -133,6 +131,9 @@ export class StarkTableComponent<T extends object = object>
 		}
 	}
 
+	/**
+	 * Returns the normalized column configuration used by the table runtime.
+	 */
 	public get columnProperties(): StarkTableColumnProperties[] {
 		return this._columnProperties;
 	}
@@ -180,6 +181,9 @@ export class StarkTableComponent<T extends object = object>
 	@Input()
 	public data: T[] = [];
 
+	/**
+	 * Accepts nullable array-like template input for the `data` binding.
+	 */
 	public static ngAcceptInputType_data: object[] | undefined | null;
 
 	/**
@@ -190,10 +194,16 @@ export class StarkTableComponent<T extends object = object>
 		return this._filter;
 	}
 
+	/**
+	 * Merges the provided filter state with the default table filter configuration.
+	 */
 	public set filter(value: StarkTableFilter) {
 		this._filter = { ...defaultFilter, ...value };
 	}
 
+	/**
+	 * Accepts nullable template input for the `filter` binding.
+	 */
 	public static ngAcceptInputType_filter: StarkTableFilter | undefined;
 
 	/**
@@ -217,6 +227,9 @@ export class StarkTableComponent<T extends object = object>
 		this.isFixedHeaderEnabled = coerceBooleanProperty(value);
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `fixedHeader` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_fixedHeader: BooleanInput;
 
@@ -248,6 +261,9 @@ export class StarkTableComponent<T extends object = object>
 		this.isMultiSortEnabled = coerceBooleanProperty(value);
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `multiSort` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_multiSort: BooleanInput;
 
@@ -287,10 +303,16 @@ export class StarkTableComponent<T extends object = object>
 		return this._showRowsCounter;
 	}
 
+	/**
+	 * Updates whether the total row counter should be rendered.
+	 */
 	public set showRowsCounter(value: boolean) {
 		this._showRowsCounter = coerceBooleanProperty(value);
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `showRowsCounter` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_showRowsCounter: BooleanInput;
 
@@ -319,7 +341,7 @@ export class StarkTableComponent<T extends object = object>
 	@Input()
 	public set tableRowsActionBarConfig(config: StarkActionBarConfig) {
 		this.logger.warn("[tableRowsActionBarConfig] attribute on <stark-table> is deprecated. Use [tableRowActions] instead.");
-		this.tableRowActions = <StarkTableRowActions>config;
+		this.tableRowActions = config;
 	}
 
 	/**
@@ -344,8 +366,10 @@ export class StarkTableComponent<T extends object = object>
 		return this._selection;
 	}
 
+	/**
+	 * Connects an external Angular CDK selection model to the table.
+	 */
 	public set selection(selection: SelectionModel<T>) {
-		// eslint-disable-next-line import/no-deprecated
 		if (coerceBooleanProperty(this.multiSelect) || !!this.rowsSelectable) {
 			this.logger.error(
 				`${componentName}: 'selection' cannot be used with 'multiSelect' and/or 'rowsSelectable'. Please use 'selection' only.`
@@ -387,6 +411,9 @@ export class StarkTableComponent<T extends object = object>
 		return this._showRowIndex;
 	}
 
+	/**
+	 * Updates whether the row-index helper column should be rendered.
+	 */
 	public set showRowIndex(value: boolean) {
 		this._showRowIndex = coerceBooleanProperty(value);
 
@@ -406,6 +433,9 @@ export class StarkTableComponent<T extends object = object>
 		}
 	}
 
+	/**
+	 * Accepts template-side boolean coercion for the `showRowIndex` input.
+	 */
 	// Information about boolean coercion https://angular.io/guide/template-typecheck#input-setter-coercion
 	public static ngAcceptInputType_showRowIndex: BooleanInput;
 
@@ -473,9 +503,15 @@ export class StarkTableComponent<T extends object = object>
 	@ContentChildren(StarkTableColumnComponent)
 	public contentColumns!: QueryList<StarkTableColumnComponent>;
 
+	/**
+	 * Optional template used to render expanded detail rows.
+	 */
 	@ContentChild(StarkTableExpandDetailDirective, { static: false, read: TemplateRef })
 	public expandedDetailTemplate!: StarkTableExpandDetailDirective;
 
+	/**
+	 * Optional template used to render fully custom table rows.
+	 */
 	@ContentChild(StarkTableRowContentDirective, { static: false, read: TemplateRef })
 	public customRowTemplate!: StarkTableRowContentDirective;
 
@@ -578,6 +614,7 @@ export class StarkTableComponent<T extends object = object>
 		this.logger.debug(componentName + ": ngAfterViewInit");
 
 		this.updateTableColumns();
+		this.syncSortingStateFromOrderProperties();
 
 		this.initializeDataSource();
 
@@ -598,6 +635,8 @@ export class StarkTableComponent<T extends object = object>
 
 			this.applyFilter();
 		});
+
+		this.syncFilterState();
 
 		this.cdRef.detectChanges();
 	}
@@ -631,15 +670,16 @@ export class StarkTableComponent<T extends object = object>
 		}
 
 		if (changes["orderProperties"] && !changes["orderProperties"].isFirstChange()) {
+			this.syncSortingStateFromOrderProperties();
 			this.sortData();
 		}
 
 		if (changes["filter"]) {
 			this.filter = { ...defaultFilter, ...this.filter };
-			this._globalFilterFormCtrl.setValue(this.filter.globalFilterValue);
+			this._globalFilterFormCtrl.setValue(this.filter.globalFilterValue, { emitEvent: false });
+			this.syncFilterState();
 		}
 
-		/* eslint-disable import/no-deprecated */
 		if (changes["rowsSelectable"]) {
 			if (this._managedSelection) {
 				this.logger.error(
@@ -656,7 +696,6 @@ export class StarkTableComponent<T extends object = object>
 				}
 			}
 		}
-		/* eslint-enable import/no-deprecated */
 
 		if (changes["multiSelect"] && !changes["multiSelect"].isFirstChange()) {
 			if (this._managedSelection) {
@@ -682,7 +721,7 @@ export class StarkTableComponent<T extends object = object>
 	 * Component lifecycle hook
 	 */
 	public ngOnDestroy(): void {
-		this._selectionSub.unsubscribe();
+		this._selectionSub?.unsubscribe();
 	}
 
 	/**
@@ -741,6 +780,47 @@ export class StarkTableComponent<T extends object = object>
 		this.paginationConfig = { ...this.paginationConfig, totalItems: this.dataSource.filteredData.length };
 	}
 
+	private syncFilterState(): void {
+		if (!this.dataSource) {
+			return;
+		}
+
+		const columnFilters = this.filter.columns || [];
+
+		for (const column of this.columns) {
+			const columnFilter = find(columnFilters, { columnName: column.name });
+			column.filterValue = columnFilter?.filterValue;
+		}
+
+		const globalFilterValue = this.filter.globalFilterValue;
+		this.dataSource.filter = globalFilterValue ? globalFilterValue.trim().toLowerCase() : "%empty%";
+		this.applyFilter();
+	}
+
+	private syncSortingStateFromOrderProperties(): void {
+		if (!this.columns.length) {
+			return;
+		}
+
+		for (const column of this.columns) {
+			column.sortDirection = "";
+			column.sortPriority = 100;
+		}
+
+		for (const [index, orderProperty] of (this.orderProperties || []).entries()) {
+			const isDescending = orderProperty.startsWith("-");
+			const columnName = isDescending ? orderProperty.slice(1) : orderProperty;
+			const column = find(this.columns, { name: columnName });
+
+			if (!column) {
+				continue;
+			}
+
+			column.sortDirection = isDescending ? "desc" : "asc";
+			column.sortPriority = index + 1;
+		}
+	}
+
 	/**
 	 * Selects all rows if they are not all selected; otherwise clear selection.
 	 */
@@ -757,9 +837,9 @@ export class StarkTableComponent<T extends object = object>
 	/**
 	 * Create and initialize the MatTableDataSource used by the MatTable
 	 */
-	// eslint-disable-next-line sonarjs/cognitive-complexity
+
 	private initializeDataSource(): void {
-		this.dataSource = new MatTableDataSource(this.data);
+		this.dataSource = new MatTableDataSource([...this.data]);
 		this.paginationConfig = {
 			...this.paginationConfig,
 			totalItems: this.dataSource.filteredData.length
@@ -963,7 +1043,7 @@ export class StarkTableComponent<T extends object = object>
 				}
 
 				this.orderProperties = newOrderProperties; // enforcing immutability :)
-				this.cdRef.detectChanges(); // needed due to ChangeDetectionStrategy.OnPush in order to refresh the columns
+				this.cdRef.detectChanges(); // force the rendered columns to refresh after the multisort dialog updates the ordering
 
 				this.sortData();
 			}
@@ -987,7 +1067,6 @@ export class StarkTableComponent<T extends object = object>
 	 * @ignore
 	 */
 	private _resetSelection(forceReset: boolean = false): void {
-		/* eslint-disable import/no-deprecated */
 		if (!this.selection || forceReset) {
 			this._selection = new SelectionModel<T>(coerceBooleanProperty(this.multiSelect), []);
 		}
@@ -1000,14 +1079,13 @@ export class StarkTableComponent<T extends object = object>
 			const selected: T[] = change.source.selected;
 			this.selectChanged.emit(selected);
 		});
-		/* eslint-enable import/no-deprecated */
 	}
 
 	/**
 	 * Sort the data according to the direction and priority (if any) defined for each column.
 	 * In case there is a compareFn defined for any of the columns then such method is called to perform the custom sorting.
 	 */
-	// eslint-disable-next-line sonarjs/cognitive-complexity
+
 	public sortData(): void {
 		if (!this.columns) {
 			return;
@@ -1020,6 +1098,8 @@ export class StarkTableComponent<T extends object = object>
 		// Should remove this condition ?
 		this.isMultiSorting = sortableColumns.length > 1;
 
+		// FIXME: re-enable this rule and refactor the multi-sort callback to lower its cognitive complexity.
+		// eslint-disable-next-line sonarjs/cognitive-complexity
 		this.dataSource.data = [...this.data].sort((row1: T, row2: T) => {
 			for (const column of sortableColumns) {
 				const isAscendingDirection: boolean = column.sortDirection === "asc";
@@ -1207,7 +1287,6 @@ export class StarkTableComponent<T extends object = object>
 		if (this.rowClicked.observers.length > 0) {
 			// If there is an observer, emit an event
 			this.rowClicked.emit(row);
-			// eslint-disable-next-line import/no-deprecated
 		} else if (this._managedSelection || this.rowsSelectable) {
 			// If multi-select is enabled, (un)select the row
 			this.selection.toggle(row);

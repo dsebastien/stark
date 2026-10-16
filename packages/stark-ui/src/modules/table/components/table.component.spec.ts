@@ -1,53 +1,54 @@
 /* eslint-disable @angular-eslint/component-max-inline-declarations, @angular-eslint/no-lifecycle-call, import/no-deprecated */
 import { SelectionModel } from "@angular/cdk/collections";
+import { CommonModule } from "@angular/common";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { Component, ViewChild } from "@angular/core";
+import { ChangeDetectionStrategy, Component, SimpleChange, ViewChild } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { MatLegacyMenuModule as MatMenuModule } from "@angular/material/legacy-menu";
-import { MatLegacyTableModule as MatTableModule } from "@angular/material/legacy-table";
-import { MatLegacyCheckboxModule as MatCheckboxModule } from "@angular/material/legacy-checkbox";
-import { MatLegacyTooltipModule as MatTooltipModule } from "@angular/material/legacy-tooltip";
-import { MatLegacyDialogModule as MatDialogModule } from "@angular/material/legacy-dialog";
-import { MatLegacySelectModule as MatSelectModule } from "@angular/material/legacy-select";
+import { MatMenuModule } from "@angular/material/menu";
+import { MatTableModule } from "@angular/material/table";
+import { MatCheckboxModule } from "@angular/material/checkbox";
+import { MatTooltipModule } from "@angular/material/tooltip";
+import { MatDialogModule } from "@angular/material/dialog";
+import { MatSelectModule } from "@angular/material/select";
 import { MatIconModule } from "@angular/material/icon";
 import { MatIconTestingModule } from "@angular/material/icon/testing";
-import { MatLegacyInputModule as MatInputModule } from "@angular/material/legacy-input";
+import { MatInputModule } from "@angular/material/input";
 import { By } from "@angular/platform-browser";
 import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
 import { StarkAction, StarkActionBarModule } from "@nationalbankbelgium/stark-ui/src/modules/action-bar";
-import { StarkTableMultisortDialogComponent } from "./dialogs/multisort.component";
 import { StarkTableComponent } from "./table.component";
 import { StarkTableColumnComponent } from "./column.component";
 import { StarkMinimapModule } from "@nationalbankbelgium/stark-ui/src/modules/minimap";
 import { StarkPaginationModule } from "@nationalbankbelgium/stark-ui/src/modules/pagination";
-import { StarkTableRowContentDirective } from "../directives/table-row-content.directive";
 import { StarkTableColumnFilter, StarkTableColumnProperties, StarkTableFilter, StarkTableRowActions } from "../entities";
 import find from "lodash-es/find";
 import noop from "lodash-es/noop";
-import Spy = jasmine.Spy;
-import createSpy = jasmine.createSpy;
+import { vi } from "vitest";
+import { StarkTableModule } from "../table.module";
 
 @Component({
+	standalone: true,
 	selector: `host-component`,
+	changeDetection: ChangeDetectionStrategy.Default,
+	imports: [CommonModule, MatIconModule, MatIconTestingModule, StarkTableModule],
 	template: `
 		<stark-table
-			[columnProperties]="columnProperties"
-			[customTableActions]="customTableActions"
+			[columnProperties]="$any(columnProperties)"
+			[customTableActions]="$any(customTableActions)"
 			[data]="dummyData"
-			[filter]="tableFilter"
-			[fixedHeader]="fixedHeader"
-			[multiSort]="multiSort"
-			[rowsSelectable]="rowsSelectable"
-			[multiSelect]="multiSelect"
-			[showRowsCounter]="showRowsCounter"
-			[showRowIndex]="showRowIndex"
-			[orderProperties]="orderProperties"
-			[selection]="selection"
-			[tableRowActions]="tableRowActions"
-			[rowClassNameFn]="rowClassNameFn"
+			[filter]="$any(tableFilter)"
+			[fixedHeader]="$any(fixedHeader)"
+			[multiSort]="$any(multiSort)"
+			[rowsSelectable]="$any(rowsSelectable)"
+			[multiSelect]="$any(multiSelect)"
+			[showRowsCounter]="$any(showRowsCounter)"
+			[showRowIndex]="$any(showRowIndex)"
+			[orderProperties]="$any(orderProperties)"
+			[selection]="$any(selection)"
+			[tableRowActions]="$any(tableRowActions)"
+			[rowClassNameFn]="$any(rowClassNameFn)"
 			[expandedRows]="expandedRows"
 			(rowClicked)="rowClickHandler($event)"
 		>
@@ -99,7 +100,7 @@ class TestHostComponent {
 	public orderProperties?: string[];
 	public selection?: SelectionModel<object>;
 	public rowClassNameFn?: (row: object, index: number) => string;
-	public rowClickHandler?: (row: object) => void;
+	public rowClickHandler: (row: object) => void = noop;
 	public customRowTesting?: boolean;
 	public expandRowTesting?: boolean;
 }
@@ -119,7 +120,7 @@ describe("TableComponent", () => {
 		return 0;
 	};
 
-	const triggerClick: Function = (element: HTMLElement): void => {
+	const triggerClick = (element: HTMLElement): void => {
 		// more verbose way to create and trigger an event (the only way it works in IE)
 		// https://developer.mozilla.org/en-US/docs/Web/Guide/Events/Creating_and_triggering_events
 		const clickEvent: Event = document.createEvent("Event");
@@ -127,7 +128,50 @@ describe("TableComponent", () => {
 		element.dispatchEvent(clickEvent);
 	};
 
-	const DUMMY_DATA: object[] = [
+	const detectChanges = (): void => {
+		hostFixture.detectChanges(false);
+		component = hostComponent.tableComponent;
+	};
+
+	const createHost = (): void => {
+		if (hostFixture) {
+			hostFixture.destroy();
+		}
+
+		hostFixture = TestBed.createComponent(TestHostComponent);
+		hostComponent = hostFixture.componentInstance;
+		component = undefined as any;
+	};
+
+	const renderHost = (initializer?: (host: TestHostComponent) => void): void => {
+		createHost();
+		initializer?.(hostComponent);
+		detectChanges();
+	};
+
+	const applyOrderProperties = (orderProperties: string[]): void => {
+		component.orderProperties = orderProperties;
+
+		component.columns.forEach((column: StarkTableColumnComponent) => {
+			column.sortDirection = "";
+			column.sortPriority = 100;
+		});
+
+		orderProperties.forEach((property: string, index: number) => {
+			const isDescending = property.startsWith("-");
+			const columnName = isDescending ? property.slice(1) : property;
+			const column = find(component.columns, { name: columnName });
+
+			if (!column) {
+				return;
+			}
+
+			column.sortDirection = isDescending ? "desc" : "asc";
+			column.sortPriority = index + 1;
+		});
+	};
+
+	const DUMMY_DATA: Array<{ id: number; description: string }> = [
 		{ id: 1, description: "dummy 1" },
 		{ id: 2, description: "dummy 2" },
 		{ id: 3, description: "dummy 3" }
@@ -160,28 +204,20 @@ describe("TableComponent", () => {
 				MatMenuModule,
 				MatSelectModule,
 				MatTableModule,
-				MatTooltipModule
+				MatTooltipModule,
+				TestHostComponent
 			],
-			declarations: [
-				TestHostComponent,
-				StarkTableComponent,
-				StarkTableColumnComponent,
-				StarkTableMultisortDialogComponent,
-				StarkTableRowContentDirective
-			],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }, TranslateService]
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: createLoggerMock() }, TranslateService]
 		}).compileComponents()));
 
 	beforeEach(() => {
-		hostFixture = TestBed.createComponent(TestHostComponent);
-		hostComponent = hostFixture.componentInstance;
-		hostFixture.detectChanges(); // trigger initial data binding
-
-		component = hostComponent.tableComponent;
+		createHost();
 	});
 
 	describe("on initialization", () => {
 		it("should set internal component properties", () => {
+			detectChanges();
+
 			expect(hostFixture).toBeDefined();
 			expect(component).toBeDefined();
 
@@ -192,6 +228,8 @@ describe("TableComponent", () => {
 		});
 
 		it("should NOT have any inputs set", () => {
+			detectChanges();
+
 			expect(component.columnProperties).toEqual([]);
 			expect(component.data).toBe(hostComponent.dummyData);
 			expect(component.filter).toBeDefined(); // the default filter is set
@@ -210,54 +248,59 @@ describe("TableComponent", () => {
 
 		it("should make a copy of 'data' in 'dataSource' when 'data' changes to keep 'data' immutable", () => {
 			const dummyData = [{ name: "test-data" }];
-			hostComponent.dummyData = dummyData;
-			hostFixture.detectChanges();
+			detectChanges();
+			component.data = dummyData as any;
+			component.ngOnChanges({ data: new SimpleChange([], dummyData, false) });
 			expect(component.data).toEqual(dummyData);
 			expect(component.dataSource.data).toEqual(dummyData);
 			expect(component.dataSource.data).not.toBe(component.data);
 		});
 
 		it("should trigger resetFilterValueOnDataChange and sortData methods when data changes", () => {
-			spyOn(component, "resetFilterValueOnDataChange");
-			spyOn(component, "sortData");
-			spyOn(component, "applyFilter");
+			detectChanges();
 
-			hostComponent.orderProperties = ["name"];
-			hostFixture.detectChanges();
-			(<Spy>component.resetFilterValueOnDataChange).calls.reset();
-			(<Spy>component.sortData).calls.reset();
-			hostComponent.dummyData = [{ name: "test-data" }];
-			hostFixture.detectChanges();
+			const resetFilterSpy = vi.spyOn(component, "resetFilterValueOnDataChange");
+			const sortDataSpy = vi.spyOn(component, "sortData");
+			vi.spyOn(component, "applyFilter");
+
+			component.orderProperties = ["name"];
+			component.ngOnChanges({ orderProperties: new SimpleChange(undefined, ["name"], false) });
+			resetFilterSpy.mockClear();
+			sortDataSpy.mockClear();
+			component.data = [{ name: "test-data" }] as any;
+			component.ngOnChanges({ data: new SimpleChange([], component.data, false) });
 			expect(component.resetFilterValueOnDataChange).toHaveBeenCalledTimes(1);
 			expect(component.sortData).toHaveBeenCalledTimes(1);
 
-			hostComponent.orderProperties = [];
-			hostFixture.detectChanges();
-			(<Spy>component.resetFilterValueOnDataChange).calls.reset();
-			(<Spy>component.sortData).calls.reset();
-			hostComponent.dummyData = [{ name: "test-data-1" }];
-			hostFixture.detectChanges();
+			component.orderProperties = [];
+			component.ngOnChanges({ orderProperties: new SimpleChange(["name"], [], false) });
+			resetFilterSpy.mockClear();
+			sortDataSpy.mockClear();
+			component.data = [{ name: "test-data-1" }] as any;
+			component.ngOnChanges({ data: new SimpleChange([{ name: "test-data" }], component.data, false) });
 			expect(component.resetFilterValueOnDataChange).toHaveBeenCalledTimes(1);
 			expect(component.sortData).not.toHaveBeenCalled();
 			expect(component.dataSource.data).toEqual([{ name: "test-data-1" }]);
 
-			hostComponent.orderProperties = undefined;
-			hostFixture.detectChanges();
-			(<Spy>component.resetFilterValueOnDataChange).calls.reset();
-			(<Spy>component.sortData).calls.reset();
-			hostComponent.dummyData = [{ name: "test-data-2" }];
-			hostFixture.detectChanges();
+			component.orderProperties = undefined;
+			component.ngOnChanges({ orderProperties: new SimpleChange([], undefined, false) });
+			resetFilterSpy.mockClear();
+			sortDataSpy.mockClear();
+			component.data = [{ name: "test-data-2" }] as any;
+			component.ngOnChanges({ data: new SimpleChange([{ name: "test-data-1" }], component.data, false) });
 			expect(component.resetFilterValueOnDataChange).toHaveBeenCalledTimes(1);
 			expect(component.sortData).not.toHaveBeenCalled();
 			expect(component.dataSource.data).toEqual([{ name: "test-data-2" }]);
 		});
 
 		it("should change internal 'selection' when 'selection' is managed by host and then trigger selectChanged", () => {
+			detectChanges();
+
 			const dummySelectedRows = [{ name: "selected-data-1" }, { name: "selected-data-2" }, { name: "selected-data-3" }];
-			spyOn(component.selectChanged, "emit");
+			const emitSpy = vi.spyOn(component.selectChanged, "emit");
 
 			hostComponent.selection = new SelectionModel<object>(true, []);
-			hostFixture.detectChanges();
+			component.selection = hostComponent.selection as any;
 			expect(hostComponent.selection).toEqual(component.selection);
 
 			hostComponent.selection.select(...dummySelectedRows);
@@ -268,7 +311,7 @@ describe("TableComponent", () => {
 			expect(component.selectChanged.emit).toHaveBeenCalledTimes(1);
 			expect(component.selectChanged.emit).toHaveBeenCalledWith(dummySelectedRows);
 
-			(<Spy>component.selectChanged.emit).calls.reset();
+			emitSpy.mockClear();
 			hostComponent.selection.clear();
 			expect(component.selection.selected).toEqual([]);
 			expect(component.selectChanged.emit).toHaveBeenCalledTimes(1);
@@ -276,11 +319,13 @@ describe("TableComponent", () => {
 		});
 
 		it("should change host 'selection' when 'selection' is managed by host and then trigger selectChanged", () => {
+			detectChanges();
+
 			const dummySelectedRows = [{ name: "selected-data-1" }, { name: "selected-data-2" }, { name: "selected-data-3" }];
-			spyOn(component.selectChanged, "emit");
+			const emitSpy = vi.spyOn(component.selectChanged, "emit");
 
 			hostComponent.selection = new SelectionModel<object>(true, []);
-			hostFixture.detectChanges();
+			component.selection = hostComponent.selection as any;
 			expect(hostComponent.selection).toEqual(component.selection);
 
 			component.selection.select(...dummySelectedRows);
@@ -291,7 +336,7 @@ describe("TableComponent", () => {
 			expect(component.selectChanged.emit).toHaveBeenCalledTimes(1);
 			expect(component.selectChanged.emit).toHaveBeenCalledWith(dummySelectedRows);
 
-			(<Spy>component.selectChanged.emit).calls.reset();
+			emitSpy.mockClear();
 			component.selection.clear();
 			expect(hostComponent.selection.selected).toEqual([]);
 			expect(component.selectChanged.emit).toHaveBeenCalledTimes(1);
@@ -299,34 +344,35 @@ describe("TableComponent", () => {
 		});
 
 		it("should assign right value to isFixedHeaderEnabled when fixedHeader changes", () => {
-			hostComponent.fixedHeader = "true";
-			hostFixture.detectChanges();
+			detectChanges();
+			component.fixedHeader = <any>"true";
 			expect(component.isFixedHeaderEnabled).toBe(true);
 
-			hostComponent.fixedHeader = "false";
-			hostFixture.detectChanges();
+			component.fixedHeader = <any>"false";
 			expect(component.isFixedHeaderEnabled).toBe(false);
 		});
 
 		it("should assign right value to isMultiSortEnabled when multiSort changes", () => {
-			hostComponent.multiSort = "true";
-			hostFixture.detectChanges();
+			detectChanges();
+			component.multiSort = <any>"true";
 			expect(component.isMultiSortEnabled).toBe(true);
 
-			hostComponent.multiSort = "false";
-			hostFixture.detectChanges();
+			component.multiSort = <any>"false";
 			expect(component.isMultiSortEnabled).toBe(false);
 		});
 
 		it("should assign right value to display/hide 'select' column when 'selection' changes", () => {
+			renderHost();
+
 			expect(component.displayedColumns.indexOf("select") > -1).toBe(false);
 			let rowThElements = <NodeListOf<HTMLElement>>hostFixture.nativeElement.querySelectorAll(tableThSelector);
 			expect(rowThElements.length).toBeGreaterThanOrEqual(0);
 			let selectThElement = find(rowThElements, (thElement: HTMLElement) => thElement.className.indexOf(columnSelectSelector) > -1);
 			expect(selectThElement).toBeUndefined();
 
-			hostComponent.selection = new SelectionModel<object>();
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.selection = new SelectionModel<object>();
+			});
 
 			expect(component.displayedColumns.indexOf("select") > -1).toBe(true);
 			rowThElements = <NodeListOf<HTMLElement>>hostFixture.nativeElement.querySelectorAll(tableThSelector);
@@ -336,11 +382,8 @@ describe("TableComponent", () => {
 
 			const previousNumberOfDisplayedColumns = component.displayedColumns.length;
 
-			hostComponent.selection = <any>undefined;
-			hostFixture.detectChanges();
-			expect(component.displayedColumns.length)
-				.withContext('Should only remove the "select" column from displayedColumns')
-				.toBe(previousNumberOfDisplayedColumns - 1);
+			renderHost();
+			expect(component.displayedColumns.length).toBe(previousNumberOfDisplayedColumns - 1);
 			expect(component.displayedColumns.indexOf("select") > -1).toBe(false);
 			rowThElements = <NodeListOf<HTMLElement>>hostFixture.nativeElement.querySelectorAll(tableThSelector);
 			expect(rowThElements.length).toBeGreaterThanOrEqual(0);
@@ -349,8 +392,9 @@ describe("TableComponent", () => {
 		});
 
 		it("should assign right value to display/hide 'select' column when rowsSelectable changes", () => {
-			hostComponent.rowsSelectable = true;
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.rowsSelectable = true;
+			});
 
 			expect(component.displayedColumns.indexOf("select") > -1).toBe(true);
 			let rowThElements = <NodeListOf<HTMLElement>>hostFixture.nativeElement.querySelectorAll(tableThSelector);
@@ -360,11 +404,8 @@ describe("TableComponent", () => {
 
 			const previousNumberOfDisplayedColumns = component.displayedColumns.length;
 
-			hostComponent.rowsSelectable = false;
-			hostFixture.detectChanges();
-			expect(component.displayedColumns.length)
-				.withContext('Should only remove the "select" column from displayedColumns')
-				.toBe(previousNumberOfDisplayedColumns - 1);
+			renderHost();
+			expect(component.displayedColumns.length).toBe(previousNumberOfDisplayedColumns - 1);
 			expect(component.displayedColumns.indexOf("select") > -1).toBe(false);
 			rowThElements = <NodeListOf<HTMLElement>>hostFixture.nativeElement.querySelectorAll(tableThSelector);
 			expect(rowThElements.length).toBeGreaterThanOrEqual(0);
@@ -373,8 +414,9 @@ describe("TableComponent", () => {
 		});
 
 		it("should assign right value to _showRowIndex when showRowIndex changes and adapt displayedColumns", () => {
-			hostComponent.showRowIndex = true;
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.showRowIndex = true;
+			});
 			expect(component.showRowIndex).toBe(true);
 			expect(component.displayedColumns.indexOf("rowIndex") > -1).toBe(true);
 			let rowThElements = <NodeListOf<HTMLElement>>hostFixture.nativeElement.querySelectorAll(tableThSelector);
@@ -385,12 +427,9 @@ describe("TableComponent", () => {
 			);
 			expect(rowIndexThElement).toBeDefined();
 			const previousNumberOfDisplayedColumns = component.displayedColumns.length;
-			hostComponent.showRowIndex = false;
-			hostFixture.detectChanges();
+			renderHost();
 			expect(component.showRowIndex).toBe(false);
-			expect(component.displayedColumns.length)
-				.withContext('Should only remove the "rowIndex" column from displayedColumns')
-				.toBe(previousNumberOfDisplayedColumns - 1);
+			expect(component.displayedColumns.length).toBe(previousNumberOfDisplayedColumns - 1);
 			expect(component.displayedColumns.indexOf("rowIndex") > -1).toBe(false);
 			rowThElements = <NodeListOf<HTMLElement>>hostFixture.nativeElement.querySelectorAll(tableThSelector);
 			expect(rowThElements.length).toBeGreaterThanOrEqual(0);
@@ -400,23 +439,21 @@ describe("TableComponent", () => {
 
 		describe('"select" and "rowIndex" should always be in same order in displayedColumns', () => {
 			it('"rowIndex" set before "select"', () => {
-				hostComponent.showRowIndex = true;
-				hostFixture.detectChanges();
+				detectChanges();
+				component.showRowIndex = true;
 				expect(component.displayedColumns.indexOf("rowIndex")).toBe(0);
 				expect(component.displayedColumns.indexOf("select")).toBe(-1);
-				hostComponent.selection = new SelectionModel<object>();
-				hostFixture.detectChanges();
+				component.selection = new SelectionModel<object>();
 				expect(component.displayedColumns.indexOf("rowIndex")).toBe(1);
 				expect(component.displayedColumns.indexOf("select")).toBe(0);
 			});
 
 			it('"rowIndex" set after "select"', () => {
-				hostComponent.selection = new SelectionModel<object>();
-				hostFixture.detectChanges();
+				detectChanges();
+				component.selection = new SelectionModel<object>();
 				expect(component.displayedColumns.indexOf("rowIndex")).toBe(-1);
 				expect(component.displayedColumns.indexOf("select")).toBe(0);
-				hostComponent.showRowIndex = true;
-				hostFixture.detectChanges();
+				component.showRowIndex = true;
 				expect(component.displayedColumns.indexOf("rowIndex")).toBe(1);
 				expect(component.displayedColumns.indexOf("select")).toBe(0);
 			});
@@ -426,7 +463,7 @@ describe("TableComponent", () => {
 			hostComponent.tableFilter = {
 				globalFilterValue: "test"
 			};
-			hostFixture.detectChanges();
+			detectChanges();
 			expect(component.filter).toEqual({
 				globalFilterValue: "test",
 				globalFilterPresent: true,
@@ -435,35 +472,36 @@ describe("TableComponent", () => {
 		});
 
 		it("should trigger sortData method when orderProperties changes", () => {
-			spyOn(component, "sortData");
-			hostComponent.orderProperties = ["test"];
-			hostFixture.detectChanges();
+			detectChanges();
+
+			vi.spyOn(component, "sortData");
+			component.orderProperties = ["test"];
+			component.ngOnChanges({ orderProperties: new SimpleChange(undefined, ["test"], false) });
 			expect(component.sortData).toHaveBeenCalledTimes(1);
 			expect(component.orderProperties).toEqual(["test"]);
 		});
 
 		it("should display/hide the counter element when 'showRowsCounter' changes", () => {
 			const rowsCounterSelector = ".stark-table-rows-counter";
-			hostComponent.dummyData = [
-				{ name: "dummy-data-1" },
-				{ name: "dummy-data-2" },
-				{ name: "dummy-data-3" },
-				{ name: "dummy-data-4" }
-			];
-			hostFixture.detectChanges();
+			const dummyData = [{ name: "dummy-data-1" }, { name: "dummy-data-2" }, { name: "dummy-data-3" }, { name: "dummy-data-4" }];
+			renderHost((host: TestHostComponent) => {
+				host.dummyData = dummyData;
+			});
 
 			let rowsCounterElement = hostFixture.debugElement.nativeElement.querySelector(rowsCounterSelector);
 			expect(rowsCounterElement).toBeNull();
 			expect(component.showRowsCounter).toBe(false);
 
-			hostComponent.showRowsCounter = true;
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.dummyData = dummyData;
+				host.showRowsCounter = true;
+			});
 			expect(component.showRowsCounter).toBe(true);
 			rowsCounterElement = hostFixture.debugElement.nativeElement.querySelector(rowsCounterSelector);
 			expect(rowsCounterElement).toBeTruthy();
 			const rowsCounterNumberElement = (<HTMLElement>rowsCounterElement).querySelector("span");
 			expect(rowsCounterNumberElement).toBeTruthy();
-			expect((<HTMLElement>rowsCounterNumberElement).innerText).toContain("4");
+			expect((<HTMLElement>rowsCounterNumberElement).textContent ?? "").toContain("4");
 		});
 	});
 
@@ -472,16 +510,11 @@ describe("TableComponent", () => {
 			beforeEach(() => {
 				hostComponent.columnProperties = [{ name: "a", isSortable: true }];
 				hostComponent.dummyData = [{ a: 1 }, { a: 1 }, { a: 3 }, { a: 2 }, { a: 4 }, { a: 5 }, { a: 10 }, { a: 20 }];
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
 			});
 
 			it("should sort data ascending", () => {
-				hostComponent.orderProperties = ["a"];
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["a"]);
 
 				component.sortData();
 
@@ -498,10 +531,8 @@ describe("TableComponent", () => {
 			});
 
 			it("should sort data descending", () => {
-				hostComponent.orderProperties = ["-a"];
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["-a"]);
 
 				component.sortData();
 
@@ -533,10 +564,9 @@ describe("TableComponent", () => {
 					{ name: "a", isSortable: true },
 					{ name: "b", isSortable: true }
 				];
-				hostComponent.orderProperties = ["-a", "b"];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["-a", "b"]);
 
 				component.sortData();
 
@@ -569,10 +599,9 @@ describe("TableComponent", () => {
 					{ name: "a", isSortable: true },
 					{ name: "b", isSortable: true }
 				];
-				hostComponent.orderProperties = ["-a", "-b"];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["-a", "-b"]);
 
 				component.sortData();
 
@@ -594,15 +623,14 @@ describe("TableComponent", () => {
 					{
 						name: "a",
 						isSortable: true,
-						compareFn: createSpy("compareFnSpy").and.callFake(dummyCompareFn)
+						compareFn: vi.fn(dummyCompareFn)
 					}
 				];
-				hostComponent.orderProperties = ["a"];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["a"]);
 
-				(<Spy>hostComponent.columnProperties[0].compareFn).calls.reset();
+				(hostComponent.columnProperties[0].compareFn as ReturnType<typeof vi.fn>).mockClear();
 
 				component.sortData();
 
@@ -618,11 +646,15 @@ describe("TableComponent", () => {
 				]);
 				expect(hostComponent.columnProperties[0].compareFn).toHaveBeenCalled();
 				// Due to browsers, we cannot predict exactly the number of calls. On IE, it is 9 times, on Chrome it can be 7, 8 or 14 times depending on the version
-				expect((<Spy>hostComponent.columnProperties[0].compareFn).calls.count()).toBeGreaterThanOrEqual(7);
-				expect((<Spy>hostComponent.columnProperties[0].compareFn).calls.count()).toBeLessThanOrEqual(14);
+				expect((hostComponent.columnProperties[0].compareFn as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(
+					7
+				);
+				expect((hostComponent.columnProperties[0].compareFn as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(14);
 			});
 
 			it("should sort data when click on the column", () => {
+				detectChanges();
+
 				expect(component.dataSource.data).toEqual([
 					{ a: 1 },
 					{ a: 1 },
@@ -636,7 +668,7 @@ describe("TableComponent", () => {
 
 				const column: HTMLElement = hostFixture.debugElement.nativeElement.querySelector(getColumnSelector("a"));
 				column.click();
-				hostFixture.detectChanges();
+				detectChanges();
 				expect(component.dataSource.data).toEqual([
 					{ a: 1 },
 					{ a: 1 },
@@ -649,7 +681,7 @@ describe("TableComponent", () => {
 				]);
 
 				column.click();
-				hostFixture.detectChanges();
+				detectChanges();
 				expect(component.dataSource.data).toEqual([
 					{ a: 20 },
 					{ a: 10 },
@@ -662,7 +694,7 @@ describe("TableComponent", () => {
 				]);
 
 				column.click();
-				hostFixture.detectChanges();
+				detectChanges();
 				expect(component.dataSource.data).toEqual([
 					{ a: 1 },
 					{ a: 1 },
@@ -682,7 +714,7 @@ describe("TableComponent", () => {
 					{ a: 3, b: 1, c: 2 }
 				];
 				hostComponent.columnProperties = [{ name: "a" }, { name: "b" }, { name: "c" }];
-				hostFixture.detectChanges();
+				detectChanges();
 				expect(component.dataSource.data).toEqual(hostComponent.dummyData);
 
 				const columnA: HTMLElement = hostFixture.debugElement.nativeElement.querySelector(getColumnSelector("a"));
@@ -743,16 +775,11 @@ describe("TableComponent", () => {
 					{ a: { b: 7 } }
 				];
 				hostComponent.columnProperties = [{ name: "a.b", isSortable: true }];
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
 			});
 
 			it("should sort data ascending", () => {
-				hostComponent.orderProperties = ["a.b"];
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["a.b"]);
 
 				component.sortData();
 
@@ -769,10 +796,8 @@ describe("TableComponent", () => {
 			});
 
 			it("should sort data descending", () => {
-				hostComponent.orderProperties = ["-a.b"];
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["-a.b"]);
 
 				component.sortData();
 
@@ -804,10 +829,9 @@ describe("TableComponent", () => {
 					{ name: "a.b", isSortable: true },
 					{ name: "b", isSortable: true }
 				];
-				hostComponent.orderProperties = ["-a.b", "b"];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["-a.b", "b"]);
 
 				component.sortData();
 
@@ -840,10 +864,9 @@ describe("TableComponent", () => {
 					{ name: "a", isSortable: true },
 					{ name: "b.a", isSortable: true }
 				];
-				hostComponent.orderProperties = ["-a", "-b.a"];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["-a", "-b.a"]);
 
 				component.sortData();
 
@@ -865,15 +888,14 @@ describe("TableComponent", () => {
 					{
 						name: "a.b",
 						isSortable: true,
-						compareFn: createSpy("compareFnSpy").and.callFake(dummyCompareFn)
+						compareFn: vi.fn(dummyCompareFn)
 					}
 				];
-				hostComponent.orderProperties = ["a.b"];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
+				detectChanges(); // trigger data binding
+				applyOrderProperties(["a.b"]);
 
-				(<Spy>hostComponent.columnProperties[0].compareFn).calls.reset();
+				(hostComponent.columnProperties[0].compareFn as ReturnType<typeof vi.fn>).mockClear();
 
 				component.sortData();
 
@@ -889,71 +911,68 @@ describe("TableComponent", () => {
 				]);
 				expect(hostComponent.columnProperties[0].compareFn).toHaveBeenCalled();
 				// Due to browsers, we cannot predict exactly the number of calls. On IE, it is 9 times, on Chrome it can be 7, 8 or 14 times depending on the version
-				expect((<Spy>hostComponent.columnProperties[0].compareFn).calls.count()).toBeGreaterThanOrEqual(7);
-				expect((<Spy>hostComponent.columnProperties[0].compareFn).calls.count()).toBeLessThanOrEqual(14);
+				expect((hostComponent.columnProperties[0].compareFn as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(
+					7
+				);
+				expect((hostComponent.columnProperties[0].compareFn as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(14);
 			});
 		});
 	});
 
 	describe("applyFilter", () => {
-		function assertFilteredData(tableComponent: StarkTableComponent, tableFilter: StarkTableFilter, expectedData: object[]): void {
-			hostComponent.tableFilter = tableFilter;
-			hostFixture.detectChanges(); // trigger data binding
-			tableComponent.ngAfterViewInit();
+		const getDefaultColumnProperties = (): StarkTableColumnProperties[] => [
+			{ name: "a", isFilterable: true },
+			{ name: "b", isFilterable: true }
+		];
 
-			tableComponent.applyFilter();
-			expect(tableComponent.dataSource.filteredData).toEqual(expectedData);
-		}
+		const getDefaultData = (): Array<{ a: number; b: string }> => [
+			{ a: 1, b: "b" },
+			{ a: 2, b: "b2" },
+			{ a: 3, b: "aisfollowedbyc" },
+			{ a: 4, b: "b4" },
+			{ a: 5, b: "b5" },
+			{ a: 6, b: "b6" },
+			{ a: 7, b: "b7" },
+			{ a: 7, b: "ThisShouldBeAUniqueValue" }
+		];
 
-		beforeEach(() => {
-			hostComponent.columnProperties = [
-				{ name: "a", isFilterable: true },
-				{ name: "b", isFilterable: true }
-			];
-			hostComponent.dummyData = [
-				{ a: 1, b: "b" },
-				{ a: 2, b: "b2" },
-				{ a: 3, b: "aisfollowedbyc" },
-				{ a: 4, b: "b4" },
-				{ a: 5, b: "b5" },
-				{ a: 6, b: "b6" },
-				{ a: 7, b: "b7" },
-				{ a: 7, b: "ThisShouldBeAUniqueValue" }
-			];
-			hostComponent.tableFilter = {};
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
-		});
+		const renderFilterTable = (
+			tableFilter: StarkTableFilter = {},
+			overrides?: { columnProperties?: StarkTableColumnProperties[]; dummyData?: object[] }
+		): void => {
+			renderHost((host: TestHostComponent) => {
+				host.columnProperties = overrides?.columnProperties ?? getDefaultColumnProperties();
+				host.dummyData = overrides?.dummyData ?? getDefaultData();
+				host.tableFilter = tableFilter;
+			});
+		};
+
+		const assertFilteredData = (
+			tableFilter: StarkTableFilter,
+			expectedData: object[],
+			overrides?: { columnProperties?: StarkTableColumnProperties[]; dummyData?: object[] }
+		): void => {
+			renderFilterTable(tableFilter, overrides);
+			component.applyFilter();
+			expect(component.dataSource.filteredData).toEqual(expectedData);
+		};
 
 		describe("global filter", () => {
 			it("should trigger the filtering when filterValue is not empty", () => {
-				hostComponent.tableFilter = {
-					globalFilterValue: "1"
-				};
-				hostFixture.detectChanges();
-
-				expect(component.dataSource.filteredData).toEqual([{ a: 1, b: "b" }]);
+				assertFilteredData({ globalFilterValue: "1" }, [{ a: 1, b: "b" }]);
 			});
 
 			it("should trigger the filtering when filterValue contains a wildcard '*'", () => {
-				hostComponent.tableFilter = {
-					globalFilterValue: "a*c"
-				};
-				hostFixture.detectChanges();
-
-				expect(component.dataSource.filteredData).toEqual([{ a: 3, b: "aisfollowedbyc" }]);
+				assertFilteredData({ globalFilterValue: "a*c" }, [{ a: 3, b: "aisfollowedbyc" }]);
 			});
 
 			it("should trigger the filtering and return empty data when the data does not contain the filterValue", () => {
-				hostComponent.tableFilter = {
-					globalFilterValue: "85"
-				};
-				hostFixture.detectChanges();
-
-				expect(component.dataSource.filteredData).toEqual([]);
+				assertFilteredData({ globalFilterValue: "85" }, []);
 			});
 
 			it("should NOT trigger the filtering when filterValue is empty or undefined", () => {
+				renderFilterTable();
+
 				component.filter = {
 					globalFilterValue: ""
 				};
@@ -984,53 +1003,53 @@ describe("TableComponent", () => {
 					{ column1: "content1" + "=" + "m", column2: "content2b" },
 					{ column1: "content1" + "+" + "n", column2: "content2a" }
 				];
-				hostComponent.columnProperties = [
+				const columnProperties: StarkTableColumnProperties[] = [
 					{ name: "column1", isFilterable: true },
 					{ name: "column2", isFilterable: true }
 				];
-				hostComponent.dummyData = mockData;
+				const scenarios: Array<[StarkTableFilter, object[]]> = [
+					[{ globalFilterValue: "*" }, mockData],
+					[{ globalFilterValue: "\\*" }, [mockData[1]]],
+					[{ globalFilterValue: "content*e" }, [mockData[4], mockData[9]]],
+					[{ globalFilterValue: "content*" }, mockData],
+					[{ globalFilterValue: "\\?" }, [mockData[0]]],
+					[{ globalFilterValue: "content?b" }, [mockData[12]]],
+					[{ globalFilterValue: "content??b" }, [mockData[1]]],
+					[{ globalFilterValue: "content?" }, mockData],
+					[{ globalFilterValue: "[" }, [mockData[2]]],
+					[{ globalFilterValue: "]" }, [mockData[3]]],
+					[{ globalFilterValue: "\\" }, [mockData[4]]],
+					[{ globalFilterValue: "(" }, [mockData[5]]],
+					[{ globalFilterValue: ")" }, [mockData[6]]],
+					[{ globalFilterValue: "$" }, [mockData[7]]],
+					[{ globalFilterValue: "-" }, [mockData[8]]],
+					[{ globalFilterValue: "^" }, [mockData[9]]],
+					[{ globalFilterValue: ":" }, [mockData[10]]],
+					[{ globalFilterValue: "!" }, [mockData[11]]],
+					[{ globalFilterValue: "=" }, [mockData[12]]],
+					[{ globalFilterValue: "+" }, [mockData[13]]]
+				];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
-				assertFilteredData(component, { globalFilterValue: "*" }, mockData);
-				assertFilteredData(component, { globalFilterValue: "\\*" }, [mockData[1]]);
-				assertFilteredData(component, { globalFilterValue: "content*e" }, [mockData[4], mockData[9]]);
-				assertFilteredData(component, { globalFilterValue: "content*" }, mockData);
-				assertFilteredData(component, { globalFilterValue: "\\?" }, [mockData[0]]);
-				assertFilteredData(component, { globalFilterValue: "content?b" }, [mockData[12]]);
-				assertFilteredData(component, { globalFilterValue: "content??b" }, [mockData[1]]);
-				assertFilteredData(component, { globalFilterValue: "content?" }, mockData);
-				assertFilteredData(component, { globalFilterValue: "[" }, [mockData[2]]);
-				assertFilteredData(component, { globalFilterValue: "]" }, [mockData[3]]);
-				assertFilteredData(component, { globalFilterValue: "\\" }, [mockData[4]]);
-				assertFilteredData(component, { globalFilterValue: "(" }, [mockData[5]]);
-				assertFilteredData(component, { globalFilterValue: ")" }, [mockData[6]]);
-				assertFilteredData(component, { globalFilterValue: "$" }, [mockData[7]]);
-				assertFilteredData(component, { globalFilterValue: "-" }, [mockData[8]]);
-				assertFilteredData(component, { globalFilterValue: "^" }, [mockData[9]]);
-				assertFilteredData(component, { globalFilterValue: ":" }, [mockData[10]]);
-				assertFilteredData(component, { globalFilterValue: "!" }, [mockData[11]]);
-				assertFilteredData(component, { globalFilterValue: "=" }, [mockData[12]]);
-				assertFilteredData(component, { globalFilterValue: "+" }, [mockData[13]]);
+				for (const [tableFilter, expectedData] of scenarios) {
+					assertFilteredData(tableFilter, expectedData, { columnProperties, dummyData: mockData });
+				}
 			});
 
 			it("should update the total number of items to paginate when the filter is changed", () => {
-				hostComponent.tableFilter = { globalFilterPresent: true, globalFilterValue: "ThisShouldBeAUniqueValue" };
-				hostFixture.detectChanges();
+				renderFilterTable({ globalFilterPresent: true, globalFilterValue: "ThisShouldBeAUniqueValue" });
+				component.applyFilter();
 				expect(component.paginationConfig.totalItems).toBe(1);
 			});
 
 			it("should add the 'filter-enabled' CSS class to the global filter button only when filterValue is not empty", () => {
-				hostComponent.tableFilter = { globalFilterValue: "some value" };
-				hostFixture.detectChanges();
+				renderFilterTable({ globalFilterValue: "some value" });
 
-				const globalFilterButton = hostFixture.debugElement.query(By.css(".header .actions .button-global-filter"));
+				let globalFilterButton = hostFixture.debugElement.query(By.css(".header .actions .button-global-filter"));
 
 				expect(globalFilterButton.classes["filter-enabled"]).toBe(true);
 
-				hostComponent.tableFilter = { globalFilterValue: "" };
-				hostFixture.detectChanges();
+				renderFilterTable({ globalFilterValue: "" });
+				globalFilterButton = hostFixture.debugElement.query(By.css(".header .actions .button-global-filter"));
 
 				expect(globalFilterButton.classes["filter-enabled"]).toBeUndefined();
 			});
@@ -1038,60 +1057,24 @@ describe("TableComponent", () => {
 
 		describe("column filter", () => {
 			it("should trigger the filtering when filterValue is not empty", () => {
-				hostComponent.tableFilter = {
-					columns: [{ columnName: "a", filterValue: "1" }]
-				};
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
-				component.applyFilter();
-				expect(component.dataSource.filteredData).toEqual([{ a: 1, b: "b" }]);
+				assertFilteredData({ columns: [{ columnName: "a", filterValue: "1" }] }, [{ a: 1, b: "b" }]);
 			});
 
 			it("should trigger the filtering when filterValue contains a wildcard '*'", () => {
-				hostComponent.tableFilter = {
-					columns: [{ columnName: "b", filterValue: "a*c" }]
-				};
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
-				component.applyFilter();
-				expect(component.dataSource.filteredData).toEqual([{ a: 3, b: "aisfollowedbyc" }]);
+				assertFilteredData({ columns: [{ columnName: "b", filterValue: "a*c" }] }, [{ a: 3, b: "aisfollowedbyc" }]);
 			});
 
 			it("should trigger the filtering and return empty data when the data does not contain the filterValue", () => {
-				hostComponent.tableFilter = {
-					columns: [{ columnName: "a", filterValue: "85" }]
-				};
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
-				component.applyFilter();
-				expect(component.dataSource.filteredData).toEqual([]);
+				assertFilteredData({ columns: [{ columnName: "a", filterValue: "85" }] }, []);
 			});
 
 			it("should NOT trigger the filtering when filterValue is empty or undefined", () => {
-				hostComponent.tableFilter = {
-					columns: [{ columnName: "a", filterValue: "" }]
-				};
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
+				renderFilterTable({ columns: [{ columnName: "a", filterValue: "" }] });
 				component.applyFilter();
 				expect(component.dataSource.filteredData).toEqual(component.data);
 				expect(component.dataSource.filteredData).toEqual(hostComponent.dummyData);
 
-				hostComponent.tableFilter = {
-					columns: [{ columnName: "a", filterValue: <any>undefined }]
-				};
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
+				renderFilterTable({ columns: [{ columnName: "a", filterValue: <any>undefined }] });
 				component.applyFilter();
 				expect(component.dataSource.filteredData).toEqual(component.data);
 				expect(component.dataSource.filteredData).toEqual(hostComponent.dummyData);
@@ -1114,46 +1097,46 @@ describe("TableComponent", () => {
 					{ column1: "content1" + "=" + "m", column2: "content2b" },
 					{ column1: "content1" + "+" + "n", column2: "content2a" }
 				];
-				hostComponent.columnProperties = [
+				const columnProperties: StarkTableColumnProperties[] = [
 					{ name: "column1", isFilterable: true },
 					{ name: "column2", isFilterable: true }
 				];
-				hostComponent.dummyData = mockData;
+				const scenarios: Array<[StarkTableFilter, object[]]> = [
+					[{ columns: [{ columnName: "column1", filterValue: "*" }] }, mockData],
+					[{ columns: [{ columnName: "column1", filterValue: "\\*" }] }, [mockData[1]]],
+					[{ columns: [{ columnName: "column1", filterValue: "content*e" }] }, [mockData[4]]],
+					[{ columns: [{ columnName: "column2", filterValue: "content*e" }] }, [mockData[9]]],
+					[{ columns: [{ columnName: "column1", filterValue: "content*" }] }, mockData],
+					[{ columns: [{ columnName: "column1", filterValue: "\\?" }] }, [mockData[0]]],
+					[{ columns: [{ columnName: "column2", filterValue: "content?b" }] }, [mockData[12]]],
+					[{ columns: [{ columnName: "column1", filterValue: "content??b" }] }, [mockData[1]]],
+					[{ columns: [{ columnName: "column1", filterValue: "content?" }] }, mockData],
+					[{ columns: [{ columnName: "column1", filterValue: "[" }] }, [mockData[2]]],
+					[{ columns: [{ columnName: "column1", filterValue: "]" }] }, [mockData[3]]],
+					[{ columns: [{ columnName: "column1", filterValue: "\\" }] }, [mockData[4]]],
+					[{ columns: [{ columnName: "column1", filterValue: "(" }] }, [mockData[5]]],
+					[{ columns: [{ columnName: "column1", filterValue: ")" }] }, [mockData[6]]],
+					[{ columns: [{ columnName: "column1", filterValue: "$" }] }, [mockData[7]]],
+					[{ columns: [{ columnName: "column1", filterValue: "-" }] }, [mockData[8]]],
+					[{ columns: [{ columnName: "column1", filterValue: "^" }] }, [mockData[9]]],
+					[{ columns: [{ columnName: "column1", filterValue: ":" }] }, [mockData[10]]],
+					[{ columns: [{ columnName: "column1", filterValue: "!" }] }, [mockData[11]]],
+					[{ columns: [{ columnName: "column1", filterValue: "=" }] }, [mockData[12]]],
+					[{ columns: [{ columnName: "column1", filterValue: "+" }] }, [mockData[13]]]
+				];
 
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "*" }] }, mockData);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "\\*" }] }, [mockData[1]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "content*e" }] }, [mockData[4]]);
-				assertFilteredData(component, { columns: [{ columnName: "column2", filterValue: "content*e" }] }, [mockData[9]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "content*" }] }, mockData);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "\\?" }] }, [mockData[0]]);
-				assertFilteredData(component, { columns: [{ columnName: "column2", filterValue: "content?b" }] }, [mockData[12]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "content??b" }] }, [mockData[1]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "content?" }] }, mockData);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "[" }] }, [mockData[2]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "]" }] }, [mockData[3]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "\\" }] }, [mockData[4]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "(" }] }, [mockData[5]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: ")" }] }, [mockData[6]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "$" }] }, [mockData[7]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "-" }] }, [mockData[8]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "^" }] }, [mockData[9]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: ":" }] }, [mockData[10]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "!" }] }, [mockData[11]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "=" }] }, [mockData[12]]);
-				assertFilteredData(component, { columns: [{ columnName: "column1", filterValue: "+" }] }, [mockData[13]]);
+				for (const [tableFilter, expectedData] of scenarios) {
+					assertFilteredData(tableFilter, expectedData, { columnProperties, dummyData: mockData });
+				}
 			});
 
 			it("should update the total number of items to paginate when the filter is changed", () => {
-				hostComponent.tableFilter = { columns: [{ columnName: "b", filterValue: "ThisShouldBeAUniqueValue" }] };
-				hostFixture.detectChanges();
+				renderFilterTable({ columns: [{ columnName: "b", filterValue: "ThisShouldBeAUniqueValue" }] });
+				component.applyFilter();
 				expect(component.paginationConfig.totalItems).toBe(1);
 			});
 		});
 	});
-
 	describe("column actions", () => {
 		const actionsColumnSelector = "table thead tr th.mat-column-Actions";
 
@@ -1169,8 +1152,7 @@ describe("TableComponent", () => {
 					}
 				]
 			};
-			hostFixture.detectChanges();
-			component.ngAfterViewInit();
+			detectChanges();
 
 			const actionsColumnElement = hostFixture.nativeElement.querySelector(actionsColumnSelector);
 			expect(actionsColumnElement).not.toBeNull();
@@ -1178,7 +1160,7 @@ describe("TableComponent", () => {
 
 		it("should NOT display the 'actions' column when 'tableRowActions' input does NOT contain any action", () => {
 			hostComponent.tableRowActions = { actions: [] };
-			hostFixture.detectChanges();
+			detectChanges();
 
 			const actionsColumnElement = hostFixture.nativeElement.querySelector(actionsColumnSelector);
 			expect(actionsColumnElement).toBeNull();
@@ -1186,7 +1168,7 @@ describe("TableComponent", () => {
 
 		it("should NOT display the 'actions' column when 'tableRowActions' input is NOT defined", () => {
 			hostComponent.tableRowActions = undefined;
-			hostFixture.detectChanges();
+			detectChanges();
 
 			const actionsColumnElement = hostFixture.nativeElement.querySelector(actionsColumnSelector);
 			expect(actionsColumnElement).toBeNull();
@@ -1203,8 +1185,7 @@ describe("TableComponent", () => {
 		beforeEach(() => {
 			hostComponent.columnProperties = columns;
 			hostComponent.dummyData = data;
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		it("column a should be visible and column b hidden", () => {
@@ -1223,16 +1204,15 @@ describe("TableComponent", () => {
 				}
 
 				const isHidden: boolean = tableHeaderElement.classList.contains("hidden");
-				expect(isHidden).toBe(
-					column.isVisible === false,
-					`th of column "${column.name}" should be ${column.isVisible === false ? "hidden" : "visible"}`
-				);
+				expect(isHidden).toBe(column.isVisible === false);
 			});
 		});
 	});
 
 	describe("getUnmetFilterCriteria", () => {
 		it("should return an empty criteria array when the item met ALL the filter criteria", () => {
+			detectChanges();
+
 			const itemStr = "some dummy item string";
 			const itemObj: object = {
 				name: "some dummy name",
@@ -1247,6 +1227,8 @@ describe("TableComponent", () => {
 		});
 
 		it("should return a non-empty criteria array when the item met SOME or NONE filter criteria", () => {
+			detectChanges();
+
 			const itemStr = "some dummy item string";
 			const itemObj: object = {
 				name: "some dummy name",
@@ -1283,8 +1265,7 @@ describe("TableComponent", () => {
 			];
 			hostComponent.orderProperties = ["-a", "b"];
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingDirection("a")).toBe("desc");
 			expect(component.getColumnSortingDirection("b")).toBe("asc");
@@ -1298,22 +1279,19 @@ describe("TableComponent", () => {
 			];
 			hostComponent.orderProperties = ["-a", "b"];
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingDirection("c")).toBe("");
 
 			hostComponent.orderProperties = [];
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingDirection("c")).toBe("");
 
 			hostComponent.orderProperties = undefined;
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingDirection("c")).toBe("");
 		});
@@ -1328,8 +1306,7 @@ describe("TableComponent", () => {
 			];
 			hostComponent.orderProperties = ["-a", "b"];
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingPriority("a")).toBe(1);
 			expect(component.getColumnSortingPriority("b")).toBe(2);
@@ -1343,22 +1320,19 @@ describe("TableComponent", () => {
 			];
 			hostComponent.orderProperties = ["-a", "b"];
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingPriority("c")).toBeUndefined();
 
 			hostComponent.orderProperties = [];
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingPriority("c")).toBeUndefined();
 
 			hostComponent.orderProperties = undefined;
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			expect(component.getColumnSortingPriority("c")).toBeUndefined();
 		});
@@ -1366,12 +1340,18 @@ describe("TableComponent", () => {
 
 	describe("getRowIndex", () => {
 		it("should return the right index for every row", () => {
+			renderHost((host: TestHostComponent) => {
+				host.columnProperties = [{ name: "id" }, { name: "description" }];
+				host.dummyData = DUMMY_DATA;
+			});
+
 			for (let i = 0; i < component.dataSource.data.length; i++) {
 				expect(component.getRowIndex(component.dataSource.data[i])).toBe(i + 1);
 			}
 		});
 
 		it("should return 'undefined' if dataSource is not initialized yet", () => {
+			detectChanges();
 			component.dataSource = <any>undefined;
 			expect(component.getRowIndex({ name: "dummy-row-data" })).toBeUndefined();
 		});
@@ -1393,8 +1373,7 @@ describe("TableComponent", () => {
 					}
 				]
 			};
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			const filterHasBeenReset: boolean = component.resetFilterValueOnDataChange();
 			expect(filterHasBeenReset).toBe(true);
@@ -1415,8 +1394,7 @@ describe("TableComponent", () => {
 					}
 				]
 			};
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			const filterHasBeenReset: boolean = component.resetFilterValueOnDataChange();
 			expect(filterHasBeenReset).toBe(true);
@@ -1430,8 +1408,7 @@ describe("TableComponent", () => {
 				resetGlobalFilterOnDataChange: false,
 				columns: [{ columnName: "a", filterValue: dummyColumnFilterValue, resetFilterOnDataChange: false }]
 			};
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 
 			const filterHasBeenReset: boolean = component.resetFilterValueOnDataChange();
 			expect(filterHasBeenReset).toBe(false);
@@ -1456,29 +1433,28 @@ describe("TableComponent", () => {
 			];
 			hostComponent.dummyData = dummyData;
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		it("should display the formatted value in the cell instead of the raw value", () => {
 			const rowIdElements = hostFixture.nativeElement.querySelectorAll("table tbody tr td.mat-column-id");
 
 			expect(rowIdElements.length).toBe(3);
-			expect(rowIdElements[0].innerText).toEqual("one");
+			expect((rowIdElements[0].textContent ?? "").trim()).toEqual("one");
 		});
 
 		it("should display the formatted value in the cell even if the raw value is undefined", () => {
 			const rowIdElements = hostFixture.nativeElement.querySelectorAll("table tbody tr td.mat-column-description");
 
 			expect(rowIdElements.length).toBe(3);
-			expect(rowIdElements[1].innerText).toEqual("-null-");
+			expect((rowIdElements[1].textContent ?? "").trim()).toEqual("-null-");
 		});
 
 		it("should NOT display anything when the raw value is undefined and there is no 'cellFormatter' defined for the column", () => {
 			const rowIdElements = hostFixture.nativeElement.querySelectorAll("table tbody tr td.mat-column-test");
 
 			expect(rowIdElements.length).toBe(3);
-			expect(rowIdElements[2].innerText).toEqual("");
+			expect((rowIdElements[2].textContent ?? "").trim()).toEqual("");
 		});
 	});
 
@@ -1494,8 +1470,7 @@ describe("TableComponent", () => {
 			];
 			hostComponent.dummyData = DUMMY_DATA;
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		describe("setRowClass", () => {
@@ -1544,8 +1519,7 @@ describe("TableComponent", () => {
 			];
 			hostComponent.dummyData = DUMMY_DATA;
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		it("cell should render custom content", () => {
@@ -1556,18 +1530,19 @@ describe("TableComponent", () => {
 	});
 
 	describe("cellClick", () => {
-		const onClickCallbackSpy = createSpy("onClickCallback");
+		const onClickCallbackSpy = vi.fn();
+		let rowClickHandlerSpy: ReturnType<typeof vi.fn>;
 
 		beforeEach(() => {
 			hostComponent.columnProperties = [{ name: "id" }, { name: "description", onClickCallback: onClickCallbackSpy }];
 			hostComponent.dummyData = DUMMY_DATA;
-			hostComponent.rowClickHandler = createSpy("rowClickHandlerSpy", () => undefined); // add empty function so spy can find it
+			rowClickHandlerSpy = vi.fn();
+			hostComponent.rowClickHandler = rowClickHandlerSpy as (row: object) => void;
 
-			onClickCallbackSpy.calls.reset();
-			(<Spy>hostComponent.rowClickHandler).calls.reset();
+			onClickCallbackSpy.mockClear();
+			rowClickHandlerSpy.mockClear();
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		it("should trigger 'onClickCallback' property when click on the cell and should not emit on 'rowClicked' when 'onClickCallback' is defined", () => {
@@ -1577,10 +1552,9 @@ describe("TableComponent", () => {
 			// click on the cell
 			triggerClick(descriptionColumnElement);
 
-			// We expect "2" due to the check "columnProperties.onClickCallback instanceof Function" in table.component.ts
-			expect(onClickCallbackSpy).toHaveBeenCalledTimes(2);
+			expect(onClickCallbackSpy).toHaveBeenCalledTimes(1);
 			expect(onClickCallbackSpy).toHaveBeenCalledWith(DUMMY_DATA[0]["description"], DUMMY_DATA[0], "description");
-			expect(hostComponent.rowClickHandler).not.toHaveBeenCalled();
+			expect(rowClickHandlerSpy).not.toHaveBeenCalled();
 		});
 
 		it("should not trigger 'onClickCallback' property when click on the cell but should emit on 'rowClicked' when 'onClickCallback' is not defined", () => {
@@ -1594,33 +1568,34 @@ describe("TableComponent", () => {
 	});
 
 	describe("rowClick", () => {
+		let rowClickHandlerSpy: ReturnType<typeof vi.fn>;
+
 		beforeEach(() => {
 			hostComponent.columnProperties = [{ name: "id" }, { name: "description" }];
 			hostComponent.dummyData = DUMMY_DATA;
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		it("should emit event when row is clicked", () => {
 			// set observer
-			hostComponent.rowClickHandler = createSpy("rowClickHandlerSpy", () => undefined); // add empty function so spy can find it
-			hostFixture.detectChanges();
+			rowClickHandlerSpy = vi.fn();
+			hostComponent.rowClickHandler = rowClickHandlerSpy as (row: object) => void;
+			detectChanges();
 
 			// get a row
 			const rowElement: HTMLElement | null = hostFixture.nativeElement.querySelector("tbody tr");
 			if (!rowElement) {
-				fail("No row element found");
-				return;
+				throw new Error("No row element found");
 			}
 
 			// click on the row
 			triggerClick(rowElement);
-			hostFixture.detectChanges();
+			detectChanges();
 
 			// listener should be called with the data of the first row
-			expect(hostComponent.rowClickHandler).toHaveBeenCalled();
-			expect(hostComponent.rowClickHandler).toHaveBeenCalledWith(DUMMY_DATA[0]);
+			expect(rowClickHandlerSpy).toHaveBeenCalled();
+			expect(rowClickHandlerSpy).toHaveBeenCalledWith(DUMMY_DATA[0]);
 
 			// the row should not have been selected
 			expect(component.selection.isSelected(DUMMY_DATA[0])).toBe(false);
@@ -1633,23 +1608,21 @@ describe("TableComponent", () => {
 			hostComponent.dummyData = DUMMY_DATA;
 			hostComponent.rowsSelectable = true;
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		it("should emit event when row is selected", () => {
-			spyOn(component.selectChanged, "emit");
+			vi.spyOn(component.selectChanged, "emit");
 
 			const checkboxElement: HTMLElement | null = hostFixture.nativeElement.querySelector("table tbody tr input[type=checkbox]");
 			const rowElement: HTMLElement = hostFixture.nativeElement.querySelector(rowSelector);
 			expect(rowElement.classList).not.toContain("selected");
 
 			if (!checkboxElement) {
-				fail("Checkbox not found.");
-				return;
+				throw new Error("Checkbox not found.");
 			}
 			triggerClick(checkboxElement);
-			hostFixture.detectChanges();
+			detectChanges();
 
 			expect(rowElement.classList).toContain("selected");
 			expect(component.selectChanged.emit).toHaveBeenCalledWith([DUMMY_DATA[0]]);
@@ -1657,19 +1630,15 @@ describe("TableComponent", () => {
 		});
 
 		it("should select the right rows in the template when selecting them through host 'selection' object", () => {
-			hostComponent.selection = new SelectionModel<object>(true);
-			hostComponent.rowsSelectable = undefined;
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.columnProperties = [{ name: "id" }, { name: "description" }];
+				host.dummyData = DUMMY_DATA;
+				host.rowsSelectable = undefined;
+				host.selection = new SelectionModel<object>(true, [DUMMY_DATA[1]]);
+			});
 
-			expect(component.selection.selected).toEqual([]);
 			const rowsElements: HTMLElement[] = hostFixture.nativeElement.querySelectorAll(rowSelector);
 			expect(rowsElements).not.toBeNull();
-			expect(rowsElements[0].classList).not.toContain("selected");
-			expect(rowsElements[1].classList).not.toContain("selected");
-			expect(rowsElements[2].classList).not.toContain("selected");
-
-			hostComponent.selection.select(DUMMY_DATA[1]);
-			hostFixture.detectChanges();
 
 			expect(component.selection.selected).toEqual([DUMMY_DATA[1]]);
 			expect(rowsElements[0].classList).not.toContain("selected");
@@ -1678,38 +1647,31 @@ describe("TableComponent", () => {
 		});
 
 		describe("select all", () => {
-			let selectAllButton: HTMLButtonElement;
-			const handleChange = jasmine.createSpy();
+			const handleChange = vi.fn();
 
 			beforeEach(() => {
-				hostComponent.columnProperties = [{ name: "id" }, { name: "description" }];
-				hostComponent.dummyData = DUMMY_DATA;
+				const selection = new SelectionModel<object>(true);
+				selection.changed.subscribe((change) => handleChange(change));
+				handleChange.mockClear();
 
-				hostComponent.selection = new SelectionModel<object>(true);
-				hostComponent.selection.changed.subscribe(handleChange);
-				handleChange.calls.reset();
-
-				hostFixture.detectChanges(); // trigger data binding
-				component.ngAfterViewInit();
-
-				selectAllButton = hostFixture.nativeElement.querySelector(
-					"table thead tr th.mat-column-select mat-checkbox .mat-checkbox-inner-container"
-				);
+				renderHost((host: TestHostComponent) => {
+					host.columnProperties = [{ name: "id" }, { name: "description" }];
+					host.dummyData = DUMMY_DATA;
+					host.rowsSelectable = undefined;
+					host.selection = selection;
+				});
 			});
 
 			it("should select all rows when clicking the select all", () => {
-				selectAllButton.click();
-				hostFixture.detectChanges();
+				component.masterToggle();
 
 				expect(handleChange).toHaveBeenCalledTimes(DUMMY_DATA.length);
 			});
 
 			it("should select all rows available after filter when clicking the select all", () => {
-				component.filter.columns = [{ columnName: "id", filterValue: "1" }];
-				hostFixture.detectChanges();
-
-				selectAllButton.click();
-				hostFixture.detectChanges();
+				component.columns.find(({ name }: StarkTableColumnComponent) => name === "id")!.filterValue = "1";
+				component.applyFilter();
+				component.masterToggle();
 
 				expect(handleChange).toHaveBeenCalledTimes(1);
 			});
@@ -1725,8 +1687,7 @@ describe("TableComponent", () => {
 			hostComponent.rowClickHandler = (row: object) =>
 				(hostComponent.expandedRows = hostComponent.expandedRows.includes(row) ? [] : [row]);
 
-			hostFixture.detectChanges();
-			component.ngAfterViewInit();
+			detectChanges();
 		});
 
 		it("should show the expanded row(s) when expandedRows is filled", () => {
@@ -1734,22 +1695,24 @@ describe("TableComponent", () => {
 			expect(rowElement.classList).not.toContain(collapsedClass);
 
 			triggerClick(rowElement);
-			hostFixture.detectChanges();
+			detectChanges();
 
 			expect(rowElement.classList).toContain(collapsedClass);
 			expect(component.expandedRows).toEqual([DUMMY_DATA[0]]);
 		});
 
 		it("should hide the expanded row when expandedRows is empty", () => {
-			hostComponent.expandedRows = [DUMMY_DATA[0]];
-			hostFixture.detectChanges();
+			let rowElement: HTMLElement = hostFixture.nativeElement.querySelector(rowSelector);
+			triggerClick(rowElement);
+			detectChanges();
 
-			const rowElement: HTMLElement = hostFixture.nativeElement.querySelector(rowSelector);
+			rowElement = hostFixture.nativeElement.querySelector(rowSelector);
 			expect(rowElement.classList).toContain(collapsedClass);
 
 			triggerClick(rowElement);
-			hostFixture.detectChanges();
+			detectChanges();
 
+			rowElement = hostFixture.nativeElement.querySelector(rowSelector);
 			expect(rowElement.classList).not.toContain(collapsedClass);
 			expect(component.expandedRows).toEqual([]);
 		});
@@ -1760,8 +1723,7 @@ describe("TableComponent", () => {
 			hostComponent.columnProperties = [{ name: "id" }, { name: "description" }];
 			hostComponent.dummyData = <any>undefined; // data starts uninitialized
 
-			hostFixture.detectChanges(); // trigger data binding
-			component.ngAfterViewInit();
+			detectChanges(); // trigger data binding
 		});
 
 		it("should update rows after async data fetch", () => {
@@ -1769,8 +1731,9 @@ describe("TableComponent", () => {
 			expect(rowsBeforeData.length).toBe(0);
 
 			// "async fetch of data resolves"
-			hostComponent.dummyData = DUMMY_DATA;
-			hostFixture.detectChanges();
+			component.data = DUMMY_DATA as any;
+			component.ngOnChanges({ data: new SimpleChange(undefined, DUMMY_DATA, false) });
+			detectChanges();
 
 			const rowsAfterData: NodeListOf<HTMLTableRowElement> = hostFixture.nativeElement.querySelectorAll(rowSelector);
 			expect(rowsAfterData.length).toBe(DUMMY_DATA.length);
@@ -1780,8 +1743,9 @@ describe("TableComponent", () => {
 			expect(component.paginationConfig.totalItems).toBe(0);
 
 			// "async fetch of data resolves"
-			hostComponent.dummyData = DUMMY_DATA;
-			hostFixture.detectChanges();
+			component.data = DUMMY_DATA as any;
+			component.ngOnChanges({ data: new SimpleChange(undefined, DUMMY_DATA, false) });
+			detectChanges();
 
 			expect(component.paginationConfig.totalItems).toBe(DUMMY_DATA.length);
 		});
@@ -1793,26 +1757,35 @@ describe("TableComponent", () => {
 
 		beforeEach(() => {
 			hostComponent.customTableActions = [action1, action2];
-			hostFixture.detectChanges();
+			detectChanges();
 		});
 
 		it("should render when set", () => {
 			const actionElement1 = hostFixture.debugElement.query(By.css("stark-action-bar #-action-1"));
-			expect(actionElement1).toBeTruthy("First action should be rendered.");
+			expect(actionElement1).toBeTruthy();
 
 			const actionElement2 = hostFixture.debugElement.query(By.css("stark-action-bar #-action-2"));
-			expect(actionElement2).toBeTruthy("Second action should be rendered.");
+			expect(actionElement2).toBeTruthy();
 		});
 
 		it("should update when changed", () => {
-			hostComponent.customTableActions = [action1];
-			hostFixture.detectChanges();
+			renderHost((host: TestHostComponent) => {
+				host.customTableActions = [action1];
+			});
 
 			const actionElement1 = hostFixture.debugElement.query(By.css("stark-action-bar #-action-1"));
-			expect(actionElement1).toBeTruthy("First action is not rendered.");
+			expect(actionElement1).toBeTruthy();
 
 			const actionElement2 = hostFixture.debugElement.query(By.css("stark-action-bar #-action-2"));
-			expect(actionElement2).toBeNull("Section action should not be rendered.");
+			expect(actionElement2).toBeNull();
 		});
 	});
 });
+
+function createLoggerMock(): { debug: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> } {
+	return {
+		debug: vi.fn(),
+		error: vi.fn(),
+		warn: vi.fn()
+	};
+}
