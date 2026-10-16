@@ -1,17 +1,21 @@
 /* eslint-disable @angular-eslint/component-max-inline-declarations */
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
-import { Component, ViewChild } from "@angular/core";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { Component, SimpleChange, ViewChild } from "@angular/core";
 import { STARK_LOGGING_SERVICE } from "@nationalbankbelgium/stark-core";
-import { MockStarkLoggingService } from "@nationalbankbelgium/stark-core/testing";
 import { StarkSliderComponent } from "./slider.component";
 import { Options } from "nouislider";
-import Spy = jasmine.Spy;
+import { vi } from "vitest";
 
-/**
- * To be able to test changes to the input fields, the Slider component is hosted inside the TestComponentHost class.
- */
+type SliderUpdateHandler = (_values: Array<string | number>, _handle: number, unencodedValues: number[]) => void;
+
+type LoggingServiceMock = {
+	debug: ReturnType<typeof vi.fn<(message: string, ...args: unknown[]) => void>>;
+};
+
 @Component({
-	selector: `host-component`,
+	standalone: true,
+	selector: "stark-slider-host",
+	imports: [StarkSliderComponent],
 	template: `
 		<stark-slider
 			[values]="sliderValues"
@@ -25,9 +29,15 @@ class TestHostComponent {
 	@ViewChild(StarkSliderComponent, { static: true })
 	public sliderComponent!: StarkSliderComponent;
 
-	public sliderId?: string;
-	public sliderValues?: number[];
-	public sliderConfig?: Options;
+	public sliderId = "rangeSlider";
+	public sliderValues: number[] = [0];
+	public sliderConfig: Options = {
+		start: 0,
+		range: {
+			min: 0,
+			max: 100
+		}
+	};
 
 	/**
 	 * Simulates the OnValueChanges event of the slider component
@@ -39,10 +49,27 @@ class TestHostComponent {
 	}
 }
 
+function isSliderUpdateHandler(callback: unknown): callback is SliderUpdateHandler {
+	return typeof callback === "function";
+}
+
+function getSliderUpdateHandler(componentInstance: StarkSliderComponent): SliderUpdateHandler {
+	const sliderOnCalls = (componentInstance.slider.on as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+	const callback = sliderOnCalls[0]?.[1];
+
+	if (!isSliderUpdateHandler(callback)) {
+		throw new Error("Expected slider.on to register a callable update handler");
+	}
+
+	return callback;
+}
+
 describe("SliderComponent", () => {
 	let component: StarkSliderComponent;
 	let hostComponent: TestHostComponent;
 	let hostFixture: ComponentFixture<TestHostComponent>;
+	let attachSliderInstanceUpdateHandlerSpy: ReturnType<typeof vi.spyOn>;
+	let originalAttachSliderInstanceUpdateHandler: () => void;
 
 	const mockConfig: Options = {
 		start: 5,
@@ -54,20 +81,18 @@ describe("SliderComponent", () => {
 	const mockSliderId = "rangeSlider";
 	const mockValues: number[] = [11, 22];
 	const newMockValues: number[] = [14, 18];
-	let attachSliderInstanceUpdateHandlerSpy: jasmine.Spy;
 
-	/**
-	 * async beforeEach
-	 */
-	beforeEach(waitForAsync(() =>
-		TestBed.configureTestingModule({
-			declarations: [StarkSliderComponent, TestHostComponent],
-			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: new MockStarkLoggingService() }]
-		}).compileComponents()));
+	beforeEach(async () => {
+		const mockLogger: LoggingServiceMock = {
+			debug: vi.fn<(message: string, ...args: unknown[]) => void>()
+		};
 
-	/**
-	 * Synchronous beforeEach
-	 */
+		await TestBed.configureTestingModule({
+			imports: [TestHostComponent],
+			providers: [{ provide: STARK_LOGGING_SERVICE, useValue: mockLogger as any }]
+		}).compileComponents();
+	});
+
 	beforeEach(() => {
 		hostFixture = TestBed.createComponent(TestHostComponent);
 		hostComponent = hostFixture.componentInstance;
@@ -77,37 +102,16 @@ describe("SliderComponent", () => {
 		hostComponent.sliderValues = mockValues;
 		hostComponent.sliderId = mockSliderId;
 
-		spyOn(component, "updateSliderInstanceValues").and.callThrough();
-		spyOn(component.changed, "emit").and.callThrough();
+		vi.spyOn(component, "updateSliderInstanceValues");
+		vi.spyOn(component.changed, "emit");
 
-		/**
-		 * The stage
-		 *   The "attachSliderInstanceUpdateHandler()" method attaches an update handler to the slider component by using the "slider.on" method.
-		 *   The "slider.on" method should have been called once.
-		 *   The "fixture.detectChanges()" method triggers the "ngOnInit()" and "ngAfterViewInit()" methods in the component.
-		 *   The "ngAfterViewInit()" method calls the "createSliderInstance()" and "attachSliderInstanceUpdateHandler()" methods of the component.
-		 *   The slider is created in the "createSliderInstance()" method
-		 *
-		 * The problem
-		 *   Creating the spy before the "fixture.detectChanges()" method does not work, because the slider is not created yet.
-		 *   Creating the spy after the "fixture.detectChanges()" method does not work either, because the "component.slider.on" function has already been executed.
-		 *
-		 * The solution
-		 *   Putting a "stub" method on the "attachSliderInstanceUpdateHandler()" method, blocks the original code from being executed.
-		 *   Before testing the call of the "component.slider.on" method, put a "callThrough" on the spy and execute the "attachSliderInstanceUpdateHandler()" method manually.
-		 */
-		attachSliderInstanceUpdateHandlerSpy = spyOn(component, "attachSliderInstanceUpdateHandler").and.stub();
+		originalAttachSliderInstanceUpdateHandler = component.attachSliderInstanceUpdateHandler.bind(component);
+		attachSliderInstanceUpdateHandlerSpy = vi.spyOn(component, "attachSliderInstanceUpdateHandler").mockImplementation(() => undefined);
 
-		/**
-		 * fixture.detectChanges() triggers the ngOnInit() and ngAfterViewInit() methods in the component.
-		 */
 		hostFixture.detectChanges();
 
-		/**
-		 * The slider is created after the fixture.detectChanges() has been called
-		 */
-		spyOn(component.slider, "on").and.callThrough();
-		spyOn(component.slider, "set").and.callThrough();
+		vi.spyOn(component.slider, "on");
+		vi.spyOn(component.slider, "set");
 	});
 
 	describe("on initialization", () => {
@@ -141,12 +145,12 @@ describe("SliderComponent", () => {
 		});
 
 		it("should throw an error when values are not set", () => {
-			hostComponent.sliderValues = undefined;
+			hostComponent.sliderValues = undefined as unknown as number[];
 			expect(() => hostFixture.detectChanges()).toThrowError("StarkSliderComponent: values should be set.");
 		});
 
 		it("should throw an error when values are not set", () => {
-			hostComponent.sliderConfig = undefined;
+			hostComponent.sliderConfig = undefined as unknown as Options;
 			expect(() => hostFixture.detectChanges()).toThrowError("StarkSliderComponent: sliderConfig should be set.");
 		});
 	});
@@ -159,35 +163,34 @@ describe("SliderComponent", () => {
 
 	describe("attachSliderInstanceUpdateHandler", () => {
 		it("should add an 'update' event listener to the slider instance", () => {
-			attachSliderInstanceUpdateHandlerSpy.and.callThrough();
+			attachSliderInstanceUpdateHandlerSpy.mockImplementation(originalAttachSliderInstanceUpdateHandler);
 
 			component.attachSliderInstanceUpdateHandler();
 
 			expect(component.slider.on).toHaveBeenCalledTimes(1);
 
-			expect((<Spy>component.slider.on).calls.argsFor(0)[0]).toBe("update");
-			expect(typeof (<Spy>component.slider.on).calls.argsFor(0)[1]).toBe("function");
+			const sliderOnCalls = (component.slider.on as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+			expect(sliderOnCalls[0]?.[0]).toBe("update");
+			expect(typeof sliderOnCalls[0]?.[1]).toBe("function");
 		});
 
 		it("should update the slider instance when the values change", () => {
-			attachSliderInstanceUpdateHandlerSpy.and.callThrough();
-			component.attachSliderInstanceUpdateHandler();
-
-			hostComponent.sliderValues = newMockValues;
-			hostFixture.detectChanges();
+			component.values = newMockValues;
+			component.ngOnChanges({
+				values: new SimpleChange(mockValues, newMockValues, false)
+			});
 
 			expect(component.updateSliderInstanceValues).toHaveBeenCalledTimes(1);
 			expect(component.values).toBe(newMockValues);
 		});
 
 		it("should update the values and call changed() whenever the update handler is triggered and the slider unencodedValues changed", () => {
-			attachSliderInstanceUpdateHandlerSpy.and.callThrough();
+			attachSliderInstanceUpdateHandlerSpy.mockImplementation(originalAttachSliderInstanceUpdateHandler);
 			component.attachSliderInstanceUpdateHandler();
 
-			const updateHandler: Function = (<Spy>component.slider.on).calls.argsFor(0)[1];
-
+			const updateHandler = getSliderUpdateHandler(component);
 			const dummyHandle = 0;
-			const dummyEncodedValues: number[] = [];
+			const dummyEncodedValues: Array<string | number> = [];
 			const dummyUnencodedValues: number[] = [14, 18];
 
 			updateHandler(dummyEncodedValues, dummyHandle, dummyUnencodedValues);
@@ -207,13 +210,12 @@ describe("SliderComponent", () => {
 		});
 
 		it("should NOT do anything in case the update handler is triggered but the slider unencodedValues did not change", () => {
-			attachSliderInstanceUpdateHandlerSpy.and.callThrough();
+			attachSliderInstanceUpdateHandlerSpy.mockImplementation(originalAttachSliderInstanceUpdateHandler);
 			component.attachSliderInstanceUpdateHandler();
 
-			const updateHandler: Function = (<Spy>component.slider.on).calls.argsFor(0)[1];
-
+			const updateHandler = getSliderUpdateHandler(component);
 			const dummyHandle = 0;
-			const dummyEncodedValues: number[] = [];
+			const dummyEncodedValues: Array<string | number> = [];
 
 			updateHandler(dummyEncodedValues, dummyHandle, mockValues);
 

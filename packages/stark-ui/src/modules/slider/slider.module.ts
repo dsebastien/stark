@@ -3,8 +3,7 @@ import { CommonModule } from "@angular/common";
 import { StarkSliderComponent } from "./components";
 
 @NgModule({
-	declarations: [StarkSliderComponent],
-	imports: [CommonModule],
+	imports: [CommonModule, StarkSliderComponent],
 	exports: [StarkSliderComponent]
 })
 export class StarkSliderModule {}
