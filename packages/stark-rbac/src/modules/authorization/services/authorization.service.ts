@@ -95,7 +95,6 @@ export class StarkRBACAuthorizationServiceImpl implements StarkRBACAuthorization
 			{
 				// match only states with permissions except the ones that are children of starkAppInit/starkAppExit or the Ui-Router's root state
 				entering: (state?: StateObject): boolean => {
-					// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
 					const regexInitExitStateName = new RegExp("(" + starkAppInitStateName + "|" + starkAppExitStateName + ")");
 					if (
 						state &&
