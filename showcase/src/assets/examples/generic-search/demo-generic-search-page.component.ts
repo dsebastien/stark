@@ -11,6 +11,7 @@ import { HeroMovie, HeroMovieSearchCriteria } from "./entities";
 import { DemoGenericService } from "./services";
 
 @Component({
+	standalone: false,
 	selector: "demo-generic-search",
 	templateUrl: "./demo-generic-search.component.html"
 })

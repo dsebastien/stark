@@ -1,4 +1,6 @@
-<mat-slide-toggle color="primary" [checked]="!hideSearch" (change)="hideSearch = !hideSearch">Toggle search</mat-slide-toggle>
+<mat-slide-toggle color="primary" [hideIcon]="true" [checked]="!hideSearch" (change)="hideSearch = !hideSearch"
+	>Toggle search</mat-slide-toggle
+>
 <stark-generic-search
 	formHtmlId="demo-generic-search-form"
 	(searchTriggered)="onSearch($event)"

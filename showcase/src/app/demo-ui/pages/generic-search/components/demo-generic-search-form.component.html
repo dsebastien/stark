@@ -1,17 +1,19 @@
-<form fxLayout="row wrap" [formGroup]="searchForm">
+<form class="showcase-layout-form-grid" [formGroup]="searchForm">
 	<!-- Year -->
-	<div fxFlex>
+	<div>
 		<mat-form-field>
-			<input type="text" placeholder="Year" matInput formControlName="year" [matAutocomplete]="yearAutocomplete" />
+			<mat-label>Year</mat-label>
+			<input type="text" matInput formControlName="year" [matAutocomplete]="yearAutocomplete" />
 		</mat-form-field>
 		<mat-autocomplete #yearAutocomplete="matAutocomplete">
 			<mat-option *ngFor="let option of yearOptions; trackBy: trackItemFn" [value]="option">{{ option }}</mat-option>
 		</mat-autocomplete>
 	</div>
 	<!-- Hero -->
-	<div fxFlex>
+	<div>
 		<mat-form-field>
-			<input type="text" placeholder="Hero" matInput formControlName="hero" [matAutocomplete]="heroAutocomplete" />
+			<mat-label>Hero</mat-label>
+			<input type="text" matInput formControlName="hero" [matAutocomplete]="heroAutocomplete" />
 		</mat-form-field>
 		<mat-autocomplete #heroAutocomplete="matAutocomplete">
 			<mat-option *ngFor="let option of heroOptions; trackBy: trackItemFn" [value]="option">{{ option }}</mat-option>
@@ -19,9 +21,10 @@
 	</div>
 
 	<!-- Hero -->
-	<div fxFlex>
+	<div>
 		<mat-form-field>
-			<input type="text" placeholder="Movie" matInput formControlName="movie" [matAutocomplete]="movieAutocomplete" />
+			<mat-label>Movie</mat-label>
+			<input type="text" matInput formControlName="movie" [matAutocomplete]="movieAutocomplete" />
 		</mat-form-field>
 		<mat-autocomplete #movieAutocomplete="matAutocomplete">
 			<mat-option *ngFor="let option of movieOptions; trackBy: trackItemFn" [value]="option">{{ option }}</mat-option>
