@@ -15,6 +15,8 @@ as long as you provide the same functionalities/services yourself.
 
 **[Getting Started](https://stark.nbb.be/api-docs/stark-rbac/latest/additional-documentation/getting-started.html)**
 
+Upgrading from Stark 12? Follow the consolidated [Stark 13 migration guide](../../docs/MIGRATION_GUIDE_STARK_13.md).
+
 ## Testing subpackage
 
 Stark RBAC comes also with the subpackage `@nationalbankbelgium/stark-rbac/testing` which contains the mock classes that come in hand
