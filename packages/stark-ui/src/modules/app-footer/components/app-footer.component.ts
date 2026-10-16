@@ -1,5 +1,6 @@
+import { CommonModule } from "@angular/common";
 import { ChangeDetectionStrategy, Component, HostBinding, Inject, Input, OnInit } from "@angular/core";
-import { TranslateService } from "@ngx-translate/core";
+import { TranslateModule, TranslateService } from "@ngx-translate/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 
 /**
@@ -11,9 +12,11 @@ const componentName = "stark-app-footer";
  * Component to display the application's footer.
  */
 @Component({
+	standalone: true,
 	selector: "stark-app-footer",
 	templateUrl: "./app-footer.component.html",
-	changeDetection: ChangeDetectionStrategy.OnPush
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	imports: [CommonModule, TranslateModule]
 })
 export class StarkAppFooterComponent implements OnInit {
 	/**

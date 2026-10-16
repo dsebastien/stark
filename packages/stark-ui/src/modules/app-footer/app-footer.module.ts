@@ -9,8 +9,8 @@ import { translationsNl } from "./assets/translations/nl";
 import { mergeUiTranslations } from "@nationalbankbelgium/stark-ui/src/common";
 
 @NgModule({
-	declarations: [StarkAppFooterComponent],
-	imports: [CommonModule, TranslateModule],
+	declarations: [],
+	imports: [CommonModule, TranslateModule, StarkAppFooterComponent],
 	exports: [StarkAppFooterComponent]
 })
 export class StarkAppFooterModule {
