@@ -1,6 +1,21 @@
+mat-card {
+  display: block;
+  padding: 16px;
+}
+
 .pretty-print-input {
   display: flex;
   flex-direction: column;
+
+  .mat-mdc-form-field {
+    width: 100%;
+    font-size: 16px;
+    line-height: 18px;
+  }
+
+  textarea.mat-mdc-input-element {
+    line-height: 18px;
+  }
 }
 
 .code-block {
