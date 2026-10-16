@@ -1,5 +1,16 @@
 {
   "extends": "./tsconfig.json",
-  "files": null,
-  "include": ["**/*.ts"]
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec",
+    "rootDir": "..",
+    "paths": {
+      "@nationalbankbelgium/stark-core": ["../stark-core/public_api.ts"],
+      "@nationalbankbelgium/stark-core/testing": ["../stark-core/testing/public_api.ts"],
+      "@nationalbankbelgium/stark-rbac": ["./public_api.ts"],
+      "@nationalbankbelgium/stark-rbac/testing": ["./testing/public_api.ts"],
+      "environments/environment": ["../stark-core/src/common/environment"]
+    }
+  },
+  "include": ["base.spec.ts", "public_api.ts", "src/**/*.ts", "testing/public_api.ts", "testing/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

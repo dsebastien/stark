@@ -1,0 +1,3 @@
+{
+  "extends": "@nationalbankbelgium/code-style/tsconfig/6.0.x/ng22"
+}

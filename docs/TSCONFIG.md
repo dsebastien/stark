@@ -98,8 +98,8 @@ The structure of this files is as the following:
 }`
 ```
 
-Those files are used to build the testing bundles which contains the spec.ts files and all the files under test.
-The code is compiled using CommonJs modules, as we use Karma-Typescript to create the bundles.
+Those files are used by the Angular unit-test builder and Vitest to compile the setup files, the `*.spec.ts` files, and the code under test.
+Application-level spec configs now typically scope compilation to `base.vitest.spec.ts`, `src/polyfills.browser.ts`, and the relevant spec files, while package-level configs may use dedicated Vitest smoke or other targeted variants where needed.
 
 ## tsconfig-build.json
 
@@ -148,17 +148,4 @@ This file is used in the build of the project. Stark uses it for packages compil
 compliance with the configuration of the package.
 The file will then indicate where to find the library to use to build the project, the entry point to compile, ...
 
-## tsconfig.e2e.json
-
-The `tsconfig.e2e.json` file is located in the `stark/starter` folder and looks like the following:
-
-```
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "module": "commonjs"
-  }
-}
-```
-
-This files are used to build the testing bundles which contains the e2e.ts files and all the application source files.
+The old app-local `tsconfig.e2e.json` files were removed when the repository was rebaselined on Vitest-only unit testing.
