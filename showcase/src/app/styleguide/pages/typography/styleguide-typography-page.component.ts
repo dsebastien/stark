@@ -1,6 +1,7 @@
 import { Component } from "@angular/core";
 
 @Component({
+	standalone: false,
 	selector: "demo-typography",
 	templateUrl: "./styleguide-typography-page.component.html"
 })
@@ -21,13 +22,15 @@ export class StyleguideTypographyPageComponent {
 		);
 	 	`;
 
-	public webpackExample = `
-		{
-			"cspConnectSrc": "http://localhost:5000 http://localhost:5001 http://localhost:5002 http://localhost:4000 https://nationalbankbelgium.github.io",
-			"cspFormAction": "http://localhost:5000/myAwesomeUpload",
-			"cspFontSrc": "http://fonts.gstatic.com"
-		}
-		`;
+	public devServerHeadersExample = `
+			{
+				"headers": {
+					"Content-Security-Policy": "... font-src 'self' https://fonts.gstatic.com ; ...",
+					"X-Content-Security-Policy": "... font-src 'self' https://fonts.gstatic.com ; ...",
+					"X-WebKit-CSP": "... font-src 'self' https://fonts.gstatic.com ; ..."
+				}
+			}
+			`;
 
 	public customizeMap = `
 		$stark-typography-theme: (

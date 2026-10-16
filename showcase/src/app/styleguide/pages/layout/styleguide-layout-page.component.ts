@@ -4,6 +4,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 const componentName = "styleguide-layout-page";
 
 @Component({
+	standalone: false,
 	selector: "demo-layout",
 	templateUrl: "./styleguide-layout-page.component.html"
 })

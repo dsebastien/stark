@@ -1,4 +1,8 @@
 .styleguide-layout-page {
+  > p {
+    min-height: 48px;
+  }
+
   .warning {
     margin-bottom: 24px;
     font-weight: bold;
@@ -11,5 +15,9 @@
   .layout-demo > * {
     text-align: center;
     padding: 10px;
+  }
+
+  .showcase-layout-demo-flex > .accent {
+    flex-grow: 0;
   }
 }
