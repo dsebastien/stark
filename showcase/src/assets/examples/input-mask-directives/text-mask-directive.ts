@@ -4,6 +4,7 @@ import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium
 import { StarkTextMasks, StarkTextMaskConfig } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-text-mask",
 	styleUrls: ["./demo-text-mask.component.scss"],
 	templateUrl: "./demo-text-mask.component.html"

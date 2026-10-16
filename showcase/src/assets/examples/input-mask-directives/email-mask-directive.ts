@@ -2,6 +2,7 @@ import { Component, Inject } from "@angular/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 
 @Component({
+	standalone: false,
 	selector: "demo-email-mask",
 	styleUrls: ["./demo-email-mask.component.scss"],
 	templateUrl: "./demo-email-mask.component.html"
