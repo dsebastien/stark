@@ -38,11 +38,13 @@ export interface StarkHttpRequestParams {
 /**
  * Extra parameters to customize the `create` Http request to be sent.
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Preserve this public operation-specific interface.
 export interface StarkHttpCreateRequestParams extends StarkHttpRequestParams {}
 
 /**
  * Extra parameters to customize the `get` Http request to be sent.
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Preserve this public operation-specific interface.
 export interface StarkHttpGetRequestParams extends StarkHttpRequestParams {}
 
 /**
@@ -70,6 +72,7 @@ export interface StarkHttpDeleteRequestParams extends StarkHttpRequestParams {
 /**
  * Extra parameters to customize the `getCollection` Http request to be sent.
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Preserve this public operation-specific interface.
 export interface StarkHttpGetCollectionRequestParams extends StarkHttpRequestParams {}
 
 /**

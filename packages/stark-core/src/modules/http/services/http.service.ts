@@ -294,7 +294,6 @@ export class StarkHttpServiceImpl<P extends StarkResource> implements StarkHttpS
 	}
 
 	// FIXME: re-enable this ESLint rule and refactor this function to reduce its cognitive complexity
-	// eslint-disable-next-line sonarjs/cognitive-complexity
 	private getCollectionResponseWrapperObservable(
 		httpResponse$: Observable<HttpResponse<StarkHttpRawCollectionResponseData<P>>>,
 		request: StarkHttpRequest<P>
@@ -312,18 +311,18 @@ export class StarkHttpServiceImpl<P extends StarkResource> implements StarkHttpS
 		const meaningfulError: Error = new Error(starkHttpServiceName + ": Error getting a CollectionResponse");
 
 		return httpResponse$.pipe(
+			// eslint-disable-next-line sonarjs/cognitive-complexity
 			map((result: HttpResponse<StarkHttpRawCollectionResponseData<P>>) => {
 				const httpResponseHeaders: Map<string, string> = this.getResponseHeaders(result.headers);
 				if ((<StarkHttpRawCollectionResponseData<P>>result.body).items instanceof Array) {
 					if ((<StarkHttpRawCollectionResponseData<P>>result.body).metadata) {
 						if ((<StarkHttpRawCollectionResponseData<P>>result.body).metadata.etags) {
+							const etags = <Record<string, string>>(<StarkHttpRawCollectionResponseData<P>>result.body).metadata.etags;
 							for (const item of (<StarkHttpRawCollectionResponseData<P>>result.body).items) {
 								if (typeof item === "object") {
 									if (item.uuid) {
-										if ((<object>(<StarkHttpRawCollectionResponseData<P>>result.body).metadata.etags)[item.uuid]) {
-											item.etag = (<object>(<StarkHttpRawCollectionResponseData<P>>result.body).metadata.etags)[
-												item.uuid
-											];
+										if (etags[item.uuid]) {
+											item.etag = etags[item.uuid];
 										} else {
 											this.logger.warn(starkHttpServiceName + ": no etag found for resource with uuid ", item.uuid);
 										}

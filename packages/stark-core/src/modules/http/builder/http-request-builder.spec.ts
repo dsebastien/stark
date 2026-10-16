@@ -1,4 +1,5 @@
 import { serialize, serializeAs } from "cerialize";
+import deepFreeze from "deep-freeze-strict";
 import {
 	StarkHttpCreateRequestBuilderImpl,
 	StarkHttpDeleteRequestBuilderImpl,
@@ -23,8 +24,6 @@ import { StarkHttpSerializer, StarkHttpSerializerImpl } from "../serializer";
 import { StarkHttpRequestParams } from "./http-request-parameters.intf";
 import { StarkHttpBaseRequestBuilder } from "./http-abstract-base-request-builder.intf";
 import { StarkQueryParam } from "../entities/http-request.entity.intf";
-
-const deepFreeze: Function = require("deep-freeze-strict");
 
 const resourcePath = "/something/:somethingId/else/:elseId/next";
 const resourceUuid = "dummyUUID";

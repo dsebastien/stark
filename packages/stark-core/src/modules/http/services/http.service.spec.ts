@@ -1,7 +1,4 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import createSpyObj = jasmine.createSpyObj;
-import Spy = jasmine.Spy;
-import SpyObj = jasmine.SpyObj;
 import { autoserialize, autoserializeAs, inheritSerialization, Serialize } from "cerialize";
 import { Observable, of, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
@@ -9,7 +6,13 @@ import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpResponse } 
 import { convertMapIntoObject } from "../../../util/util-helpers";
 import { StarkHttpUtil } from "../../../util/http.util";
 import { StarkHttpServiceImpl } from "./http.service";
-import { MockStarkLoggingService, MockStarkSessionService } from "@nationalbankbelgium/stark-core/testing";
+import {
+	MockStarkLoggingService,
+	MockStarkSessionService,
+	createMockObject,
+	type VitestMock,
+	type VitestMockObject
+} from "@nationalbankbelgium/stark-core/testing";
 import {
 	StarkBackend,
 	StarkBackendImpl,
@@ -36,11 +39,30 @@ import { StarkHttpHeaders, StarkSortOrder } from "../constants";
 import { StarkHttpStatusCodes } from "../enumerators";
 import { StarkHttpSerializer, StarkHttpSerializerImpl } from "../serializer";
 
+type DoneFn = (error?: unknown) => void;
+
+function itWithDone(name: string, testFn: (done: DoneFn) => void): void {
+	it(
+		name,
+		() =>
+			new Promise<void>((resolve, reject) => {
+				testFn((error?: unknown) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+
+					resolve();
+				});
+			})
+	);
+}
+
 describe("Service: StarkHttpService", () => {
 	let loggerMock: MockStarkLoggingService;
 	let mockSessionService: MockStarkSessionService;
 	let mockDevAuthHeaders: Map<string, string>;
-	let httpMock: SpyObj<HttpClient>;
+	let httpMock: VitestMockObject<HttpClient>;
 	let starkHttpService: HttpServiceHelper<MockResource>;
 	let mockBackend: StarkBackend;
 	let mockResourceSerializer: StarkHttpSerializer<MockResource>;
@@ -52,7 +74,7 @@ describe("Service: StarkHttpService", () => {
 
 	interface StarkHttpServiceSpecVariables {
 		starkHttpService: HttpServiceHelper<MockResource>;
-		httpMock: SpyObj<HttpClient>;
+		httpMock: VitestMockObject<HttpClient>;
 		loggerMock: MockStarkLoggingService;
 		httpRequest: StarkHttpRequest<MockResource>;
 	}
@@ -279,7 +301,7 @@ describe("Service: StarkHttpService", () => {
 	}
 
 	function assertHttpCall(
-		httpMethod: Spy,
+		httpMethod: VitestMock<(...args: any[]) => any>,
 		targetUrl: string,
 		httpRequestConfig: HttpRequestOptions,
 		serializedData?: string | object,
@@ -300,7 +322,7 @@ describe("Service: StarkHttpService", () => {
 		describe("http success", () => {
 			let request: StarkHttpRequest<MockResource>;
 			let httpResponse: Partial<HttpResponse<StarkResource | StarkHttpRawCollectionResponseData<MockResource>>>;
-			let httpClientMock: SpyObj<HttpClient>;
+			let httpClientMock: VitestMockObject<HttpClient>;
 			let loggingServiceMock: MockStarkLoggingService;
 			let httpService: HttpServiceHelper<MockResource>;
 			let expectedStatusCode: number = StarkHttpStatusCodes.HTTP_200_OK;
@@ -322,14 +344,14 @@ describe("Service: StarkHttpService", () => {
 
 			it("on SUCCESS ('" + requestType + "'), should wrap the returned data in an observable", () => {
 				let resultObs: Observable<StarkSingleItemResponseWrapper<MockResource> | StarkCollectionResponseWrapper<MockResource>>;
-				let httpMockMethod: Spy;
+				let httpMockMethod: VitestMock<(...args: any[]) => any>;
 				let expectedSerializedData: string | object | undefined;
 				let expectedEtags: { [uuid: string]: string };
 
 				switch (requestType) {
 					case "getSingle":
 						httpMockMethod = httpClientMock.get;
-						httpMockMethod.and.returnValue(of(httpResponse));
+						httpMockMethod.mockReturnValue(of(httpResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
@@ -341,7 +363,7 @@ describe("Service: StarkHttpService", () => {
 							headers: httpHeadersGetter(httpHeaders)
 						};
 						httpMockMethod = httpClientMock.delete;
-						httpMockMethod.and.returnValue(of(httpResponse));
+						httpMockMethod.mockReturnValue(of(httpResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
@@ -354,7 +376,7 @@ describe("Service: StarkHttpService", () => {
 							headers: httpHeadersGetter(httpHeaders)
 						};
 						httpMockMethod = httpClientMock.post;
-						httpMockMethod.and.returnValue(of(httpResponse));
+						httpMockMethod.mockReturnValue(of(httpResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
@@ -367,7 +389,7 @@ describe("Service: StarkHttpService", () => {
 							headers: httpHeadersGetter(httpHeaders)
 						};
 						httpMockMethod = httpClientMock.put;
-						httpMockMethod.and.returnValue(of(httpResponse));
+						httpMockMethod.mockReturnValue(of(httpResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
@@ -394,7 +416,7 @@ describe("Service: StarkHttpService", () => {
 							headers: httpHeadersGetter(httpHeaders)
 						};
 						httpMockMethod = httpClientMock.get;
-						httpMockMethod.and.returnValue(of(httpResponse));
+						httpMockMethod.mockReturnValue(of(httpResponse));
 
 						resultObs = httpService.executeCollectionRequest(request);
 						break;
@@ -422,7 +444,7 @@ describe("Service: StarkHttpService", () => {
 							headers: httpHeadersGetter(httpHeaders)
 						};
 						httpMockMethod = httpClientMock.post;
-						httpMockMethod.and.returnValue(of(httpResponse));
+						httpMockMethod.mockReturnValue(of(httpResponse));
 
 						resultObs = httpService.executeCollectionRequest(request);
 						break;
@@ -430,7 +452,7 @@ describe("Service: StarkHttpService", () => {
 						// CREATE
 						expectedSerializedData = request.serializer.serialize(mockResourceWithoutEtag);
 						httpMockMethod = httpClientMock.post;
-						httpMockMethod.and.returnValue(of(httpResponse));
+						httpMockMethod.mockReturnValue(of(httpResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
@@ -477,7 +499,7 @@ describe("Service: StarkHttpService", () => {
 						);
 					},
 					() => {
-						fail(errorShouldNotBeCalled);
+						throw new Error(errorShouldNotBeCalled);
 					}
 				);
 			});
@@ -490,7 +512,7 @@ describe("Service: StarkHttpService", () => {
 	): void {
 		describe("http failure", () => {
 			let request: StarkHttpRequest<MockResource>;
-			let httpClientMock: SpyObj<HttpClient>;
+			let httpClientMock: VitestMockObject<HttpClient>;
 			let httpService: HttpServiceHelper<MockResource>;
 			let resultObs: Observable<StarkSingleItemResponseWrapper<MockResource> | StarkCollectionResponseWrapper<MockResource>>;
 			let httpErrorResponse: Partial<HttpErrorResponse>;
@@ -506,39 +528,39 @@ describe("Service: StarkHttpService", () => {
 			});
 
 			it("on FAILURE ('" + requestType + "'), should wrap the returned data in an observable", () => {
-				let httpMockMethod: Spy;
+				let httpMockMethod: VitestMock<(...args: any[]) => any>;
 				let expectedSerializedData: string | object | undefined;
 
 				switch (requestType) {
 					case "getSingle":
 						httpMockMethod = httpClientMock.get;
-						httpMockMethod.and.returnValue(throwError(httpErrorResponse));
+						httpMockMethod.mockReturnValue(throwError(httpErrorResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
 					case "delete":
 						httpMockMethod = httpClientMock.delete;
-						httpMockMethod.and.returnValue(throwError(httpErrorResponse));
+						httpMockMethod.mockReturnValue(throwError(httpErrorResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
 					case "updateIdempotent":
 						expectedSerializedData = request.serializer.serialize(mockResourceWithoutEtag);
 						httpMockMethod = httpClientMock.put;
-						httpMockMethod.and.returnValue(throwError(httpErrorResponse));
+						httpMockMethod.mockReturnValue(throwError(httpErrorResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
 					case "getCollection":
 						httpMockMethod = httpClientMock.get;
-						httpMockMethod.and.returnValue(throwError(httpErrorResponse));
+						httpMockMethod.mockReturnValue(throwError(httpErrorResponse));
 
 						resultObs = httpService.executeCollectionRequest(request);
 						break;
 					case "search":
 						expectedSerializedData = Serialize(mockCriteria); // the search criteria is sent in the request body payload
 						httpMockMethod = httpClientMock.post;
-						httpMockMethod.and.returnValue(throwError(httpErrorResponse));
+						httpMockMethod.mockReturnValue(throwError(httpErrorResponse));
 
 						resultObs = httpService.executeCollectionRequest(request);
 						break;
@@ -546,7 +568,7 @@ describe("Service: StarkHttpService", () => {
 						// CREATE | UPDATE
 						expectedSerializedData = request.serializer.serialize(mockResourceWithoutEtag);
 						httpMockMethod = httpClientMock.post;
-						httpMockMethod.and.returnValue(throwError(httpErrorResponse));
+						httpMockMethod.mockReturnValue(throwError(httpErrorResponse));
 
 						resultObs = httpService.executeSingleItemRequest(request);
 						break;
@@ -554,7 +576,7 @@ describe("Service: StarkHttpService", () => {
 
 				resultObs.subscribe(
 					() => {
-						fail(nextShouldNotBeCalled);
+						throw new Error(nextShouldNotBeCalled);
 					},
 					(errorWrapper: StarkHttpErrorWrapper) => {
 						assertHttpFailure(errorWrapper);
@@ -573,8 +595,8 @@ describe("Service: StarkHttpService", () => {
 				);
 			});
 
-			// this test is asynchronous due to the retry logic, so the test should be ended manually by calling the jasmine's done() function
-			it(
+			// this test is asynchronous due to the retry logic, so the test should be ended manually by calling done()
+			itWithDone(
 				"on FAILURE ('" +
 					requestType +
 					"'), should retry the request before emitting the failure if the request retryCount option is set",
@@ -590,33 +612,33 @@ describe("Service: StarkHttpService", () => {
 
 					switch (requestType) {
 						case "getSingle":
-							httpClientMock.get.and.returnValue(httpErrorResponse$);
+							httpClientMock.get.mockReturnValue(httpErrorResponse$);
 
 							resultObs = httpService.executeSingleItemRequest(request);
 							break;
 						case "delete":
-							httpClientMock.delete.and.returnValue(httpErrorResponse$);
+							httpClientMock.delete.mockReturnValue(httpErrorResponse$);
 
 							resultObs = httpService.executeSingleItemRequest(request);
 							break;
 						case "updateIdempotent":
-							httpClientMock.put.and.returnValue(httpErrorResponse$);
+							httpClientMock.put.mockReturnValue(httpErrorResponse$);
 
 							resultObs = httpService.executeSingleItemRequest(request);
 							break;
 						case "getCollection":
-							httpClientMock.get.and.returnValue(httpErrorResponse$);
+							httpClientMock.get.mockReturnValue(httpErrorResponse$);
 
 							resultObs = httpService.executeCollectionRequest(request);
 							break;
 						case "search":
-							httpClientMock.post.and.returnValue(httpErrorResponse$);
+							httpClientMock.post.mockReturnValue(httpErrorResponse$);
 
 							resultObs = httpService.executeCollectionRequest(request);
 							break;
 						default:
 							// CREATE | UPDATE
-							httpClientMock.post.and.returnValue(httpErrorResponse$);
+							httpClientMock.post.mockReturnValue(httpErrorResponse$);
 
 							resultObs = httpService.executeSingleItemRequest(request);
 							break;
@@ -624,7 +646,7 @@ describe("Service: StarkHttpService", () => {
 
 					resultObs.subscribe(
 						() => {
-							fail(nextShouldNotBeCalled);
+							throw new Error(nextShouldNotBeCalled);
 						},
 						(errorWrapper: StarkHttpErrorWrapper) => {
 							assertHttpFailure(errorWrapper);
@@ -644,7 +666,7 @@ describe("Service: StarkHttpService", () => {
 		describe("single item response metadata", () => {
 			let request: StarkHttpRequest<MockResource>;
 			let httpResponse: Partial<HttpResponse<StarkResource>>;
-			let httpClientMock: SpyObj<HttpClient>;
+			let httpClientMock: VitestMockObject<HttpClient>;
 			let httpService: HttpServiceHelper<MockResource>;
 
 			beforeEach(() => {
@@ -663,7 +685,7 @@ describe("Service: StarkHttpService", () => {
 								body: mockResourceWithMetadata,
 								headers: httpHeadersGetter(httpHeaders)
 							};
-							httpClientMock.get.and.returnValue(of(httpResponse));
+							httpClientMock.get.mockReturnValue(of(httpResponse));
 							break;
 						case "update":
 							expectedStatusCode = StarkHttpStatusCodes.HTTP_204_NO_CONTENT;
@@ -672,7 +694,7 @@ describe("Service: StarkHttpService", () => {
 								body: mockResourceWithMetadata,
 								headers: httpHeadersGetter(httpHeaders)
 							};
-							httpClientMock.post.and.returnValue(of(httpResponse));
+							httpClientMock.post.mockReturnValue(of(httpResponse));
 							break;
 						case "updateIdempotent":
 							expectedStatusCode = StarkHttpStatusCodes.HTTP_204_NO_CONTENT;
@@ -681,7 +703,7 @@ describe("Service: StarkHttpService", () => {
 								body: mockResourceWithMetadata,
 								headers: httpHeadersGetter(httpHeaders)
 							};
-							httpClientMock.put.and.returnValue(of(httpResponse));
+							httpClientMock.put.mockReturnValue(of(httpResponse));
 							break;
 						default:
 							// CREATE
@@ -690,7 +712,7 @@ describe("Service: StarkHttpService", () => {
 								body: mockResourceWithMetadata,
 								headers: httpHeadersGetter(httpHeaders)
 							};
-							httpClientMock.post.and.returnValue(of(httpResponse));
+							httpClientMock.post.mockReturnValue(of(httpResponse));
 							break;
 					}
 
@@ -708,7 +730,7 @@ describe("Service: StarkHttpService", () => {
 							expect(result.data.metadata.someValue).toBe(mockResourceMetadata.someValue);
 						},
 						() => {
-							fail(errorShouldNotBeCalled);
+							throw new Error(errorShouldNotBeCalled);
 						}
 					);
 				}
@@ -722,8 +744,8 @@ describe("Service: StarkHttpService", () => {
 	): void {
 		describe("collection response validations", () => {
 			let request: StarkHttpRequest<MockResource>;
-			let httpClientMock: SpyObj<HttpClient>;
-			let httpMockMethod: Spy;
+			let httpClientMock: VitestMockObject<HttpClient>;
+			let httpMockMethod: VitestMock<(...args: any[]) => any>;
 			let loggingServiceMock: MockStarkLoggingService;
 			let httpService: HttpServiceHelper<MockResource>;
 			let resultObs: Observable<StarkCollectionResponseWrapper<MockResource>>;
@@ -778,7 +800,7 @@ describe("Service: StarkHttpService", () => {
 					headers: httpHeadersGetter(httpHeaders)
 				};
 
-				httpMockMethod.and.returnValue(of(httpResponse));
+				httpMockMethod.mockReturnValue(of(httpResponse));
 
 				resultObs = httpService.executeCollectionRequest(request);
 
@@ -793,10 +815,10 @@ describe("Service: StarkHttpService", () => {
 							pagination: mockPaginationMetadata
 						});
 						expect(loggingServiceMock.warn).toHaveBeenCalledTimes(1);
-						expect(loggingServiceMock.warn.calls.argsFor(0)[0]).toContain("no 'etags'");
+						expect(loggingServiceMock.warn.mock.calls[0][0]).toContain("no 'etags'");
 					},
 					() => {
-						fail(errorShouldNotBeCalled);
+						throw new Error(errorShouldNotBeCalled);
 					}
 				);
 			});
@@ -822,7 +844,7 @@ describe("Service: StarkHttpService", () => {
 						headers: httpHeadersGetter(httpHeaders)
 					};
 
-					httpMockMethod.and.returnValue(of(httpResponse));
+					httpMockMethod.mockReturnValue(of(httpResponse));
 
 					resultObs = httpService.executeCollectionRequest(request);
 
@@ -838,10 +860,10 @@ describe("Service: StarkHttpService", () => {
 							});
 							assertResponseHeaders(result.starkHttpHeaders, httpHeaders);
 							expect(loggingServiceMock.warn).toHaveBeenCalledTimes(1);
-							expect(loggingServiceMock.warn.calls.argsFor(0)[0]).toContain("no etag");
+							expect(loggingServiceMock.warn.mock.calls[0][0]).toContain("no etag");
 						},
 						() => {
-							fail(errorShouldNotBeCalled);
+							throw new Error(errorShouldNotBeCalled);
 						}
 					);
 				}
@@ -867,7 +889,7 @@ describe("Service: StarkHttpService", () => {
 					headers: httpHeadersGetter(httpHeaders)
 				};
 
-				httpMockMethod.and.returnValue(of(httpResponse));
+				httpMockMethod.mockReturnValue(of(httpResponse));
 
 				resultObs = httpService.executeCollectionRequest(request);
 
@@ -883,10 +905,10 @@ describe("Service: StarkHttpService", () => {
 						});
 						assertResponseHeaders(result.starkHttpHeaders, httpHeaders);
 						expect(loggingServiceMock.warn).toHaveBeenCalledTimes(1);
-						expect(loggingServiceMock.warn.calls.argsFor(0)[0]).toContain("no 'items'");
+						expect(loggingServiceMock.warn.mock.calls[0][0]).toContain("no 'items'");
 					},
 					() => {
-						fail(errorShouldNotBeCalled);
+						throw new Error(errorShouldNotBeCalled);
 					}
 				);
 			});
@@ -918,7 +940,7 @@ describe("Service: StarkHttpService", () => {
 						headers: httpHeadersGetter(httpHeaders)
 					};
 
-					httpMockMethod.and.returnValue(of(httpResponse));
+					httpMockMethod.mockReturnValue(of(httpResponse));
 
 					resultObs = httpService.executeCollectionRequest(request);
 
@@ -937,10 +959,10 @@ describe("Service: StarkHttpService", () => {
 							});
 							assertResponseHeaders(result.starkHttpHeaders, httpHeaders);
 							expect(loggingServiceMock.warn).toHaveBeenCalledTimes(1);
-							expect(loggingServiceMock.warn.calls.argsFor(0)[0]).toContain("it is not an object");
+							expect(loggingServiceMock.warn.mock.calls[0][0]).toContain("it is not an object");
 						},
 						() => {
-							fail(errorShouldNotBeCalled);
+							throw new Error(errorShouldNotBeCalled);
 						}
 					);
 				}
@@ -971,7 +993,7 @@ describe("Service: StarkHttpService", () => {
 						headers: httpHeadersGetter(httpHeaders)
 					};
 
-					httpMockMethod.and.returnValue(of(httpResponse));
+					httpMockMethod.mockReturnValue(of(httpResponse));
 
 					resultObs = httpService.executeCollectionRequest(request);
 
@@ -987,10 +1009,10 @@ describe("Service: StarkHttpService", () => {
 							});
 							assertResponseHeaders(result.starkHttpHeaders, httpHeaders);
 							expect(loggingServiceMock.warn).toHaveBeenCalledTimes(1);
-							expect(loggingServiceMock.warn.calls.argsFor(0)[0]).toContain("no 'uuid' property found in item");
+							expect(loggingServiceMock.warn.mock.calls[0][0]).toContain("no 'uuid' property found in item");
 						},
 						() => {
-							fail(errorShouldNotBeCalled);
+							throw new Error(errorShouldNotBeCalled);
 						}
 					);
 				}
@@ -1008,7 +1030,7 @@ describe("Service: StarkHttpService", () => {
 					headers: httpHeadersGetter(httpHeaders)
 				};
 
-				httpMockMethod.and.returnValue(of(httpResponse));
+				httpMockMethod.mockReturnValue(of(httpResponse));
 
 				resultObs = httpService.executeCollectionRequest(request);
 
@@ -1020,10 +1042,10 @@ describe("Service: StarkHttpService", () => {
 						expect(result.metadata).toBeUndefined();
 						assertResponseHeaders(result.starkHttpHeaders, httpHeaders);
 						expect(loggingServiceMock.warn).toHaveBeenCalledTimes(1);
-						expect(loggingServiceMock.warn.calls.argsFor(0)[0]).toContain("no 'metadata'");
+						expect(loggingServiceMock.warn.mock.calls[0][0]).toContain("no 'metadata'");
 					},
 					() => {
-						fail(errorShouldNotBeCalled);
+						throw new Error(errorShouldNotBeCalled);
 					}
 				);
 			});
@@ -1051,7 +1073,7 @@ describe("Service: StarkHttpService", () => {
 						headers: httpHeadersGetter(httpHeaders)
 					};
 
-					httpMockMethod.and.returnValue(of(httpResponse));
+					httpMockMethod.mockReturnValue(of(httpResponse));
 
 					resultObs = httpService.executeCollectionRequest(request);
 
@@ -1070,7 +1092,7 @@ describe("Service: StarkHttpService", () => {
 							expect(loggingServiceMock.warn).not.toHaveBeenCalled();
 						},
 						() => {
-							fail(errorShouldNotBeCalled);
+							throw new Error(errorShouldNotBeCalled);
 						}
 					);
 				}
@@ -1081,7 +1103,7 @@ describe("Service: StarkHttpService", () => {
 	function testEtagRemoval(_requestType: "create" | "update", beforeEachFn: () => StarkHttpServiceSpecVariables): void {
 		describe("on etag removal", () => {
 			let request: StarkHttpRequest<MockResource>;
-			let httpClientMock: SpyObj<HttpClient>;
+			let httpClientMock: VitestMockObject<HttpClient>;
 			let httpService: HttpServiceHelper<MockResource>;
 			let httpResponse: Partial<HttpResponse<StarkResource>>;
 
@@ -1096,7 +1118,7 @@ describe("Service: StarkHttpService", () => {
 			});
 
 			it("should remove the etag from the entity before serializing it", () => {
-				httpClientMock.post.and.returnValue(of(httpResponse));
+				httpClientMock.post.mockReturnValue(of(httpResponse));
 
 				const resultObs: Observable<StarkSingleItemResponseWrapper<MockResource>> = httpService.executeSingleItemRequest(request);
 
@@ -1142,7 +1164,7 @@ describe("Service: StarkHttpService", () => {
 		mockDevAuthHeaders.set("lastname", "Doe");
 		mockSessionService = new MockStarkSessionService(mockDevAuthHeaders);
 
-		httpMock = createSpyObj<HttpClient>("HttpClient", ["get", "put", "post", "delete"]);
+		httpMock = createMockObject<HttpClient>(["get", "put", "post", "delete"]);
 
 		starkHttpService = new HttpServiceHelper<MockResource>(loggerMock, mockSessionService, httpMock);
 		starkHttpService.retryDelay = 10; // override retry delay to make unit tests faster
@@ -1309,13 +1331,13 @@ describe("Service: StarkHttpService", () => {
 
 				starkHttpService.executeSingleItemRequest(request).subscribe(
 					() => {
-						fail("The 'next' function should not be called in case of error");
+						throw new Error("The 'next' function should not be called in case of error");
 					},
 					(error: string) => {
 						expect(error).toContain("Unknown request type");
 					},
 					() => {
-						fail("The 'complete' function should not be called in case of error");
+						throw new Error("The 'complete' function should not be called in case of error");
 					}
 				);
 			});
@@ -1393,13 +1415,13 @@ describe("Service: StarkHttpService", () => {
 
 				starkHttpService.executeSingleItemRequest(request).subscribe(
 					() => {
-						fail("The 'next' function should not be called in case of error");
+						throw new Error("The 'next' function should not be called in case of error");
 					},
 					(error: string) => {
 						expect(error).toContain("Unknown request type");
 					},
 					() => {
-						fail("The 'complete' function should not be called in case of error");
+						throw new Error("The 'complete' function should not be called in case of error");
 					}
 				);
 			});
@@ -1520,10 +1542,14 @@ function httpHeadersGetter(inputHeaders: { [name: string]: string }): HttpHeader
 
 class HttpServiceHelper<P extends StarkResource> extends StarkHttpServiceImpl<P> {
 	// `declare` is necessary because this declaration overwrites StarkHttpServiceImpl `retryDelay` declaration.
-	public declare retryDelay: number;
+	declare public retryDelay: number;
 
-	public constructor(logger: MockStarkLoggingService, sessionService: MockStarkSessionService, httpClient: SpyObj<HttpClient>) {
-		super(logger, sessionService, <HttpClient>(<unknown>httpClient));
+	public constructor(
+		logger: MockStarkLoggingService,
+		sessionService: MockStarkSessionService,
+		httpClient: HttpClient | VitestMockObject<HttpClient>
+	) {
+		super(logger, sessionService, httpClient as HttpClient);
 	}
 
 	public override addDevAuthenticationHeaders(request: StarkHttpRequest<P>): StarkHttpRequest<P> {
