@@ -1,9 +1,10 @@
 @use "sass:map";
 @use "@angular/material" as mat;
-@use "@angular/material/core/theming/palette" as mat-palette;
+@use "@angular/material/core/m2" as mat-m2;
+@use "@angular/material/core/m2/palette" as mat-palette;
 
-$backgrounds: mat.$light-theme-background-palette;
-$foregrounds: mat.$light-theme-foreground-palette;
+$backgrounds: mat-m2.$light-theme-background-palette;
+$foregrounds: mat-m2.$light-theme-foreground-palette;
 
 $stark-accent-palette: null !default;
 $stark-primary-palette: null !default;
