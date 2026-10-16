@@ -1,126 +1,29 @@
 # Polyfills
 
-In the case you want your application to be compatible with non modern browsers (i.e. Internet Explorer) or browsers that don't support some of the latest standards, you might be interested in polyfills.
-Stark doesn't use any polyfills by default, but in case you need them, you can follow the steps mentioned below.
+Angular 22 targets its documented Baseline browser set. Internet Explorer and other browsers outside that set are not supported by Stark 13, and the old `core-js` 2/IE compatibility block must not be restored.
 
-## Creating the polyfills file
+The starter and showcase load Zone.js through the build target's `polyfills` option:
 
-An empty file called `polyfills.browser.ts` should be created at the following location:
-`src > polyfills.browser.ts`
-
-## Importing all the polyfills needed
-
-The following polyfills are suitable for most of the cases, especially when targeting Internet Explorer:
-
-```typescript
-/**
- * This file includes polyfills needed by Angular and is loaded before the app.
- * You can add your own extra polyfills to this file.
- *
- * This file is divided into 2 sections:
- *   1. Browser polyfills. These are applied before loading ZoneJS and are sorted by browsers.
- *   2. Application imports. Files imported after ZoneJS that should be loaded before your main
- *      file.
- *
- * The current setup is for so-called "evergreen" browsers; the last versions of browsers that
- * automatically update themselves. This includes Safari >= 10, Chrome >= 55 (including Opera),
- * Edge >= 13 on the desktop, and iOS 10 and Chrome on mobile.
- *
- * Learn more in https://angular.io/guide/browser-support
- */
-
-/***************************************************************************************************
- * BROWSER POLYFILLS
- *
- * See: https://angular.io/guide/browser-support#optional-browser-features-to-polyfill
- */
-
-/**
- * IE11 requires all of the following polyfills.
- *
- * Polyfill: https://github.com/zloirock/core-js
- * Add the specific lines below corresponding to the version of core-js you want to use: 2.x or 3.x
- */
-/* tslint:disable:no-import-side-effect */
-
-/******************** core-js 2.x ********************/
-import "core-js/es6";
-import "core-js/es7/reflect";
-import "core-js/es7/string";
-import "core-js/stage/4";
-/**
- * IE11 does not support iteration on certain DOM collections (NodeList).
- * This polyfill is specifically needed for the animation on mat-menu used in stark-table.
- * More info: https://github.com/angular/angular/issues/27887
- */
-import "core-js/modules/web.dom.iterable";
-/*****************************************************/
-
-/******************** core-js 3.x ********************
- * Make sure you add the 'paths' workaround to the tsconfig.json to support core-js 3.x with Angular CLI 7.x
- * See: https://github.com/angular/angular-cli/issues/13954#issuecomment-475452588
- */
-import "core-js/es";
-import "core-js/proposals/reflect-metadata";
-/**
- * IE11 does not support iteration on certain DOM collections (NodeList).
- * This polyfill is specifically needed for the animation on mat-menu used in stark-table.
- * More info: https://github.com/angular/angular/issues/27887
- */
-import "core-js/modules/web.dom-collections.iterator";
-/*****************************************************/
-
-/**
- * IE11 requires Element.classList for NgClass support on SVG elements
- * See: https://caniuse.com/#feat=classlist
- *
- * https://developer.mozilla.org/en-US/docs/Web/API/Element/classList
- * https://angular.io/guide/browser-support#classlist
- * Polyfill: https://github.com/eligrey/classList.js
- */
-import "eligrey-classlist-js-polyfill";
-
-/**
- * Web Animations polyfill is no longer needed for standard animation support as of Angular 6
- * IMPORTANT: It is only needed in case you use the AnimationBuilder from '@angular/animations' in the application
- *
- * See: https://angular.io/guide/browser-support#optional-browser-features-to-polyfill
- * See: http://caniuse.com/#feat=web-animation
- * Polyfill: https://github.com/web-animations/web-animations-js
- */
-// import "web-animations-js";
-
-/***************************************************************************************************
- * Zone JS is required by Angular itself.
- */
-import "zone.js";
-// async stack traces with zone.js included for dev
-// import 'zone.js/plugins/long-stack-trace-zone'
-/* tslint:enable */
-```
-
-For more information about which polyfills are required to support the Angular feature you want to use,
-feel free to refer to [Angular browser support guide](https://angular.io/guide/browser-support#mandatory-polyfills).
-
-## Adding the polyfills file to the angular.json
-
-Adapt (if needed) the path of your `polyfills.browsers.ts` file in the `angular.json` file of your project.
-
-```
+```json
 {
   "projects": {
-    "starter": {
-      ...
+    "application": {
       "architect": {
         "build": {
-          ...
           "options": {
-           ...
-            "polyfills": "src/polyfills.browser.ts",
-            ...}
-            }
-         }
+            "polyfills": ["zone.js"]
+          }
+        }
       }
-   }
+    }
+  }
 }
 ```
+
+Add an application polyfill only when a supported target browser lacks a web platform feature the application actually uses. Put those imports in an application-owned file such as `src/polyfills.browser.ts`, then include that file in the `polyfills` array after `zone.js`:
+
+```json
+"polyfills": ["zone.js", "src/polyfills.browser.ts"]
+```
+
+Keep the application's `.browserslistrc` within Angular 22's supported browser set. See the [Angular browser support policy](https://angular.dev/reference/versions#browser-support) and the [Stark 13 migration guide](./MIGRATION_GUIDE_STARK_13.md#update-browserslist).
