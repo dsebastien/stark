@@ -1,4 +1,4 @@
-import { Component, Inject } from "@angular/core";
+import { Component, Inject, ViewEncapsulation } from "@angular/core";
 import {
 	STARK_PROGRESS_INDICATOR_SERVICE,
 	StarkProgressIndicatorConfig,
@@ -8,9 +8,11 @@ import {
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-progress-indicator",
 	templateUrl: "./demo-progress-indicator-page.component.html",
-	styleUrls: ["./demo-progress-indicator-page.component.scss"]
+	styleUrls: ["./demo-progress-indicator-page.component.scss"],
+	encapsulation: ViewEncapsulation.None // used here to scope showcase-only styling without ::ng-deep
 })
 export class DemoProgressIndicatorPageComponent {
 	public show = false;

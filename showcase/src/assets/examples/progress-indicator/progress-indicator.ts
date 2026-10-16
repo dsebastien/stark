@@ -7,6 +7,7 @@ import {
 } from "@nationalbankbelgium/stark-ui";
 
 @Component({
+	standalone: false,
 	selector: "demo-progress-indicator",
 	templateUrl: "./demo-progress-indicator.component.html",
 	styleUrls: ["./demo-progress-indicator.component.scss"]
