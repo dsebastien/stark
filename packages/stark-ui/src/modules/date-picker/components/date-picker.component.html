@@ -17,7 +17,6 @@
 	[starkTimestampMask]="getTimestampMaskConfig()"
 />
 <mat-datepicker [id]="pickerId" #picker></mat-datepicker>
-<!-- This class is necessary to apply the mat-form-field styles on the `mat-datepicker-toggle` element. -->
-<div class="mat-form-field-suffix">
-	<mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+<div class="stark-date-picker-toggle">
+	<mat-datepicker-toggle [for]="picker"></mat-datepicker-toggle>
 </div>
