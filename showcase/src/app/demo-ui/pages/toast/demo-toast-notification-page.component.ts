@@ -1,4 +1,4 @@
-import { Component, Inject } from "@angular/core";
+import { ChangeDetectorRef, Component, Inject } from "@angular/core";
 import { STARK_LOGGING_SERVICE, StarkLoggingService } from "@nationalbankbelgium/stark-core";
 import {
 	STARK_TOAST_NOTIFICATION_SERVICE,
@@ -10,6 +10,7 @@ import {
 import { ReferenceLink } from "../../../shared/components";
 
 @Component({
+	standalone: false,
 	selector: "demo-toast-notification",
 	styleUrls: ["./demo-toast-notification-page.component.scss"],
 	templateUrl: "./demo-toast-notification-page.component.html"
@@ -60,10 +61,12 @@ export class DemoToastPageComponent {
 	 * Class constructor
 	 * @param logger - The logger of the application
 	 * @param toastService - The toast notification service
+	 * @param changeDetectorRef - Triggers a zoneless refresh after the toast closes
 	 */
 	public constructor(
 		@Inject(STARK_LOGGING_SERVICE) public logger: StarkLoggingService,
-		@Inject(STARK_TOAST_NOTIFICATION_SERVICE) public toastService: StarkToastNotificationService
+		@Inject(STARK_TOAST_NOTIFICATION_SERVICE) public toastService: StarkToastNotificationService,
+		private readonly changeDetectorRef: ChangeDetectorRef
 	) {}
 
 	/**
@@ -131,6 +134,7 @@ export class DemoToastPageComponent {
 					this.hideDisabled = true;
 					throw new Error("Unknown toast notification result!!");
 			}
+			this.changeDetectorRef.markForCheck();
 		});
 	}
 
