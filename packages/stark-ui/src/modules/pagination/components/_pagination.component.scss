@@ -7,6 +7,10 @@
 @use "../../../../styles/media-queries" as *;
 
 @mixin stark-pagination() {
+  .stark-pagination {
+    font-size: mat.m2-font-size(stark-typography.$typography-config, caption);
+  }
+
   .stark-pagination > div {
     align-items: center;
     display: flex;
@@ -27,18 +31,49 @@
 
     .pagination-items-per-page {
       width: 50px;
+
+      @include mat.select-overrides(
+        (
+          trigger-text-size: mat.m2-font-size(stark-typography.$typography-config, caption)
+        )
+      );
+
+      // This standalone selector inherits pagination typography without form-field offsets.
+      .mat-mdc-select {
+        line-height: inherit;
+      }
+
+      .mat-mdc-select-trigger {
+        transform: none;
+      }
+
+      .mat-mdc-select-arrow-wrapper {
+        height: auto;
+      }
+
+      .mat-mdc-select-arrow {
+        margin: 0 4px;
+      }
     }
 
     .page-numbers {
       display: none;
     }
+
+    button.mat-mdc-icon-button:not(:disabled) {
+      color: rgba(0, 0, 0, 0.54);
+    }
+
+    button.mat-mdc-icon-button:disabled {
+      color: rgba(0, 0, 0, 0.26);
+    }
   }
 
   @media #{$tablet-query} {
     .stark-pagination > div {
-      font-size: mat.font-size(stark-typography.$typography-config, caption);
-      font-weight: mat.font-weight(stark-typography.$typography-config, caption);
-      line-height: mat.line-height(stark-typography.$typography-config, caption);
+      font-size: mat.m2-font-size(stark-typography.$typography-config, caption);
+      font-weight: mat.m2-font-weight(stark-typography.$typography-config, caption);
+      line-height: mat.m2-line-height(stark-typography.$typography-config, caption);
 
       .pagination-enter-page {
         align-items: center;
