@@ -35,6 +35,7 @@ export type StarkLanguageSelectorMode = "dropdown" | "toolbar";
  * Component to select the application's language from a list of available languages passed as parameter.
  */
 @Component({
+	standalone: false,
 	selector: "stark-language-selector",
 	templateUrl: "./language-selector.component.html",
 	encapsulation: ViewEncapsulation.None,
