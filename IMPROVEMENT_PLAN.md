@@ -43,16 +43,16 @@ Reuse completed journeys and their approved goldens.
 
 ## Remaining infrastructure and acceptance
 
-| Work                                                                                                                                                                      | Beads                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Complete clean-install acceptance for browser dependencies and resolve the prerequisite gates on the implemented runner, determinism, manifests, and comparison workflow  | `stark-4sp.3.1`–`stark-4sp.3.5`, `stark-4sp.3.7`   |
-| Add failure observability, accessibility fingerprints, and the complete representative foundation pilot                                                                   | `stark-4sp.3.6`, `stark-4sp.3.8`, `stark-4sp.3.9`  |
-| Add sharded browser CI and finish orchestration guardrails and Beads remote synchronization                                                                               | `stark-4sp.3.10`, `stark-4sp.2.3`, `stark-4sp.2.4` |
-| Finish only uncovered legacy states, accept completed shards, review baseline completeness, and run the complete candidate suite                                          | `stark-4sp.5.1`–`stark-4sp.5.6`                    |
-| Resolve defects discovered by the remaining coverage and final suite                                                                                                      | `stark-4sp.6.1`                                    |
-| Finish the clean local-to-canonical package cycle and execute the guide on a fresh Stark 12 consumer                                                                      | `stark-4sp.9.8`, `stark-4sp.7.1`                   |
-| Re-evaluate the strict-peer workaround, perform manual accessibility assessment, and run the full integrated validation matrix                                            | `stark-4sp.7.3`–`stark-4sp.7.5`                    |
-| Integrate approved work as focused commits on `migration/angular-22/stable`, independently review, and publish (8.x beads still describe the superseded five-layer stack) | `stark-4sp.8.1`–`stark-4sp.8.9`                    |
+| Work                                                                                                                                                                     | Beads                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| Complete clean-install acceptance for browser dependencies and resolve the prerequisite gates on the implemented runner, determinism, manifests, and comparison workflow | `stark-4sp.3.1`–`stark-4sp.3.5`, `stark-4sp.3.7`   |
+| Add failure observability, accessibility fingerprints, and the complete representative foundation pilot                                                                  | `stark-4sp.3.6`, `stark-4sp.3.8`, `stark-4sp.3.9`  |
+| Add sharded browser CI and finish orchestration guardrails and Beads remote synchronization                                                                              | `stark-4sp.3.10`, `stark-4sp.2.3`, `stark-4sp.2.4` |
+| Finish only uncovered legacy states, accept completed shards, review baseline completeness, and run the complete candidate suite                                         | `stark-4sp.5.1`–`stark-4sp.5.6`                    |
+| Resolve defects discovered by the remaining coverage and final suite                                                                                                     | `stark-4sp.6.1`                                    |
+| Finish the clean local-to-canonical package cycle and execute the guide on a fresh Stark 12 consumer                                                                     | `stark-4sp.9.8`, `stark-4sp.7.1`                   |
+| Re-evaluate the strict-peer workaround, perform manual accessibility assessment, and run the full integrated validation matrix                                           | `stark-4sp.7.3`–`stark-4sp.7.5`                    |
+| Integrate approved work as focused commits on `migration/angular-22/stable`, independently review each commit range, and publish                                         | `stark-4sp.8.1`–`stark-4sp.8.9`                    |
 
 The implemented browser foundation is awaiting its recorded prerequisite and
 acceptance gates. Those obligations remain open; they are not implementation backlog.
