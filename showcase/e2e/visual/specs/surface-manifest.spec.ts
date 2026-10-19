@@ -30,6 +30,7 @@ import {
 	type TableRowIndexStateScenario,
 	type TableStylingStateScenario,
 	type TableCustomCellStateScenario,
+	type TableEmptyStateScenario,
 	type TableFooterStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
@@ -197,7 +198,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(376);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(380);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -326,11 +327,12 @@ test("maps thirteen custom-styling journeys only to populated Table content", ()
 	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
 });
 
-test("maps thirteen custom-cell journeys only to populated Table content", () => {
+test("maps thirteen custom-cell journeys only to the dedicated custom-cells Table content state", () => {
 	const scenarios = executableScenariosForRunner("table-custom-cell-states");
 	expect(scenarios).toHaveLength(13);
-	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.populated"]);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.custom-cells"]);
 	expect(scenarios.every(({ ownerBead }) => ownerBead === "stark-4sp.4.9")).toBe(true);
+	expect(scenarios.map(({ snapshotName }) => snapshotName)).toEqual(scenarios.map(({ id }) => `${id}.png`));
 });
 
 test("maps thirteen footer journeys to the dedicated Table footer state", () => {
@@ -735,6 +737,222 @@ test("rejects assigning a custom-cell ID to another populated-table runner", () 
 		validateCustomCellChange(id, (scenario) => ({ ...scenario, runner: "table-regular-states" }) as unknown as ExecutableVisualScenario)
 	).toContain(`${id} does not use the audited regular Table fixture and interaction flow`);
 });
+
+test("rejects remapping custom-cell journeys back to populated Table content", () => {
+	const id = "table-custom-cell-initial";
+	const errors = validateCustomCellChange(
+		id,
+		(scenario) =>
+			({
+				...scenario,
+				sourceStateId: "table-component.content.populated",
+				state: "populated"
+			}) as unknown as ExecutableVisualScenario
+	);
+	expect(errors).toContain(`${id} must use an audited populated Table state runner`);
+	expect(errors).toContain(`${id} does not use the audited custom Table cell fixture and interaction flow`);
+});
+
+test("rejects claiming custom-cell or empty Table states from another runner", () => {
+	const id = "table-regular-initial";
+	for (const [state, message] of [
+		["custom-cells", `${id} must use the custom Table cell state runner`],
+		["empty", `${id} must use the empty Table state runner`]
+	] as const) {
+		const scenarios = executableVisualScenarios.map((scenario) =>
+			scenario.id === id
+				? ({ ...scenario, sourceStateId: `table-component.content.${state}`, state } as unknown as ExecutableVisualScenario)
+				: scenario
+		);
+		expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(message);
+	}
+});
+
+test("requires exactly one disposition for every Table content state", () => {
+	for (const state of ["populated", "footer", "custom-cells", "empty"] as const) {
+		const sourceStateId = `table-component.content.${state}`;
+		const errors = validate(
+			visualSurfaceManifest,
+			stateRequirements,
+			stateAxisReviews,
+			executableVisualScenarios.filter((scenario) => scenario.sourceStateId !== sourceStateId)
+		);
+		expect(errors).toContain(`${sourceStateId} must have exactly one executable or missing-fixture disposition`);
+		expect(errors.filter((error) => /^table-component\.content\..* disposition$/u.test(error))).toEqual([
+			`${sourceStateId} must have exactly one executable or missing-fixture disposition`
+		]);
+	}
+	const duplicated: MissingVisualFixtureState = {
+		sourceStateId: "table-component.content.empty",
+		ownerBead: "stark-4sp.4.9",
+		status: "missing-fixture",
+		rationale: "Duplicate disposition probe."
+	};
+	expect(
+		validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, executableVisualScenarios, [
+			...missingVisualFixtureStates,
+			duplicated
+		])
+	).toContain("table-component.content.empty is both executable and marked as a missing fixture");
+	expect(missingVisualFixtureStates.filter(({ sourceStateId }) => sourceStateId.startsWith("table-component."))).toEqual([]);
+});
+
+test("maps four native-filter journeys only to the empty Table content state", () => {
+	const scenarios = executableScenariosForRunner("table-empty-states");
+	expect(scenarios.map(({ id, payload }) => [id, payload.journey, payload.viewport])).toEqual([
+		["table-empty-column-filter", "column-filter", { width: 1280, height: 900 }],
+		["table-empty-global-filter", "global-filter", { width: 1280, height: 900 }],
+		["table-empty-tablet-column-filter", "column-filter", { width: 768, height: 900 }],
+		["table-empty-mobile-column-filter", "column-filter", { width: 390, height: 900 }]
+	]);
+	expect([...new Set(scenarios.map(({ sourceStateId }) => sourceStateId))]).toEqual(["table-component.content.empty"]);
+	expect(
+		scenarios.every(
+			({ ownerBead, routeId, capture, maskSelectors, threshold, maxDiffPixels, snapshotName, id, payload }) =>
+				ownerBead === "stark-4sp.4.9" &&
+				routeId === "table" &&
+				payload.fixtureSelector === "example-viewer#regular" &&
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#regular stark-table" &&
+				snapshotName === `${id}.png` &&
+				maskSelectors.length === 0 &&
+				threshold === 0 &&
+				maxDiffPixels === 0
+		)
+	).toBe(true);
+	expect(scenarios.map(({ payload }) => payload.filter)).toEqual([
+		{ kind: "column", column: "id", value: "999" },
+		{ kind: "global", value: "zzzz" },
+		{ kind: "column", column: "id", value: "999" },
+		{ kind: "column", column: "id", value: "999" }
+	]);
+	expect(scenarios[0].payload.contract).toEqual({
+		populated: {
+			rowIds: ["1", "10", "12", "2", "23", "222", "112", "232", "154", "27"],
+			counterText: "12 item(s)",
+			totalPages: 2
+		},
+		empty: { counterText: "0 item(s)", page: 1, totalPages: 1 }
+	});
+});
+
+test("leaves Table filter and multi-sort overlay states to their own coverage owner", () => {
+	expect(
+		executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId.startsWith("table-component.overlay.")).map(({ id }) => id)
+	).toEqual([]);
+	expect(executableScenariosForRunner("table-empty-states").every(({ axis, state }) => axis === "content" && state === "empty")).toBe(
+		true
+	);
+});
+
+function validateEmptyChange(id: string, change: (scenario: TableEmptyStateScenario) => ExecutableVisualScenario): string[] {
+	return validate(
+		visualSurfaceManifest,
+		stateRequirements,
+		stateAxisReviews,
+		executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-empty-states" && scenario.id === id ? change(scenario) : scenario
+		)
+	);
+}
+
+const invalidEmptyChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableEmptyStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "a filter value that matches rows",
+		id: "table-empty-column-filter",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, filter: { kind: "column", column: "id", value: "1" } }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "a filter on a column without a configured column filter",
+		id: "table-empty-column-filter",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, filter: { kind: "column", column: "description", value: "999" } }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "the global filter substituted for the column journey",
+		id: "table-empty-column-filter",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, filter: { kind: "global", value: "zzzz" } } })
+	},
+	{
+		name: "the column journey substituted for the global journey",
+		id: "table-empty-global-filter",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, journey: "column-filter" } })
+	},
+	{
+		name: "a populated counter in the empty contract",
+		id: "table-empty-column-filter",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: {
+					...scenario.payload,
+					contract: { ...scenario.payload.contract, empty: { ...scenario.payload.contract.empty, counterText: "12 item(s)" } }
+				}
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "a skipped populated precondition",
+		id: "table-empty-column-filter",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				contract: { ...scenario.payload.contract, populated: { ...scenario.payload.contract.populated, rowIds: [] } }
+			}
+		})
+	},
+	{
+		name: "an unaudited viewport",
+		id: "table-empty-mobile-column-filter",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 1200 } } })
+	},
+	{
+		name: "a crop excluding the header and pagination",
+		id: "table-empty-column-filter",
+		change: (scenario) => ({ ...scenario, capture: { scope: "component", selector: "example-viewer#regular stark-table tbody" } })
+	},
+	{
+		name: "another Table fixture",
+		id: "table-empty-column-filter",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, fixtureSelector: "example-viewer#footer" }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "a filter-overlay mapping",
+		id: "table-empty-column-filter",
+		change: (scenario) =>
+			({
+				...scenario,
+				sourceStateId: "table-component.overlay.filter-open",
+				axis: "overlay",
+				state: "filter-open"
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "weakened screenshot comparison",
+		id: "table-empty-column-filter",
+		change: (scenario) => ({ ...scenario, maxDiffPixels: 1 })
+	}
+];
+for (const { name, id, change } of invalidEmptyChanges) {
+	test(`rejects empty Table coverage with ${name}`, () => {
+		expect(validateEmptyChange(id, change)).toContain(`${id} does not use the audited empty Table fixture and interaction flow`);
+	});
+}
 
 test("pins custom Table class/data associations, local striping, CSS values, and hover targets", () => {
 	const scenarios = executableScenariosForRunner("table-styling-states");

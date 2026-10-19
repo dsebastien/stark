@@ -82,7 +82,8 @@ export const visualScenarioRunnerIds = [
 	"table-row-index-states",
 	"table-styling-states",
 	"table-custom-cell-states",
-	"table-footer-states"
+	"table-footer-states",
+	"table-empty-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -925,7 +926,7 @@ export type TableCustomCellStateScenario = ExecutableVisualScenarioCore<
 	readonly surfaceId: "table-component";
 	readonly routeId: "table";
 	readonly axis: "content";
-	readonly state: "populated";
+	readonly state: "custom-cells";
 	readonly ownerBead: "stark-4sp.4.9";
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
@@ -979,6 +980,31 @@ export type TableFooterStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableEmptyJourney = "column-filter" | "global-filter";
+type TableEmptyFilter = Readonly<{ kind: "column"; column: "id"; value: "999" }> | Readonly<{ kind: "global"; value: "zzzz" }>;
+type TableEmptyContract = {
+	readonly populated: Readonly<{ rowIds: readonly string[]; counterText: "12 item(s)"; totalPages: 2 }>;
+	readonly empty: Readonly<{ counterText: "0 item(s)"; page: 1; totalPages: 1 }>;
+};
+
+export type TableEmptyStateScenario = ExecutableVisualScenarioCore<
+	"table-empty-states",
+	{
+		readonly fixtureSelector: "example-viewer#regular";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly journey: TableEmptyJourney;
+		readonly filter: TableEmptyFilter;
+		readonly contract: TableEmptyContract;
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "content";
+	readonly state: "empty";
+	readonly ownerBead: "stark-4sp.4.9";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -1002,7 +1028,8 @@ export type ExecutableVisualScenario =
 	| TableRowIndexStateScenario
 	| TableStylingStateScenario
 	| TableCustomCellStateScenario
-	| TableFooterStateScenario;
+	| TableFooterStateScenario
+	| TableEmptyStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -4804,10 +4831,10 @@ const tableCustomCellScenarios: readonly TableCustomCellStateScenario[] = tableC
 		}
 		return {
 			id,
-			sourceStateId: "table-component.content.populated",
+			sourceStateId: "table-component.content.custom-cells",
 			surfaceId: "table-component",
 			axis: "content",
-			state: "populated",
+			state: "custom-cells",
 			ownerBead: "stark-4sp.4.9",
 			routeId: "table",
 			runner: "table-custom-cell-states",
@@ -4958,6 +4985,54 @@ const tableFooterScenarios: readonly TableFooterStateScenario[] = tableFooterSce
 		}
 	};
 });
+
+const tableEmptyFilters: Readonly<Record<TableEmptyJourney, TableEmptyFilter>> = {
+	"column-filter": { kind: "column", column: "id", value: "999" },
+	"global-filter": { kind: "global", value: "zzzz" }
+};
+const tableEmptyContract: TableEmptyContract = {
+	populated: { rowIds: tableRegularOrderedIds.initial.slice(0, 10), counterText: "12 item(s)", totalPages: 2 },
+	empty: { counterText: "0 item(s)", page: 1, totalPages: 1 }
+};
+
+type TableEmptyScenarioDefinition = Pick<TableEmptyStateScenario, "id"> & Pick<TableEmptyStateScenario["payload"], "journey" | "viewport">;
+const tableEmptyDesktopViewport = { width: 1280, height: 900 } as const;
+const tableEmptyScenarioDefinitions: readonly TableEmptyScenarioDefinition[] = [
+	{ id: "table-empty-column-filter", journey: "column-filter", viewport: tableEmptyDesktopViewport },
+	{ id: "table-empty-global-filter", journey: "global-filter", viewport: tableEmptyDesktopViewport },
+	{ id: "table-empty-tablet-column-filter", journey: "column-filter", viewport: { width: 768, height: 900 } },
+	{ id: "table-empty-mobile-column-filter", journey: "column-filter", viewport: { width: 390, height: 900 } }
+];
+/**
+ * A native filter that matches no row is the only deterministic empty Table path in the legacy
+ * Showcase. Filter menus are interaction means here: captures are taken after the menu closes, so
+ * the filter overlay surface stays owned by its own state requirement.
+ */
+const tableEmptyScenarios: readonly TableEmptyStateScenario[] = tableEmptyScenarioDefinitions.map(({ id, journey, viewport }) => ({
+	id,
+	sourceStateId: "table-component.content.empty",
+	surfaceId: "table-component",
+	axis: "content",
+	state: "empty",
+	ownerBead: "stark-4sp.4.9",
+	routeId: "table",
+	runner: "table-empty-states",
+	capture: { scope: "component", selector: tableRegularCaptureSelector },
+	snapshotName: `${id}.png`,
+	maskSelectors: [],
+	maxDiffPixels: 0,
+	threshold: 0,
+	payload: {
+		fixtureSelector: tableRegularFixtureSelector,
+		viewport: { ...viewport },
+		journey,
+		filter: { ...tableEmptyFilters[journey] },
+		contract: {
+			populated: { ...tableEmptyContract.populated, rowIds: [...tableEmptyContract.populated.rowIds] },
+			empty: { ...tableEmptyContract.empty }
+		}
+	}
+}));
 
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
@@ -6487,6 +6562,7 @@ export const executableVisualScenarios = [
 	...tableStylingScenarios,
 	...tableCustomCellScenarios,
 	...tableFooterScenarios,
+	...tableEmptyScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -6503,7 +6579,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 376,
+	executableScenarios: 380,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -6528,7 +6604,8 @@ export const reviewedCoverageBaseline = {
 		"table-row-index-states": 14,
 		"table-styling-states": 13,
 		"table-custom-cell-states": 13,
-		"table-footer-states": 13
+		"table-footer-states": 13,
+		"table-empty-states": 4
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -6742,12 +6819,12 @@ export function validateVisualCoverage(
 		}
 	}
 	for (const { id } of requirementStates.filter(
-		({ id, requirement }) =>
+		({ requirement }) =>
 			["stark-4sp.4.2", "stark-4sp.4.3", "stark-4sp.4.4", "stark-4sp.4.5"].includes(requirement.ownerBead) ||
 			(["route-search-component", "generic-search-component"].includes(requirement.surfaceId) &&
 				requirement.ownerBead === "stark-4sp.4.8") ||
 			(requirement.surfaceId === "table-component" && requirement.axis === "selection") ||
-			["table-component.content.populated", "table-component.content.footer"].includes(id)
+			(requirement.surfaceId === "table-component" && requirement.axis === "content")
 	)) {
 		const dispositions =
 			Number(executableScenarios.some(({ sourceStateId }) => sourceStateId === id)) +
@@ -6805,15 +6882,25 @@ export function validateVisualCoverage(
 			scenario.surfaceId === "table-component" &&
 			scenario.axis === "content" &&
 			scenario.state === "populated" &&
-			![
-				"table-regular-states",
-				"table-page-size-states",
-				"table-row-index-states",
-				"table-styling-states",
-				"table-custom-cell-states"
-			].includes(scenario.runner)
+			!["table-regular-states", "table-page-size-states", "table-row-index-states", "table-styling-states"].includes(scenario.runner)
 		) {
 			errors.push(`${scenario.id} must use an audited populated Table state runner`);
+		}
+		if (
+			scenario.surfaceId === "table-component" &&
+			scenario.axis === "content" &&
+			scenario.state === "custom-cells" &&
+			scenario.runner !== "table-custom-cell-states"
+		) {
+			errors.push(`${scenario.id} must use the custom Table cell state runner`);
+		}
+		if (
+			scenario.surfaceId === "table-component" &&
+			scenario.axis === "content" &&
+			scenario.state === "empty" &&
+			scenario.runner !== "table-empty-states"
+		) {
+			errors.push(`${scenario.id} must use the empty Table state runner`);
 		}
 		if (
 			scenario.surfaceId === "table-component" &&
@@ -7137,7 +7224,7 @@ export function validateVisualCoverage(
 				scenario.routeId !== "table" ||
 				scenario.ownerBead !== "stark-4sp.4.9" ||
 				scenario.axis !== "content" ||
-				scenario.state !== "populated" ||
+				scenario.state !== "custom-cells" ||
 				fixtureSelector !== tableCustomCellFixtureSelector ||
 				!matchesDefinition ||
 				expectedCheckpoints === undefined ||
@@ -7151,6 +7238,33 @@ export function validateVisualCoverage(
 				scenario.threshold !== 0
 			) {
 				errors.push(`${scenario.id} does not use the audited custom Table cell fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-empty-states") {
+			const { fixtureSelector, journey, viewport, filter, contract } = scenario.payload;
+			const definition = tableEmptyScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.9" ||
+				scenario.axis !== "content" ||
+				scenario.state !== "empty" ||
+				fixtureSelector !== tableRegularFixtureSelector ||
+				!matchesDefinition ||
+				JSON.stringify(filter) !== JSON.stringify(tableEmptyFilters[journey]) ||
+				JSON.stringify(contract) !== JSON.stringify(tableEmptyContract) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableRegularCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited empty Table fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-styling-states") {
 			const { fixtureSelector, journey, checkpoints, viewport, hoverRowIndex, styles } = scenario.payload;
