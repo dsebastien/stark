@@ -216,7 +216,7 @@ export const starkUiSurfaces = [
 Every executable bead must include:
 
 - target repository;
-- owning migration layer (dependencies, build, testing, a package module or component, showcase, starter, visual suite, or documentation), which determines the commit scope;
+- owning migration layer, recorded as `owning_layer` metadata with one of `dependencies`, `build`, `testing`, `visual-suite`, `stark-core`, `stark-rbac`, `stark-ui`, `showcase`, `starter`, or `documentation` (a review spanning several areas may combine them, for example `packages-showcase-starter`); it determines the commit scope;
 - required dependency mode (`local` for coordinated development or `canonical` for review/integration);
 - concrete scope and out-of-scope statement;
 - acceptance criteria;
