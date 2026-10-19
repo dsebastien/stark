@@ -2,84 +2,57 @@
 
 ## Purpose
 
-This file is the operational handoff for the Stark Angular 22 migration stack. Read it before changing migration history, moving branch pointers, or pushing rewritten commits.
+This file is the operational handoff for the Stark Angular 22 migration branch. Read it before changing migration history, moving branch pointers, or pushing commits.
 
-## Stable branch (current baseline)
+## Stable branch
 
-`migration/angular-22/stable` is the current stable point. It is a single linear branch on top of `master`, rebuilt from `work/angular-22/consolidated-20260916` as small, focused commits ordered by layer: dependencies, build tooling, testing, `stark-core`, `stark-rbac`, `stark-ui` (one commit per component), showcase, starter, visual regression suite, then documentation. Its tree is identical to the consolidated branch, so each commit can be reviewed and integrated step by step.
+`migration/angular-22/stable` is the single canonical migration branch and the normal working checkout. It is a linear series of small, focused commits on top of `master`, ordered so changes can be reviewed and incorporated step by step:
 
-Intermediate commits are ordered logically but are not each guaranteed to build; the final tip is the validated state. The five-layer stack below is the previous structure and is kept only as history. Safety backups: `backup/pre-consolidation-checkpoint-20260916` and the former `migration/angular-22/0*` branches.
+1. dependency baseline (root workspace, then each package, showcase, and starter);
+2. lint and shared TypeScript configuration;
+3. build tooling, local package scripts, dependency modes, and CI;
+4. Vitest test infrastructure replacing Karma, Jasmine, and Protractor;
+5. `stark-core`, one commit per module;
+6. `stark-rbac`;
+7. `stark-ui` theming and shared helpers, then one commit per component;
+8. showcase shell, guides, and one commit per demo page;
+9. starter;
+10. Playwright visual regression suite, grouped by surface family;
+11. migration documentation and agent guidance.
 
-## Previous layered stack (superseded)
-
-The migration was previously split into reviewable layers. Do not merge a higher layer into a lower layer.
-
-## Canonical stack
-
-Each branch is based directly on the branch above it and contains one migration commit relative to that parent.
-
-| Order | Branch                                  | Direct parent                          | Scope                                                                 |
-| ----- | --------------------------------------- | -------------------------------------- | --------------------------------------------------------------------- |
-| 1     | `migration/angular-22/01-dependencies`  | `master`                               | Dependency, engine, compiler, lint, and package baseline              |
-| 2     | `migration/angular-22/02-build`         | `migration/angular-22/01-dependencies` | Angular builders, index generation, metadata, and build configuration |
-| 3     | `migration/angular-22/03-testing`       | `migration/angular-22/02-build`        | Vitest and removal of Karma, Jasmine infrastructure, and Protractor   |
-| 4     | `migration/angular-22/04-ui`            | `migration/angular-22/03-testing`      | Runtime, Material, components, showcase, and starter                  |
-| 5     | `migration/angular-22/05-agent-context` | `migration/angular-22/04-ui`           | Agent guidance, migration documentation, and review planning          |
-
-`migration/angular-22/05-agent-context` is the highest branch and the normal working checkout after stack maintenance.
-
-The former `feature/angular-22-migration` branch is retired locally and on the fork. Do not recreate or use it as a review base.
+Intermediate commits are ordered by dependency but are not each guaranteed to build on their own; the branch tip is the validated state.
 
 ## Remote roles
 
-- `origin` is the `dsebastien/stark` fork and contains the five migration branches.
-- `upstream` is `NationalBankBelgium/stark`; do not push migration branches there directly.
-- Every local migration branch should track the branch with the same name on `origin`.
+- `origin` is the `dsebastien/stark` fork and hosts `migration/angular-22/stable`; the local branch tracks the branch with the same name on `origin`.
+- `upstream` is `NationalBankBelgium/stark`; its push URL stays `DISABLED`. Never push migration work there.
 
-## Review order
+## Adding work
 
-Review and integrate the branches from lowest to highest:
+1. Branch from the current `migration/angular-22/stable` tip in an isolated worktree.
+2. Keep each commit focused on one concern: one dependency set, one build concern, one package module or component, one showcase page, one visual-suite area, or one documentation topic. Use a conventional commit message scoped to that concern.
+3. Rebase accepted work onto the latest stable tip and fast-forward `migration/angular-22/stable`; never create merge commits.
+4. Run the integrity checks and the validation affected by the change, then push the fast-forward to `origin`.
 
-1. compare `01-dependencies` with `master`;
-2. compare `02-build` with `01-dependencies`;
-3. compare `03-testing` with `02-build`;
-4. compare `04-ui` with `03-testing`;
-5. compare `05-agent-context` with `04-ui`.
+## Rewriting history
 
-Never review a higher branch directly against `master`; that hides the responsibility of the intermediate layers.
-
-## Changing an existing layer
-
-Place a fix in the lowest layer that owns the concern. Dependency fixes belong in `01-dependencies`, build fixes in `02-build`, test-runner fixes in `03-testing`, runtime or visual fixes in `04-ui`, and agent/documentation-only fixes in `05-agent-context`.
-
-When a lower layer changes:
-
-1. create a local backup ref for the current highest tip;
-2. amend the owning layer's single commit;
-3. rebase every descendant branch in order onto its rewritten parent;
-4. verify that each branch still has the expected direct parent and scope;
-5. rerun validation affected by the rewritten layers;
-6. push rewritten branches with `--force-with-lease`, never plain `--force`;
-7. return the working copy to `migration/angular-22/05-agent-context`.
-
-Do not add cleanup for one layer to an unrelated higher commit merely to avoid restacking. Do not rewrite already reviewed layers without recording why in the owning Beads issue.
+Reordering, splitting, squashing, or amending existing stable commits is a history rewrite and requires explicit maintainer approval recorded in Beads. Before a rewrite, create a `backup/` ref for the current tip. After it, verify that the final tree matches the approved content, push with `--force-with-lease` (never plain `--force`), and verify the remote hash.
 
 ## Required integrity checks
 
-Run these checks after restacking:
-
 ```bash
 bash scripts/with-project-node.sh -- npm run deps:check
-git merge-base --is-ancestor master migration/angular-22/01-dependencies
-git merge-base --is-ancestor migration/angular-22/01-dependencies migration/angular-22/02-build
-git merge-base --is-ancestor migration/angular-22/02-build migration/angular-22/03-testing
-git merge-base --is-ancestor migration/angular-22/03-testing migration/angular-22/04-ui
-git merge-base --is-ancestor migration/angular-22/04-ui migration/angular-22/05-agent-context
-git diff --check master..migration/angular-22/05-agent-context
+git merge-base --is-ancestor master migration/angular-22/stable
+test "$(git rev-list --merges --count master..migration/angular-22/stable)" = 0
+git diff --check master..migration/angular-22/stable
 git status --short --branch
 ```
 
-Run the dependency preflight before rewriting the stack as well as after restacking. Also verify each remote branch hash after pushing and confirm the working tree is clean on the highest branch.
+Also verify the remote branch hash after pushing and confirm that the working tree is clean.
+
+## History
+
+The migration was previously a five-branch stack (`migration/angular-22/01-dependencies` through `migration/angular-22/05-agent-context`, one commit per layer) fed by `staging/angular-22/*` branches and many `work/*` and `review/*` branches. On 2026-10-16 all of them were consolidated into `work/angular-22/consolidated-20260916` and rebuilt as `migration/angular-22/stable` with an identical tree (Beads `stark-4sp.1.6`). The old branches remain only as history; do not add work to them. The safety backup of the pre-consolidation tip is `backup/pre-consolidation-checkpoint-20260916`. The former `feature/angular-22-migration` branch is retired; do not recreate it.
 
 ## Supporting documents
 

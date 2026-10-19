@@ -29,7 +29,7 @@
 - `showcase/`: demo app and living guide
 - `starter/`: starter/template app
 - `docs/`: package and workflow documentation
-- `MIGRATION_BRANCH_STRUCTURE.md`: authoritative migration branch ancestry and restacking rules
+- `MIGRATION_BRANCH_STRUCTURE.md`: authoritative migration branch (`migration/angular-22/stable`) structure and commit rules
 - `docs/MIGRATION_GUIDE_STARK_13.md`: authoritative downstream migration guide for the Angular 22 baseline
 
 ## Validation Flow

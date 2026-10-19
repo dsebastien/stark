@@ -10,13 +10,7 @@ Finish the Angular 22 migration without losing work to context limits and withou
 
 Beads is the durable source of truth for remaining work. A single orchestrator owns Beads state, dispatches small tasks to isolated Codex or explicitly configured worker agents, verifies their evidence, and coordinates review and integration.
 
-The current local five-branch migration stack is canonical:
-
-1. `migration/angular-22/01-dependencies`
-2. `migration/angular-22/02-build`
-3. `migration/angular-22/03-testing`
-4. `migration/angular-22/04-ui`
-5. `migration/angular-22/05-agent-context`
+The canonical migration branch is `migration/angular-22/stable`: a single linear series of small, focused commits on `master`, ordered from dependencies through build, testing, packages, showcase, starter, visual regression suite, and documentation. `MIGRATION_BRANCH_STRUCTURE.md` defines its structure and maintenance rules.
 
 The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral oracle. The migrated Showcase must preserve the visual system and behavior of all Stark UI surfaces and all Showcase/demo routes unless a difference is explicitly reviewed and approved.
 
@@ -25,7 +19,7 @@ The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral or
 - Use Codex agents when the session host provides them, with the same isolated-worktree and worker-report contract as other configured clients. Do not install a separate Beads Codex integration; the orchestrator writes Beads through the repository CLI.
 - The orchestrator is the only process allowed to claim, update, or close Beads issues.
 - Workers receive an immutable issue snapshot and return code, validation evidence, and discovered follow-up work.
-- Use Beads as the durable migration work tracker in `05-agent-context`.
+- Use Beads as the durable migration work tracker on `migration/angular-22/stable`.
 - Version immutable legacy golden screenshots in Git.
 - Keep videos, traces, HTML reports, console logs, network logs, and accessibility details as CI artifacts rather than Git-tracked files.
 - Run all repository commands through profile-independent Git Bash and the repository launcher, which activates fnm and verifies the target repository's `.nvmrc` before invoking Node or npm.
@@ -33,7 +27,7 @@ The Stark 12 showcase at `https://stark.nbb.be/` is the visual and behavioral or
 - During all current sibling-repository migration work, build and consume generated local `file:` tarballs for every cross-project relationship.
 - Canonical mode exists only to remove machine-specific references when preparing clean upstream pull requests; no package release work is in scope.
 - Never push to the `upstream` remote (`NationalBankBelgium/stark`). Synchronize migration branches only to the personal `origin` fork after explicit approval.
-- Preserve the documented one-commit-per-layer migration stack.
+- Keep `migration/angular-22/stable` linear, with one focused concern per commit and no merge commits.
 
 ## Work continuity
 
@@ -72,15 +66,12 @@ bd ready --type task --json
 
 `--skip-agents` prevents `bd init` from installing unrelated agent integrations. `bd setup copilot` is the only agent recipe installed.
 
-### Migration stack integrity
+### Migration branch integrity
 
 ```bash
-git merge-base --is-ancestor master migration/angular-22/01-dependencies
-git merge-base --is-ancestor migration/angular-22/01-dependencies migration/angular-22/02-build
-git merge-base --is-ancestor migration/angular-22/02-build migration/angular-22/03-testing
-git merge-base --is-ancestor migration/angular-22/03-testing migration/angular-22/04-ui
-git merge-base --is-ancestor migration/angular-22/04-ui migration/angular-22/05-agent-context
-git diff --check master..migration/angular-22/05-agent-context
+git merge-base --is-ancestor master migration/angular-22/stable
+test "$(git rev-list --merges --count master..migration/angular-22/stable)" = 0
+git diff --check master..migration/angular-22/stable
 git status --short --branch
 ```
 
@@ -211,7 +202,7 @@ export const starkUiSurfaces = [
 
 - One migration execution epic.
 - Child epics for:
-  - canonical stack reconciliation;
+  - canonical migration branch reconciliation;
   - Beads and Copilot orchestration;
   - browser regression infrastructure;
   - route and surface coverage;
@@ -225,7 +216,7 @@ export const starkUiSurfaces = [
 Every executable bead must include:
 
 - target repository;
-- owning migration layer;
+- owning migration layer (dependencies, build, testing, a package module or component, showcase, starter, visual suite, or documentation), which determines the commit scope;
 - required dependency mode (`local` for coordinated development or `canonical` for review/integration);
 - concrete scope and out-of-scope statement;
 - acceptance criteria;
@@ -242,7 +233,7 @@ Only the orchestrator may run Beads write commands. Worker agents may run `bd pr
 ## Copilot Agent Protocol
 
 1. The orchestrator selects a ready bead and verifies its dependencies.
-2. The orchestrator creates an isolated worktree and short-lived branch from the bead's owning staging layer.
+2. The orchestrator creates an isolated worktree and short-lived branch from the current `migration/angular-22/stable` tip.
 3. The orchestrator marks the bead in progress and passes the worker:
    - issue snapshot;
    - relevant specification section;
@@ -261,7 +252,7 @@ Only the orchestrator may run Beads write commands. Worker agents may run `bd pr
 7. The orchestrator independently verifies the final diff and validation evidence before accepting it.
 8. The orchestrator commits accepted work with the Beads ID in the commit message and updates Beads.
 
-Workers must not push, amend canonical migration commits, modify Beads state, or remove another worker's worktree.
+Workers must not push, amend commits on `migration/angular-22/stable`, modify Beads state, or remove another worker's worktree.
 
 Workers must execute project commands only through profile-independent Git Bash and the repository's fnm-selected Node. A worker that cannot prove its shell, Node, npm, repository, and dependency mode must stop before installing, building, testing, or editing lockfiles.
 
@@ -315,46 +306,32 @@ Every bead requires:
 
 Critical and required review findings block integration. Optional findings may be deferred only into a linked bead with explicit justification.
 
-### Staging branches
+### Commit placement
 
-Accepted atomic commits accumulate on layer-specific staging branches:
+Accepted work lands directly on `migration/angular-22/stable` as atomic commits. Each commit covers one concern and uses a conventional message scoped to it. Examples:
 
-```text
-staging/angular-22/01-dependencies
-staging/angular-22/02-build
-staging/angular-22/03-testing
-staging/angular-22/04-ui
-staging/angular-22/05-agent-context
-```
+- dependency additions: `build(deps)`;
+- build and packaging wiring: `build(...)`, `feat(build-main)`;
+- test runner and browser-test infrastructure: `test(...)`;
+- one package module or component: `fix(stark-ui)`, `refactor(stark-core)`;
+- Showcase fixtures, demo pages, and visual coverage: `test(showcase)`, `fix(showcase)`;
+- Beads, agent guidance, migration status, and review documentation: `docs(...)`.
 
-Worker branches target the lowest staging layer that owns the concern. Examples:
-
-- dependency additions: layer 01;
-- build and packaging wiring: layer 02;
-- test runner and browser-test infrastructure: layer 03;
-- Showcase fixtures and UI corrections: layer 04;
-- Beads, agent guidance, migration status, and review documentation: layer 05.
-
-Atomic staging commits remain individually reviewable and revertible. Canonical migration branches are not rewritten for every bead.
+Atomic commits remain individually reviewable and revertible. Existing stable commits are not rewritten for each bead.
 
 ### Integration checkpoints
 
 At a reviewed checkpoint:
 
-1. freeze new worker dispatch for affected layers;
-2. confirm every included bead is approved and closed or integration-ready;
-3. create backup refs for all affected canonical branch tips;
-4. review the complete staged delta per owning layer;
-5. fold approved staging commits into the owning layer's single canonical commit;
-6. restack every descendant canonical branch in order;
-7. run the affected focused gates and the complete stack integrity checks;
-8. run an independent final review of each layer against its direct parent;
-9. record hashes, evidence, decisions, and known debt in Beads; update `IMPROVEMENT_PLAN.md` when remaining scope changes;
-10. obtain explicit maintainer approval before any force-with-lease synchronization;
-11. synchronize rewritten branches from 01 through 05 to the personal `origin` fork only;
-12. verify remote hashes and return the primary worktree to `05-agent-context`.
+1. confirm every included bead is approved and closed or integration-ready;
+2. rebase the accepted commits onto the latest `migration/angular-22/stable` tip;
+3. run the affected focused gates and the migration branch integrity checks;
+4. fast-forward `migration/angular-22/stable` and push it to the personal `origin` fork only;
+5. verify the remote hash and record hashes, evidence, decisions, and known debt in Beads; update `IMPROVEMENT_PLAN.md` when remaining scope changes.
 
-Never merge a staging branch directly into a canonical migration branch because that would violate the one-commit-per-layer contract.
+A history rewrite of `migration/angular-22/stable` (reordering, splitting, squashing, or amending existing commits) additionally requires a `backup/` ref, verification that the final tree matches the approved content, explicit maintainer approval, and a `--force-with-lease` push.
+
+Never create merge commits on `migration/angular-22/stable`; it stays linear.
 
 ### Fork synchronization and upstream PR safety
 
@@ -452,7 +429,7 @@ On failure, CI retains:
 - Work in an isolated worktree.
 - Use profile-independent Git Bash and activate fnm from the target repository before every project command.
 - Verify the active Node/npm versions and dependency mode before installs, builds, tests, packaging, or lockfile changes.
-- Assign each change to the lowest owning migration layer.
+- Keep each commit scoped to one owning concern.
 - Use separate implementation and review agents.
 - Record validation evidence and review disposition in Beads.
 - Preserve public APIs and Stark's Material M2 visual intent.
@@ -465,20 +442,20 @@ On failure, CI retains:
 - Change the canonical sibling dependency map or package build order.
 - Update golden screenshots.
 - Approve an intentional visual or behavioral difference.
-- Rewrite canonical migration history.
+- Rewrite existing `migration/angular-22/stable` history.
 - Force-with-lease push to `origin`.
 - Remove dead or obsolete code discovered during a task.
 
 ### Never
 
 - Push to `upstream` or any repository under `NationalBankBelgium`.
-- Let workers mutate Beads, canonical branches, or another worker's worktree.
+- Let workers mutate Beads, `migration/angular-22/stable`, or another worker's worktree.
 - Run project Git, Node, npm, npx, build, test, or packaging commands directly from PowerShell or `cmd.exe`.
 - Use ambient Windows Node/npm executables or skip `fnm use` in a target repository.
 - Hand-edit manifests to switch dependency modes or commit machine-specific local tarball paths.
 - Allow worker agents to mutate Beads or push Git refs.
 - Use plain `--force`.
-- Merge staging branches into canonical migration branches.
+- Create merge commits on `migration/angular-22/stable`.
 - Edit generated build, coverage, report, or dependency output by hand.
 - Accept a visual difference by increasing global screenshot tolerance.
 - Update goldens in normal CI.
@@ -489,7 +466,7 @@ On failure, CI retains:
 - All known remaining migration work is represented as dependency-aware beads with owning layers and acceptance criteria.
 - Every agent command runs through verified Git Bash/fnm with the target repository's `.nvmrc`.
 - Local sibling tarball mode is deterministic and reversible, and canonical mode rejects accidental local references in upstream PR preparation.
-- The reviewed WIP stack is synchronized to the personal `origin` fork with verified hashes after explicit approval.
+- `migration/angular-22/stable` is synchronized to the personal `origin` fork with verified hashes.
 - Every one of the 48 known concrete routes is discovered and covered.
 - Every one of the 52 known visible/interactive Stark UI surfaces maps to at least one verified scenario.
 - All golden screenshots are captured from the legacy Showcase in the pinned environment and reviewed.
@@ -497,7 +474,7 @@ On failure, CI retains:
 - The migrated candidate has no unexplained behavioral, keyboard, focus, responsive, RBAC, console, network, or automated accessibility regressions.
 - Existing unit, lint, build, package, starter, Showcase, and downstream migration-guide gates pass.
 - Every integrated bead has independent review evidence.
-- Canonical migration branches retain one commit per layer and correct ancestry.
+- `migration/angular-22/stable` remains a linear series of focused commits on `master`.
 - Each upgraded fork is ready for a separately reviewed upstream pull request; no package release work is performed.
 - No push is made to `upstream` or a `NationalBankBelgium` repository.
 
