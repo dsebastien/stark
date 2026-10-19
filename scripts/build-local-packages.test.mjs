@@ -156,6 +156,21 @@ function currentRuntimeEvidence() {
 	return evidence;
 }
 
+// A partial .nvmrc resolves to the newest matching installed runtime, which may differ from the test process runtime.
+function launcherRuntimeEvidence(repositoryDirectory) {
+	const script =
+		"const e = process.env; process.stdout.write(JSON.stringify({ nodeVersion: e.STARK_PROJECT_NODE_VERSION, npmVersion: e.STARK_PROJECT_NPM_VERSION, nodeExecutable: e.STARK_PROJECT_NODE_EXECUTABLE, npmExecutable: e.STARK_PROJECT_NPM_EXECUTABLE }));";
+	const result = spawnSync(
+		"bash",
+		[path.join(projectRoot, "scripts", "with-project-node.sh"), "--repo", repositoryDirectory, "--", "node", "-e", script],
+		{ cwd: repositoryDirectory, encoding: "utf8" }
+	);
+	assert.equal(result.status, 0, `launcher runtime probe failed: ${result.stderr}`);
+	const evidence = JSON.parse(result.stdout);
+	for (const [field, value] of Object.entries(evidence)) assert.ok(value, `launcher runtime probe is missing ${field}`);
+	return evidence;
+}
+
 function lockEvidenceEntries(fixture, kind) {
 	return stateEntries(fixture, `locks/${kind}`)
 		.filter((name) => name.endsWith(".complete"))
@@ -576,11 +591,11 @@ test("publishes one immutable generation with checksums and exact returned path"
 test("records observed launcher runtime provenance instead of a partial .nvmrc expectation", () => {
 	const fixture = createFixture("runtime-provenance", { nvmrc: "22" });
 	const descriptor = runPipeline(fixture.plan);
-	const expected = currentRuntimeEvidence();
+	const expected = launcherRuntimeEvidence(fixture.repositoryDirectory);
 	const result = JSON.parse(fs.readFileSync(path.join(descriptor.generationPath, "result.json"), "utf8"));
 	const provenance = JSON.parse(fs.readFileSync(path.join(descriptor.generationPath, "provenance.json"), "utf8"));
 
-	assert.notEqual(expected.nodeVersion, "22");
+	assert.match(expected.nodeVersion, /^22\.\d+\.\d+$/);
 	assert.deepEqual(Object.fromEntries(Object.keys(expected).map((field) => [field, result.repositories[0][field]])), expected);
 	assert.deepEqual(provenance.repositories[0], result.repositories[0]);
 	assert.deepEqual(Object.fromEntries(Object.keys(expected).map((field) => [field, descriptor.repositories[0][field]])), expected);
