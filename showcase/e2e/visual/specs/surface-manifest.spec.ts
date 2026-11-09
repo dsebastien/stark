@@ -31,6 +31,7 @@ import {
 	type TableStylingStateScenario,
 	type TableCustomCellStateScenario,
 	type TableEmptyStateScenario,
+	type TableFilterOverlayStateScenario,
 	type TableFooterStateScenario,
 	type TableSelectionStateScenario,
 	type VisualScenarioRunnerId
@@ -198,7 +199,7 @@ test("matches the concrete decorated package sources", () => {
 
 test("reviews all nine axes for every surface and tracks only audited executable states", () => {
 	expect(sourceBackedStates).toHaveLength(reviewedCoverageBaseline.stateRequirements);
-	expect(reviewedCoverageBaseline.executableScenarios).toBe(380);
+	expect(reviewedCoverageBaseline.executableScenarios).toBe(390);
 	expect(missingVisualFixtureStates).toHaveLength(reviewedCoverageBaseline.missingVisualFixtures);
 	for (const surface of visualSurfaceManifest) {
 		const reviews = stateAxisReviews.filter(({ surfaceId }) => surfaceId === surface.id);
@@ -836,14 +837,311 @@ test("maps four native-filter journeys only to the empty Table content state", (
 	});
 });
 
-test("leaves Table filter and multi-sort overlay states to their own coverage owner", () => {
-	expect(
-		executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId.startsWith("table-component.overlay.")).map(({ id }) => id)
-	).toEqual([]);
+test("leaves the Table multi-sort overlay state to its own coverage owner", () => {
+	const overlayScenarios = executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId.startsWith("table-component.overlay."));
+	expect([...new Set(overlayScenarios.map(({ sourceStateId }) => sourceStateId))].sort()).toEqual([
+		"table-component.overlay.closed",
+		"table-component.overlay.filter-open"
+	]);
+	expect(overlayScenarios.every(({ runner }) => runner === "table-filter-overlay-states")).toBe(true);
+	expect(executableVisualScenarios.filter(({ sourceStateId }) => sourceStateId === "table-component.overlay.multisort-open")).toEqual([]);
+	expect(missingVisualFixtureStates.filter(({ sourceStateId }) => sourceStateId.startsWith("table-component.overlay."))).toEqual([]);
+	expect(validate().filter((error) => error.startsWith("table-component.overlay.multisort-open"))).toEqual([]);
 	expect(executableScenariosForRunner("table-empty-states").every(({ axis, state }) => axis === "content" && state === "empty")).toBe(
 		true
 	);
 });
+
+test("maps ten filter-menu journeys only to the Table closed and filter-open overlay states", () => {
+	const scenarios = executableScenariosForRunner("table-filter-overlay-states");
+	const desktop = { width: 1280, height: 900 };
+	const mobile = { width: 390, height: 900 };
+	expect(scenarios.map(({ id, sourceStateId, payload }) => [id, sourceStateId, payload.journey, payload.menu, payload.viewport])).toEqual(
+		[
+			["table-filter-overlay-column-open-empty", "table-component.overlay.filter-open", "column-empty", "open", desktop],
+			["table-filter-overlay-column-open-typed", "table-component.overlay.filter-open", "column-typed", "open", desktop],
+			["table-filter-overlay-global-open-empty", "table-component.overlay.filter-open", "global-empty", "open", desktop],
+			["table-filter-overlay-global-open-typed", "table-component.overlay.filter-open", "global-typed", "open", desktop],
+			["table-filter-overlay-mobile-column-open-typed", "table-component.overlay.filter-open", "column-typed", "open", mobile],
+			["table-filter-overlay-mobile-global-open-typed", "table-component.overlay.filter-open", "global-typed", "open", mobile],
+			["table-filter-overlay-column-closed-pristine", "table-component.overlay.closed", "column-empty", "dismissed", desktop],
+			["table-filter-overlay-column-closed-filtered", "table-component.overlay.closed", "column-typed", "dismissed", desktop],
+			["table-filter-overlay-global-closed-filtered", "table-component.overlay.closed", "global-typed", "dismissed", desktop],
+			["table-filter-overlay-mobile-column-closed-filtered", "table-component.overlay.closed", "column-typed", "dismissed", mobile]
+		]
+	);
+	expect(
+		scenarios.every(
+			({ ownerBead, routeId, surfaceId, axis, state, capture, maskSelectors, threshold, maxDiffPixels, snapshotName, id, payload }) =>
+				ownerBead === "stark-4sp.4.10" &&
+				routeId === "table" &&
+				surfaceId === "table-component" &&
+				axis === "overlay" &&
+				state === (payload.menu === "open" ? "filter-open" : "closed") &&
+				payload.fixtureSelector === "example-viewer#regular" &&
+				payload.tableTop === 180 &&
+				capture.scope === "component" &&
+				capture.selector === "example-viewer#regular stark-table" &&
+				snapshotName === `${id}.png` &&
+				maskSelectors.length === 0 &&
+				threshold === 0 &&
+				maxDiffPixels === 0 &&
+				reviewedVisualDiffBudgets[id] === undefined
+		)
+	).toBe(true);
+	expect(scenarios.map(({ payload }) => payload.region)).toEqual([
+		...Array.from({ length: 6 }, () => ({
+			kind: "component-and-pane",
+			paneSelector: ".cdk-overlay-container .mat-table-filter",
+			padding: 12
+		})),
+		...Array.from({ length: 4 }, () => ({ kind: "component" }))
+	]);
+	expect(scenarios.map(({ payload }) => payload.filter)).toEqual([
+		{ kind: "column", column: "id", value: "" },
+		{ kind: "column", column: "id", value: "1" },
+		{ kind: "global", value: "" },
+		{ kind: "global", value: "number" },
+		{ kind: "column", column: "id", value: "1" },
+		{ kind: "global", value: "number" },
+		{ kind: "column", column: "id", value: "" },
+		{ kind: "column", column: "id", value: "1" },
+		{ kind: "global", value: "number" },
+		{ kind: "column", column: "id", value: "1" }
+	]);
+	const populated = {
+		rowIds: ["1", "10", "12", "2", "23", "222", "112", "232", "154", "27"],
+		counterText: "12 item(s)",
+		totalPages: 2
+	};
+	const filteredByJourney = {
+		"column-empty": populated,
+		"column-typed": { rowIds: ["1", "10", "12", "112", "154"], counterText: "5 item(s)", totalPages: 1 },
+		"global-empty": populated,
+		"global-typed": { rowIds: ["1", "2", "232", "27"], counterText: "4 item(s)", totalPages: 1 }
+	} as const;
+	for (const { id, payload } of scenarios) {
+		expect(payload.contract, id).toEqual({ before: populated, after: filteredByJourney[payload.journey] });
+	}
+});
+
+test("requires exactly one disposition for the owned Table filter overlay states only", () => {
+	for (const state of ["closed", "filter-open"] as const) {
+		const sourceStateId = `table-component.overlay.${state}`;
+		const errors = validate(
+			visualSurfaceManifest,
+			stateRequirements,
+			stateAxisReviews,
+			executableVisualScenarios.filter((scenario) => scenario.sourceStateId !== sourceStateId)
+		);
+		expect(errors).toContain(`${sourceStateId} must have exactly one executable or missing-fixture disposition`);
+		expect(errors.filter((error) => /^table-component\.overlay\..* disposition$/u.test(error))).toEqual([
+			`${sourceStateId} must have exactly one executable or missing-fixture disposition`
+		]);
+		const duplicated: MissingVisualFixtureState = {
+			sourceStateId,
+			ownerBead: "stark-4sp.4.10",
+			status: "missing-fixture",
+			rationale: "Duplicate disposition probe."
+		};
+		expect(
+			validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, executableVisualScenarios, [
+				...missingVisualFixtureStates,
+				duplicated
+			])
+		).toContain(`${sourceStateId} is both executable and marked as a missing fixture`);
+	}
+	expect(validate()).not.toContain(
+		"table-component.overlay.multisort-open must have exactly one executable or missing-fixture disposition"
+	);
+});
+
+test("rejects claiming Table closed or filter-open overlay states from another runner", () => {
+	const id = "table-regular-initial";
+	for (const state of ["closed", "filter-open"] as const) {
+		const scenarios = executableVisualScenarios.map((scenario) =>
+			scenario.id === id
+				? ({
+						...scenario,
+						sourceStateId: `table-component.overlay.${state}`,
+						axis: "overlay",
+						state,
+						ownerBead: "stark-4sp.4.10"
+					} as unknown as ExecutableVisualScenario)
+				: scenario
+		);
+		expect(validate(visualSurfaceManifest, stateRequirements, stateAxisReviews, scenarios)).toContain(
+			`${id} must use the Table filter overlay state runner`
+		);
+	}
+});
+
+function validateFilterOverlayChange(
+	id: string,
+	change: (scenario: TableFilterOverlayStateScenario) => ExecutableVisualScenario
+): string[] {
+	return validate(
+		visualSurfaceManifest,
+		stateRequirements,
+		stateAxisReviews,
+		executableVisualScenarios.map((scenario) =>
+			scenario.runner === "table-filter-overlay-states" && scenario.id === id ? change(scenario) : scenario
+		)
+	);
+}
+
+const invalidFilterOverlayChanges: readonly {
+	name: string;
+	id: string;
+	change: (scenario: TableFilterOverlayStateScenario) => ExecutableVisualScenario;
+}[] = [
+	{
+		name: "a multi-sort overlay claim",
+		id: "table-filter-overlay-column-open-empty",
+		change: (scenario) =>
+			({
+				...scenario,
+				sourceStateId: "table-component.overlay.multisort-open",
+				state: "multisort-open"
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "an open menu mapped to the closed state",
+		id: "table-filter-overlay-column-open-typed",
+		change: (scenario) => ({ ...scenario, sourceStateId: "table-component.overlay.closed", state: "closed" })
+	},
+	{
+		name: "a dismissed menu mapped to the filter-open state",
+		id: "table-filter-overlay-column-closed-filtered",
+		change: (scenario) => ({ ...scenario, sourceStateId: "table-component.overlay.filter-open", state: "filter-open" })
+	},
+	{
+		name: "an open journey that dismisses the menu",
+		id: "table-filter-overlay-global-open-typed",
+		change: (scenario) => ({
+			...scenario,
+			sourceStateId: "table-component.overlay.closed",
+			state: "closed",
+			payload: { ...scenario.payload, menu: "dismissed", region: { kind: "component" } }
+		})
+	},
+	{
+		name: "an open-menu capture that excludes the filter pane",
+		id: "table-filter-overlay-column-open-empty",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, region: { kind: "component" } } })
+	},
+	{
+		name: "an unpadded filter pane that crops its elevation",
+		id: "table-filter-overlay-column-open-empty",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, region: { ...scenario.payload.region, padding: 0 } }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "a pane selector that is not the Table filter menu",
+		id: "table-filter-overlay-global-open-empty",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: {
+					...scenario.payload,
+					region: { ...scenario.payload.region, paneSelector: ".cdk-overlay-container .cdk-overlay-pane" }
+				}
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "a pane region on a dismissed menu",
+		id: "table-filter-overlay-column-closed-pristine",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				region: { kind: "component-and-pane", paneSelector: ".cdk-overlay-container .mat-table-filter", padding: 12 }
+			}
+		})
+	},
+	{
+		name: "an unaudited typed value",
+		id: "table-filter-overlay-column-open-typed",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, filter: { kind: "column", column: "id", value: "12" } }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "the global filter substituted for the column journey",
+		id: "table-filter-overlay-column-open-typed",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, filter: { kind: "global", value: "number" } } })
+	},
+	{
+		name: "the column journey substituted for the global journey",
+		id: "table-filter-overlay-global-open-typed",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, journey: "column-typed" } })
+	},
+	{
+		name: "a typed filter whose rows are not filtered",
+		id: "table-filter-overlay-column-closed-filtered",
+		change: (scenario) => ({
+			...scenario,
+			payload: { ...scenario.payload, contract: { ...scenario.payload.contract, after: scenario.payload.contract.before } }
+		})
+	},
+	{
+		name: "a skipped populated precondition",
+		id: "table-filter-overlay-global-open-typed",
+		change: (scenario) => ({
+			...scenario,
+			payload: {
+				...scenario.payload,
+				contract: { ...scenario.payload.contract, before: { ...scenario.payload.contract.before, rowIds: [] } }
+			}
+		})
+	},
+	{
+		name: "an unaudited viewport",
+		id: "table-filter-overlay-mobile-column-open-typed",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, viewport: { width: 390, height: 1200 } } })
+	},
+	{
+		name: "an unpinned Table position",
+		id: "table-filter-overlay-column-open-empty",
+		change: (scenario) => ({ ...scenario, payload: { ...scenario.payload, tableTop: 128 } }) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "a crop excluding the header and pagination",
+		id: "table-filter-overlay-global-closed-filtered",
+		change: (scenario) => ({ ...scenario, capture: { scope: "component", selector: "example-viewer#regular stark-table tbody" } })
+	},
+	{
+		name: "another Table fixture",
+		id: "table-filter-overlay-column-open-empty",
+		change: (scenario) =>
+			({
+				...scenario,
+				payload: { ...scenario.payload, fixtureSelector: "example-viewer#footer" }
+			}) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "another coverage owner",
+		id: "table-filter-overlay-column-open-empty",
+		change: (scenario) => ({ ...scenario, ownerBead: "stark-4sp.4.9" }) as unknown as ExecutableVisualScenario
+	},
+	{
+		name: "weakened screenshot comparison",
+		id: "table-filter-overlay-column-open-typed",
+		change: (scenario) => ({ ...scenario, maxDiffPixels: 1 })
+	}
+];
+for (const { name, id, change } of invalidFilterOverlayChanges) {
+	test(`rejects Table filter overlay coverage with ${name}`, () => {
+		expect(validateFilterOverlayChange(id, change)).toContain(
+			`${id} does not use the audited Table filter overlay fixture and interaction flow`
+		);
+	});
+}
 
 function validateEmptyChange(id: string, change: (scenario: TableEmptyStateScenario) => ExecutableVisualScenario): string[] {
 	return validate(

@@ -83,7 +83,8 @@ export const visualScenarioRunnerIds = [
 	"table-styling-states",
 	"table-custom-cell-states",
 	"table-footer-states",
-	"table-empty-states"
+	"table-empty-states",
+	"table-filter-overlay-states"
 ] as const;
 export type VisualScenarioRunnerId = (typeof visualScenarioRunnerIds)[number];
 
@@ -1005,6 +1006,38 @@ export type TableEmptyStateScenario = ExecutableVisualScenarioCore<
 	readonly capture: Readonly<{ scope: "component"; selector: string }>;
 };
 
+type TableFilterOverlayJourney = "column-empty" | "column-typed" | "global-empty" | "global-typed";
+type TableFilterOverlayMenu = "open" | "dismissed";
+type TableFilterOverlayFilter =
+	| Readonly<{ kind: "column"; column: "id"; value: "" | "1" }>
+	| Readonly<{ kind: "global"; value: "" | "number" }>;
+type TableFilterOverlayRows = Readonly<{ rowIds: readonly string[]; counterText: string; totalPages: 1 | 2 }>;
+type TableFilterOverlayContract = Readonly<{ before: TableFilterOverlayRows; after: TableFilterOverlayRows }>;
+type TableFilterOverlayRegion =
+	| Readonly<{ kind: "component" }>
+	| Readonly<{ kind: "component-and-pane"; paneSelector: ".cdk-overlay-container .mat-table-filter"; padding: 12 }>;
+
+export type TableFilterOverlayStateScenario = ExecutableVisualScenarioCore<
+	"table-filter-overlay-states",
+	{
+		readonly fixtureSelector: "example-viewer#regular";
+		readonly viewport: Readonly<{ width: number; height: number }>;
+		readonly tableTop: 180;
+		readonly journey: TableFilterOverlayJourney;
+		readonly menu: TableFilterOverlayMenu;
+		readonly filter: TableFilterOverlayFilter;
+		readonly contract: TableFilterOverlayContract;
+		readonly region: TableFilterOverlayRegion;
+	}
+> & {
+	readonly surfaceId: "table-component";
+	readonly routeId: "table";
+	readonly axis: "overlay";
+	readonly state: "closed" | "filter-open";
+	readonly ownerBead: "stark-4sp.4.10";
+	readonly capture: Readonly<{ scope: "component"; selector: string }>;
+};
+
 export type ExecutableVisualScenario =
 	| ActionBarDisclosureScenario
 	| ActionBarStateScenario
@@ -1029,7 +1062,8 @@ export type ExecutableVisualScenario =
 	| TableStylingStateScenario
 	| TableCustomCellStateScenario
 	| TableFooterStateScenario
-	| TableEmptyStateScenario;
+	| TableEmptyStateScenario
+	| TableFilterOverlayStateScenario;
 
 const byId = new Map<string, VisualSurface>(visualSurfaceManifest.map((surface) => [surface.id, surface]));
 const ev = (path: SourceEvidence["path"], needle: string): SourceEvidence => ({ path, needle });
@@ -5034,6 +5068,112 @@ const tableEmptyScenarios: readonly TableEmptyStateScenario[] = tableEmptyScenar
 	}
 }));
 
+const tableFilterOverlayFilters: Readonly<Record<TableFilterOverlayJourney, TableFilterOverlayFilter>> = {
+	"column-empty": { kind: "column", column: "id", value: "" },
+	"column-typed": { kind: "column", column: "id", value: "1" },
+	"global-empty": { kind: "global", value: "" },
+	"global-typed": { kind: "global", value: "number" }
+};
+const tableFilterOverlayPopulatedRows: TableFilterOverlayRows = {
+	rowIds: tableRegularOrderedIds.initial.slice(0, 10),
+	counterText: "12 item(s)",
+	totalPages: 2
+};
+const tableFilterOverlayFilteredRows: Readonly<Record<TableFilterOverlayJourney, TableFilterOverlayRows>> = {
+	"column-empty": tableFilterOverlayPopulatedRows,
+	"column-typed": { rowIds: ["1", "10", "12", "112", "154"], counterText: "5 item(s)", totalPages: 1 },
+	"global-empty": tableFilterOverlayPopulatedRows,
+	"global-typed": { rowIds: ["1", "2", "232", "27"], counterText: "4 item(s)", totalPages: 1 }
+};
+const tableFilterOverlayPaneRegion = {
+	kind: "component-and-pane",
+	paneSelector: ".cdk-overlay-container .mat-table-filter",
+	padding: 12
+} as const satisfies TableFilterOverlayRegion;
+
+type TableFilterOverlayScenarioDefinition = Pick<TableFilterOverlayStateScenario, "id"> &
+	Pick<TableFilterOverlayStateScenario["payload"], "journey" | "menu" | "viewport">;
+const tableFilterOverlayDesktopViewport = { width: 1280, height: 900 } as const;
+const tableFilterOverlayMobileViewport = { width: 390, height: 900 } as const;
+const tableFilterOverlayScenarioDefinitions: readonly TableFilterOverlayScenarioDefinition[] = [
+	{ id: "table-filter-overlay-column-open-empty", journey: "column-empty", menu: "open", viewport: tableFilterOverlayDesktopViewport },
+	{ id: "table-filter-overlay-column-open-typed", journey: "column-typed", menu: "open", viewport: tableFilterOverlayDesktopViewport },
+	{ id: "table-filter-overlay-global-open-empty", journey: "global-empty", menu: "open", viewport: tableFilterOverlayDesktopViewport },
+	{ id: "table-filter-overlay-global-open-typed", journey: "global-typed", menu: "open", viewport: tableFilterOverlayDesktopViewport },
+	{
+		id: "table-filter-overlay-mobile-column-open-typed",
+		journey: "column-typed",
+		menu: "open",
+		viewport: tableFilterOverlayMobileViewport
+	},
+	{
+		id: "table-filter-overlay-mobile-global-open-typed",
+		journey: "global-typed",
+		menu: "open",
+		viewport: tableFilterOverlayMobileViewport
+	},
+	{
+		id: "table-filter-overlay-column-closed-pristine",
+		journey: "column-empty",
+		menu: "dismissed",
+		viewport: tableFilterOverlayDesktopViewport
+	},
+	{
+		id: "table-filter-overlay-column-closed-filtered",
+		journey: "column-typed",
+		menu: "dismissed",
+		viewport: tableFilterOverlayDesktopViewport
+	},
+	{
+		id: "table-filter-overlay-global-closed-filtered",
+		journey: "global-typed",
+		menu: "dismissed",
+		viewport: tableFilterOverlayDesktopViewport
+	},
+	{
+		id: "table-filter-overlay-mobile-column-closed-filtered",
+		journey: "column-typed",
+		menu: "dismissed",
+		viewport: tableFilterOverlayMobileViewport
+	}
+];
+/**
+ * The legacy Table filter menus are mat-menu overlays rendered in the CDK overlay container, outside
+ * the component. Open-menu captures therefore clip the page to the integer union of the Table and the
+ * padded filter pane (including its elevation), following the date-control overlay capture model.
+ * Dismissed menus capture the Table component itself. The multi-sort dialog is not claimed here.
+ */
+const tableFilterOverlayScenarios: readonly TableFilterOverlayStateScenario[] = tableFilterOverlayScenarioDefinitions.map(
+	({ id, journey, menu, viewport }) => ({
+		id,
+		sourceStateId: menu === "open" ? "table-component.overlay.filter-open" : "table-component.overlay.closed",
+		surfaceId: "table-component",
+		axis: "overlay",
+		state: menu === "open" ? "filter-open" : "closed",
+		ownerBead: "stark-4sp.4.10",
+		routeId: "table",
+		runner: "table-filter-overlay-states",
+		capture: { scope: "component", selector: tableRegularCaptureSelector },
+		snapshotName: `${id}.png`,
+		maskSelectors: [],
+		maxDiffPixels: 0,
+		threshold: 0,
+		payload: {
+			fixtureSelector: tableRegularFixtureSelector,
+			viewport: { ...viewport },
+			tableTop: 180,
+			journey,
+			menu,
+			filter: { ...tableFilterOverlayFilters[journey] },
+			contract: {
+				before: { ...tableFilterOverlayPopulatedRows, rowIds: [...tableFilterOverlayPopulatedRows.rowIds] },
+				after: { ...tableFilterOverlayFilteredRows[journey], rowIds: [...tableFilterOverlayFilteredRows[journey].rowIds] }
+			},
+			region: menu === "open" ? { ...tableFilterOverlayPaneRegion } : { kind: "component" }
+		}
+	})
+);
+
 export const tableSelectionPageIds = {
 	1: ["1", "10", "12", "2", "23"],
 	2: ["222", "112", "232", "154", "27"],
@@ -6563,6 +6703,7 @@ export const executableVisualScenarios = [
 	...tableCustomCellScenarios,
 	...tableFooterScenarios,
 	...tableEmptyScenarios,
+	...tableFilterOverlayScenarios,
 	...routeSearchScenarios
 ] as const satisfies readonly ExecutableVisualScenario[];
 
@@ -6579,7 +6720,7 @@ export function executableScenariosForRunner<RunnerId extends VisualScenarioRunn
 export const reviewedCoverageBaseline = {
 	requirementGroups: 176,
 	stateRequirements: 395,
-	executableScenarios: 380,
+	executableScenarios: 390,
 	missingVisualFixtures: 22,
 	executableScenariosByRunner: {
 		"action-bar-disclosure": 5,
@@ -6605,7 +6746,8 @@ export const reviewedCoverageBaseline = {
 		"table-styling-states": 13,
 		"table-custom-cell-states": 13,
 		"table-footer-states": 13,
-		"table-empty-states": 4
+		"table-empty-states": 4,
+		"table-filter-overlay-states": 10
 	} as const satisfies Readonly<Record<VisualScenarioRunnerId, number>>,
 	requirementContractSha256: "f242d1982a251bec7a8d459ab298b94b1c601a8b796604d1599c027e2ceaacd1",
 	mountedSurfaceRoutes: {
@@ -6819,12 +6961,13 @@ export function validateVisualCoverage(
 		}
 	}
 	for (const { id } of requirementStates.filter(
-		({ requirement }) =>
+		({ id, requirement }) =>
 			["stark-4sp.4.2", "stark-4sp.4.3", "stark-4sp.4.4", "stark-4sp.4.5"].includes(requirement.ownerBead) ||
 			(["route-search-component", "generic-search-component"].includes(requirement.surfaceId) &&
 				requirement.ownerBead === "stark-4sp.4.8") ||
 			(requirement.surfaceId === "table-component" && requirement.axis === "selection") ||
-			(requirement.surfaceId === "table-component" && requirement.axis === "content")
+			(requirement.surfaceId === "table-component" && requirement.axis === "content") ||
+			["table-component.overlay.closed", "table-component.overlay.filter-open"].includes(id)
 	)) {
 		const dispositions =
 			Number(executableScenarios.some(({ sourceStateId }) => sourceStateId === id)) +
@@ -6901,6 +7044,14 @@ export function validateVisualCoverage(
 			scenario.runner !== "table-empty-states"
 		) {
 			errors.push(`${scenario.id} must use the empty Table state runner`);
+		}
+		if (
+			scenario.surfaceId === "table-component" &&
+			scenario.axis === "overlay" &&
+			["closed", "filter-open"].includes(scenario.state) &&
+			scenario.runner !== "table-filter-overlay-states"
+		) {
+			errors.push(`${scenario.id} must use the Table filter overlay state runner`);
 		}
 		if (
 			scenario.surfaceId === "table-component" &&
@@ -7265,6 +7416,43 @@ export function validateVisualCoverage(
 				scenario.threshold !== 0
 			) {
 				errors.push(`${scenario.id} does not use the audited empty Table fixture and interaction flow`);
+			}
+		} else if (scenario.runner === "table-filter-overlay-states") {
+			const { fixtureSelector, viewport, tableTop, journey, menu, filter, contract, region } = scenario.payload;
+			const definition = tableFilterOverlayScenarioDefinitions.find(({ id }) => id === scenario.id);
+			const matchesDefinition =
+				definition !== undefined &&
+				journey === definition.journey &&
+				menu === definition.menu &&
+				viewport.width === definition.viewport.width &&
+				viewport.height === definition.viewport.height;
+			const expectedState = menu === "open" ? "filter-open" : "closed";
+			const expectedContract = {
+				before: tableFilterOverlayPopulatedRows,
+				after: tableFilterOverlayFilteredRows[journey]
+			};
+			const expectedRegion = menu === "open" ? tableFilterOverlayPaneRegion : { kind: "component" };
+			if (
+				scenario.surfaceId !== "table-component" ||
+				scenario.routeId !== "table" ||
+				scenario.ownerBead !== "stark-4sp.4.10" ||
+				scenario.axis !== "overlay" ||
+				scenario.state !== expectedState ||
+				scenario.sourceStateId !== `table-component.overlay.${expectedState}` ||
+				fixtureSelector !== tableRegularFixtureSelector ||
+				tableTop !== 180 ||
+				!matchesDefinition ||
+				JSON.stringify(filter) !== JSON.stringify(tableFilterOverlayFilters[journey]) ||
+				JSON.stringify(contract) !== JSON.stringify(expectedContract) ||
+				JSON.stringify(region) !== JSON.stringify(expectedRegion) ||
+				scenario.capture.scope !== "component" ||
+				scenario.capture.selector !== tableRegularCaptureSelector ||
+				scenario.snapshotName !== `${scenario.id}.png` ||
+				scenario.maskSelectors.length !== 0 ||
+				scenario.maxDiffPixels !== 0 ||
+				scenario.threshold !== 0
+			) {
+				errors.push(`${scenario.id} does not use the audited Table filter overlay fixture and interaction flow`);
 			}
 		} else if (scenario.runner === "table-styling-states") {
 			const { fixtureSelector, journey, checkpoints, viewport, hoverRowIndex, styles } = scenario.payload;
