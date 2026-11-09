@@ -5,6 +5,74 @@
 @use "@angular/material" as mat;
 
 @mixin stark-table() {
+  // Table filter menus render in the CDK overlay container, outside `.stark-table`.
+  // Restore the legacy floating-label filter field geometry inside those menus only.
+  .mat-table-filter.mat-mdc-menu-panel {
+    // The legacy panel was no will-change layer; the hint changes how the floating label rasterizes.
+    will-change: auto;
+
+    .mat-mdc-menu-content {
+      padding: 8px;
+
+      > div {
+        display: flex;
+        align-items: flex-start;
+        height: 65px;
+      }
+    }
+
+    .mat-mdc-form-field {
+      --mat-form-field-container-height: 46px;
+      --stark-form-field-subscript-height: 19px;
+      --mat-form-field-container-text-size: 16px;
+      --mat-form-field-container-text-line-height: 18px;
+      --mat-form-field-filled-label-text-size: 16px;
+
+      width: 180px;
+      -webkit-font-smoothing: auto;
+
+      .mat-mdc-text-field-wrapper {
+        overflow: visible;
+      }
+
+      .mat-mdc-form-field-infix {
+        min-height: 46px;
+        padding: 20px 0 8px;
+      }
+
+      .mat-mdc-input-element {
+        height: 18px;
+      }
+
+      .mat-mdc-floating-label.mdc-floating-label {
+        top: 20px;
+        left: 0;
+        margin-top: 0;
+        line-height: 18px;
+        transform-origin: 0 0;
+        transform: perspective(100px);
+        will-change: auto;
+        // As in the legacy label wrapper, clicks pass through to the input underneath.
+        pointer-events: none;
+      }
+
+      .mat-mdc-floating-label.mdc-floating-label--float-above {
+        // Match the legacy appearance's floating-label transform, including its text-sharpening hack.
+        transform: translateY(-1.28125em) scale(0.75) perspective(100px) translateZ(0.00106px);
+        width: 133.3333333333%;
+        max-width: 133.3333333333%;
+      }
+    }
+
+    .mat-mdc-icon-button {
+      margin-top: 10px;
+
+      .mat-icon {
+        top: 0.25px;
+      }
+    }
+  }
+
   .stark-table {
     @include mat.table-overrides(
       (
@@ -272,10 +340,6 @@
         background: inherit;
       }
     }
-  }
-
-  .mat-table-filter .mat-mdc-menu-content {
-    padding: 8px;
   }
 }
 

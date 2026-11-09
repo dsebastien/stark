@@ -36,6 +36,23 @@
       }
     }
   }
+
+  // Legacy filter menus used the elevation-4 menu shadow, base-foreground field text and the
+  // secondary-text resting label.
+  .mat-table-filter.mat-mdc-menu-panel {
+    @include mat.elevation(4);
+
+    .mat-mdc-form-field {
+      @include mat.form-field-overrides(
+        (
+          filled-input-text-color: mat.get-theme-color($material-theme-config, foreground, base),
+          filled-label-text-color: mat.get-theme-color($material-theme-config, foreground, secondary-text),
+          filled-hover-label-text-color: mat.get-theme-color($material-theme-config, foreground, secondary-text),
+          filled-focus-label-text-color: mat.get-theme-color($material-theme-config, primary)
+        )
+      );
+    }
+  }
 }
 
 /* END stark-ui: src/modules/app-menu/components/_table-theme.scss */
