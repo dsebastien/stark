@@ -526,7 +526,7 @@ Use `.mat-body-1`, `.mat-body-2`, and `.mat-caption` for body and caption text.
 
 Material's MDC form-field spacing differs from the legacy implementation. Keep Material's fixed subscript sizing as the application default so fields retain the space expected by existing Stark layouts. Use `subscriptSizing="dynamic"` only on an individual field whose surrounding layout explicitly supports a changing height.
 
-Stark's date, date-range, date-time, and compact table-dialog styles apply narrowly scoped MDC sizing tokens to preserve their legacy geometry. Avoid a global `MAT_FORM_FIELD_DEFAULT_OPTIONS` override: it changes every field's height and can reintroduce label/value overlap or clipped dialog content.
+Stark's date, date-range, date-time, compact table-dialog, and table filter-menu styles apply narrowly scoped MDC sizing tokens to preserve their legacy geometry. The table column and global filter fields now use a floating `mat-label` instead of an input placeholder; update application tests that located those inputs by placeholder text. Avoid a global `MAT_FORM_FIELD_DEFAULT_OPTIONS` override: it changes every field's height and can reintroduce label/value overlap or clipped dialog content.
 
 ### Preserve overlay dismissal behavior
 
